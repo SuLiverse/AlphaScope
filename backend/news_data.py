@@ -28,13 +28,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-
-def _safe(fn, *args, **kwargs):
-    """统一的接口容错包装"""
-    try:
-        return fn(*args, **kwargs)
-    except Exception:
-        return None
+from backend.utils import safe_call as _safe
 
 
 def fetch_telegraph_cls(limit: int = 30) -> List[Dict[str, Any]]:
@@ -1644,7 +1638,7 @@ def build_research_brief_for_llm(reports: List[Dict], max_items: int = 8) -> str
 def _get_registry():
     """延迟导入 Provider Registry"""
     try:
-        from providers.registry import get_registry
+        from backend.providers.registry import get_registry
 
         return get_registry()
     except Exception as e:
@@ -1665,7 +1659,7 @@ def fetch_news_via_provider(
     """
     # v0.12: 优先使用 Pipeline
     try:
-        from pipeline import get_pipeline
+        from backend.pipeline import get_pipeline
 
         results = get_pipeline().ingest_news(market=market, symbol=symbol, limit=limit)
         if results:
@@ -1699,7 +1693,7 @@ def fetch_reports_via_provider(
 ) -> List[Dict[str, Any]]:
     """通过 Provider Registry 获取研报 (v0.11, v0.12 增强)"""
     try:
-        from pipeline import get_pipeline
+        from backend.pipeline import get_pipeline
 
         results = get_pipeline().ingest_reports(symbol=symbol, limit=limit)
         if results:
@@ -1729,7 +1723,7 @@ def fetch_announcements_via_provider(
 ) -> List[Dict[str, Any]]:
     """通过 Provider Registry 获取公告 (v0.11, v0.12 增强)"""
     try:
-        from pipeline import get_pipeline
+        from backend.pipeline import get_pipeline
 
         results = get_pipeline().ingest_announcements(
             symbol=symbol,
@@ -1761,7 +1755,7 @@ def fetch_announcements_via_provider(
 def get_provider_health_summary() -> str:
     """获取所有数据源的健康状态摘要 (v0.11)"""
     try:
-        from observability.source_health import SourceHealthMonitor
+        from backend.observability.source_health import SourceHealthMonitor
 
         monitor = SourceHealthMonitor()
         return monitor.get_source_summary()

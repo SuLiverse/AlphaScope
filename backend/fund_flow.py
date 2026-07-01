@@ -61,15 +61,10 @@ def infer_market(symbol: str) -> str:
     return "sh"
 
 
-def _safe(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs)
-    except Exception:
-        return None
-
-
 def _cache_key(value: str) -> str:
     return re.sub(r"[^0-9A-Za-z_.-]+", "_", str(value or "").strip()) or "unknown"
+
+from backend.utils import safe_call as _safe
 
 
 def _cache_path(kind: str, key: str):
@@ -158,14 +153,14 @@ def _read_flow_cache(
 
 
 def _eastmoney_get(url: str, params: dict[str, str]):
-    session = requests.Session()
-    session.trust_env = False
-    return session.get(
-        url,
-        params=params,
-        headers=EASTMONEY_HEADERS,
-        timeout=EASTMONEY_FUND_FLOW_TIMEOUT,
-    )
+    with requests.Session() as session:
+        session.trust_env = False
+        return session.get(
+            url,
+            params=params,
+            headers=EASTMONEY_HEADERS,
+            timeout=EASTMONEY_FUND_FLOW_TIMEOUT,
+        )
 
 
 def _fetch_individual_fund_flow_eastmoney(symbol: str) -> Optional[pd.DataFrame]:

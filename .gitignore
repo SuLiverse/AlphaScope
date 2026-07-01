@@ -72,6 +72,9 @@ feedback/
 # Notebooks checkpoints
 .ipynb_checkpoints/
 
+# Stray test artifacts
+analysis_out.json
+
 # filter-branch/filter-repo 临时产物
 .git-rewrite/
 refs/original/

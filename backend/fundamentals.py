@@ -99,12 +99,7 @@ class FundamentalsData:
 
 
 # ============== 工具函数 ==============
-def _safe(fn, *args, **kwargs):
-    """统一容错包装，复用 news_data._safe 的语义"""
-    try:
-        return fn(*args, **kwargs)
-    except Exception:
-        return None
+from backend.utils import safe_call as _safe
 
 
 def _to_float(v, default: float = 0.0) -> float:

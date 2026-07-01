@@ -33,7 +33,7 @@ from backend.agents.base import (
 )
 
 try:
-    from validators import validate_agent_output as _validate_agent_output
+    from backend.validators import validate_agent_output as _validate_agent_output
 except Exception:
 
     def _validate_agent_output(data):

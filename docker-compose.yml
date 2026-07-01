@@ -1,5 +1,5 @@
 # 研策中枢 AlphaScope Docker Compose (v0.40.7)
-# Services: Streamlit Dashboard + FastAPI API + Vite Frontend + Redis cache
+# Services: Streamlit Dashboard + FastAPI API + Vite Frontend
 #
 # Usage:
 #   docker-compose up -d              # Start all services
@@ -7,8 +7,6 @@
 #   docker-compose up -d api          # FastAPI only (port 8000)
 #   docker-compose up -d web          # Vite frontend only (port 3000)
 #   docker-compose up -d app api web  # All frontends
-
-version: "3.8"
 
 services:
   # Streamlit Dashboard (legacy UI, port 8501)
@@ -25,11 +23,6 @@ services:
       - ./config:/app/config:ro
     environment:
       - PYTHONPATH=/app
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
@@ -63,11 +56,6 @@ services:
       - ./config:/app/config:ro
     environment:
       - PYTHONPATH=/app
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-    depends_on:
-      redis:
-        condition: service_healthy
     restart: unless-stopped
     deploy:
       resources:
@@ -112,34 +100,6 @@ services:
           memory: 128M
     networks:
       - alphascope-net
-
-  # Redis cache layer
-  redis:
-    image: redis:7-alpine
-    container_name: alphascope-redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          cpus: "1.0"
-          memory: 512M
-        reservations:
-          cpus: "0.25"
-          memory: 128M
-    networks:
-      - alphascope-net
-
-volumes:
-  redis-data:
 
 networks:
   alphascope-net:

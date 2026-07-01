@@ -18,12 +18,7 @@ from .base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
-
-def _safe(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs)
-    except Exception:
-        return None
+from backend.utils import safe_call as _safe
 
 
 def _to_tx_symbol(symbol: str) -> str:

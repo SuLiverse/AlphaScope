@@ -78,14 +78,11 @@ from backend.runtime.orchestrator import (  # noqa: F401
 )
 
 # Agent mode system
-try:
-    from backend.agent_modes import AnalysisMode, AgentModeConfig, get_mode_resolver  # noqa: F401
-except ImportError:
-    from agent_modes import AnalysisMode, AgentModeConfig, get_mode_resolver  # noqa: F401
+from backend.agent_modes import AnalysisMode, AgentModeConfig, get_mode_resolver  # noqa: F401
 
 # Schema 校验
 try:
-    from validators import validate_agent_output as _validate_agent_output  # noqa: F401
+    from backend.validators import validate_agent_output as _validate_agent_output  # noqa: F401
 except Exception:
 
     def _validate_agent_output(data):

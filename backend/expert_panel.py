@@ -44,7 +44,7 @@ _extract_json = _llm_agents._extract_json
 
 # v0.8: 统一 schema 校验,失败时退回恒等函数保持向后兼容
 try:
-    from validators import validate_expert_output as _validate_expert_output  # type: ignore
+    from backend.validators import validate_expert_output as _validate_expert_output  # type: ignore
 except Exception:  # pragma: no cover
 
     def _validate_expert_output(data):  # type: ignore[no-redef]

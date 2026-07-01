@@ -62,6 +62,9 @@ hiddenimports = [
     "tenacity",
     "apscheduler",
     "requests",
+    "cryptography",
+    "cryptography.hazmat.primitives.ciphers.aead",
+    "multipart",
 ]
 
 hiddenimports += collect_submodules("backend")

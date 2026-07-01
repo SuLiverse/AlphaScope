@@ -35,10 +35,7 @@ except ImportError:
 try:
     from backend.observability.cost_tracker import get_cost_tracker
 except ImportError:
-    try:
-        from observability.cost_tracker import get_cost_tracker
-    except ImportError:
-        get_cost_tracker = None  # type: ignore[assignment]
+    get_cost_tracker = None  # type: ignore[assignment]
 
 load_dotenv(ENV_FILE)
 
@@ -555,7 +552,14 @@ def clear_client_cache():
     """清理客户端缓存（热重载后调用）"""
     global _client_cache
     with _client_cache_lock:
+        old_cache = _client_cache
         _client_cache = {}
+    # Close old clients outside the lock to avoid blocking
+    for client in old_cache.values():
+        try:
+            client.close()
+        except Exception:
+            pass
 
 
 # ============== LLM 统一调用 ==============

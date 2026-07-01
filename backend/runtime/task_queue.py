@@ -52,6 +52,7 @@ class TaskQueue:
     def __init__(self, max_workers: int = 4):
         self._tasks: Dict[str, Task] = {}
         self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._max_workers = max_workers
         self._futures: Dict[str, Future] = {}
         self._lock = threading.Lock()
 
@@ -77,39 +78,47 @@ class TaskQueue:
 
         # 提交到线程池
         future = self._executor.submit(self._run_task, task_id, func)
-        self._futures[task_id] = future
+        with self._lock:
+            self._futures[task_id] = future
 
         return task_id
 
     def _run_task(self, task_id: str, func: Callable):
         """执行任务"""
-        task = self._tasks.get(task_id)
+        with self._lock:
+            task = self._tasks.get(task_id)
         if not task:
             return
 
-        task.status = TaskStatus.RUNNING
-        task.started_at = time.time()
+        with self._lock:
+            task.status = TaskStatus.RUNNING
+            task.started_at = time.time()
 
         try:
             result = func(task.input_data, task_id=task_id)
-            task.output_data = (
-                result if isinstance(result, dict) else {"result": result}
-            )
-            task.status = TaskStatus.COMPLETED
+            with self._lock:
+                task.output_data = (
+                    result if isinstance(result, dict) else {"result": result}
+                )
+                task.status = TaskStatus.COMPLETED
         except Exception as e:
-            task.error = str(e)[:500]
-            task.status = TaskStatus.FAILED
+            with self._lock:
+                task.error = str(e)[:500]
+                task.status = TaskStatus.FAILED
             logger.error(f"任务 {task_id} ({task.name}) 失败: {e}")
         finally:
-            task.completed_at = time.time()
+            with self._lock:
+                task.completed_at = time.time()
 
     def get_task(self, task_id: str) -> Optional[Task]:
         """获取任务状态"""
-        return self._tasks.get(task_id)
+        with self._lock:
+            return self._tasks.get(task_id)
 
     def get_task_dict(self, task_id: str) -> Optional[Dict[str, Any]]:
         """获取任务状态（字典格式）"""
-        task = self._tasks.get(task_id)
+        with self._lock:
+            task = self._tasks.get(task_id)
         if not task:
             return None
         return {
@@ -130,7 +139,8 @@ class TaskQueue:
         self, status: Optional[TaskStatus] = None, limit: int = 20
     ) -> List[Dict[str, Any]]:
         """列出任务"""
-        tasks = list(self._tasks.values())
+        with self._lock:
+            tasks = list(self._tasks.values())
         if status:
             tasks = [t for t in tasks if t.status == status]
         tasks.sort(key=lambda t: t.created_at, reverse=True)
@@ -138,37 +148,42 @@ class TaskQueue:
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""
-        task = self._tasks.get(task_id)
-        if not task:
-            return False
-
-        if task.status == TaskStatus.PENDING:
-            task.status = TaskStatus.CANCELLED
-            future = self._futures.get(task_id)
-            if future:
-                future.cancel()
-            return True
-
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if not task:
+                return False
+            if task.status == TaskStatus.PENDING:
+                task.status = TaskStatus.CANCELLED
+                future = self._futures.get(task_id)
+                if future:
+                    future.cancel()
+                return True
         return False
 
     def update_progress(self, task_id: str, progress: float):
         """更新任务进度"""
-        task = self._tasks.get(task_id)
-        if task:
-            task.progress = min(100, max(0, progress))
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task:
+                task.progress = min(100, max(0, progress))
 
     def get_stats(self) -> Dict[str, Any]:
         """获取队列统计"""
-        statuses = {}
-        for task in self._tasks.values():
-            s = task.status.value
-            statuses[s] = statuses.get(s, 0) + 1
-
+        with self._lock:
+            statuses = {}
+            for task in self._tasks.values():
+                s = task.status.value
+                statuses[s] = statuses.get(s, 0) + 1
+            total = len(self._tasks)
         return {
-            "total": len(self._tasks),
+            "total": total,
             "by_status": statuses,
-            "active_workers": self._executor._max_workers,
+            "active_workers": self._max_workers,
         }
+
+    def shutdown(self) -> None:
+        """优雅关闭线程池，释放资源"""
+        self._executor.shutdown(wait=False)
 
 
 # 单例

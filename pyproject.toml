@@ -15,12 +15,52 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Office/Business :: Financial",
 ]
+dependencies = [
+    "streamlit==1.57.0",
+    "pandas==3.0.3",
+    "numpy==2.4.5",
+    "plotly==6.7.0",
+    "akshare==1.18.60",
+    "requests==2.32.3",
+    "curl_cffi==0.13.0",
+    "openai==2.3.0",
+    "python-dotenv==1.1.0",
+    "pyyaml==6.0.2",
+    "ruamel.yaml>=0.18,<0.19",
+    "pydantic==2.11.3",
+    "tenacity==9.1.2",
+    "aiohttp==3.12.4",
+    "apscheduler==3.11.0",
+    "cryptography>=43.0",
+    "python-multipart>=0.0.20",
+]
 
 [project.optional-dependencies]
-api = ["fastapi>=0.115.0,<1.0", "uvicorn>=0.34.0,<1.0"]
+api = ["fastapi>=0.115.0,<1.0", "uvicorn>=0.34.0,<1.0", "python-multipart>=0.0.20"]
 rag = ["chromadb==0.6.3"]
 dev = ["pytest==8.4.0", "ruff==0.15.13"]
-all = ["alphascope[api,rag,dev]"]
+quant = [
+    "duckdb>=1.0,<2",
+    "exchange_calendars>=4.0",
+    "pandera>=0.20",
+    "quantstats>=0.0.62",
+    "backtrader>=1.9.78",
+    "lib-pybroker>=1.2.0",
+    "skfolio>=0.20",
+    "riskfolio>=7.0",
+    "pypfopt>=1.5",
+    "bt>=1.2",
+]
+mlops = [
+    "mlflow>=2.0",
+    "optuna>=3.0",
+    "langgraph>=0.2",
+    "evidently>=0.4",
+    "ragas>=0.1",
+    "prefect>=3.0",
+    "opentelemetry-sdk>=1.20",
+]
+all = ["alphascope[api,rag,dev,quant,mlops]"]
 
 [tool.ruff]
 line-length = 120

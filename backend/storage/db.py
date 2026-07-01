@@ -9,6 +9,7 @@ import json
 import logging
 import sqlite3
 import threading
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Optional
 
@@ -37,14 +38,26 @@ class Database:
         return cls._instance
 
     def __init__(self) -> None:
-        if self._initialized:
-            return
-        self._initialized = True
-        self._db_lock = threading.Lock()
-        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-        self._conn.row_factory = sqlite3.Row
-        self._create_tables()
+        # Use class-level lock to prevent race between __new__ and __init__
+        with type(self)._lock:
+            if self._initialized:
+                return
+            self._initialized = True
+            self._db_lock = threading.Lock()
+            DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+            self._conn.row_factory = sqlite3.Row
+            self._create_tables()
+
+    @contextmanager
+    def transaction(self):
+        """Acquire the DB lock for thread-safe read/write operations.
+
+        External callers (task_queue, agent_store, etc.) should use this
+        instead of accessing _conn directly to ensure proper locking.
+        """
+        with self._db_lock:
+            yield self._conn
 
     def _create_tables(self) -> None:
         """创建核心数据表"""

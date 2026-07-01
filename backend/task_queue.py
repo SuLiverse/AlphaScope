@@ -50,14 +50,17 @@ class TaskQueue:
         return cls._instance
 
     def __init__(self) -> None:
-        if self._initialized:
-            return
-        self._initialized = True
+        with type(self)._lock:
+            if self._initialized:
+                return
+            self._initialized = True
         self._executor = ThreadPoolExecutor(max_workers=3)
         self._futures: dict[str, Future] = {}
         self._cancelled: set[str] = set()
+        self._state_lock = threading.Lock()  # Protects _futures and _cancelled
         db = Database()
-        _ensure_table(db._conn)
+        with db.transaction() as conn:
+            _ensure_table(conn)
 
     def submit(
         self,
@@ -71,78 +74,92 @@ class TaskQueue:
         """提交任务到后台执行，返回 task_id"""
         task_id = str(uuid.uuid4())[:8]
         now = time.time()
-        conn = Database()._conn
-        conn.execute(
-            "INSERT INTO analysis_tasks (id, conversation_id, task_type, status, input_json, created_at) "
-            "VALUES (?, ?, ?, 'pending', ?, ?)",
-            (
-                task_id,
-                conversation_id,
-                task_type,
-                json.dumps(input_data or {}, ensure_ascii=False),
-                now,
-            ),
-        )
-        conn.commit()
+        db = Database()
+        with db.transaction() as conn:
+            conn.execute(
+                "INSERT INTO analysis_tasks (id, conversation_id, task_type, status, input_json, created_at) "
+                "VALUES (?, ?, ?, 'pending', ?, ?)",
+                (
+                    task_id,
+                    conversation_id,
+                    task_type,
+                    json.dumps(input_data or {}, ensure_ascii=False),
+                    now,
+                ),
+            )
+            conn.commit()
 
         future = self._executor.submit(self._run_task, task_id, func, args, kwargs)
-        self._futures[task_id] = future
+        with self._state_lock:
+            self._futures[task_id] = future
         return task_id
 
     def _run_task(
         self, task_id: str, func: Callable, args: tuple, kwargs: dict
     ) -> None:
         """执行任务并更新状态"""
-        conn = Database()._conn
+        db = Database()
         try:
-            if task_id in self._cancelled:
+            with self._state_lock:
+                cancelled = task_id in self._cancelled
+
+            if cancelled:
+                with db.transaction() as conn:
+                    conn.execute(
+                        "UPDATE analysis_tasks SET status='cancelled', completed_at=? WHERE id=?",
+                        (time.time(), task_id),
+                    )
+                    conn.commit()
+                return
+
+            with db.transaction() as conn:
                 conn.execute(
-                    "UPDATE analysis_tasks SET status='cancelled', completed_at=? WHERE id=?",
+                    "UPDATE analysis_tasks SET status='running', started_at=? WHERE id=?",
                     (time.time(), task_id),
                 )
                 conn.commit()
-                return
-
-            conn.execute(
-                "UPDATE analysis_tasks SET status='running', started_at=? WHERE id=?",
-                (time.time(), task_id),
-            )
-            conn.commit()
 
             result = func(*args, **kwargs)
 
-            if task_id in self._cancelled:
-                conn.execute(
-                    "UPDATE analysis_tasks SET status='cancelled', completed_at=? WHERE id=?",
-                    (time.time(), task_id),
-                )
-            else:
-                conn.execute(
-                    "UPDATE analysis_tasks SET status='success', output_json=?, completed_at=? WHERE id=?",
-                    (
-                        json.dumps(result, ensure_ascii=False) if result else "{}",
-                        time.time(),
-                        task_id,
-                    ),
-                )
-            conn.commit()
+            with self._state_lock:
+                cancelled = task_id in self._cancelled
+
+            with db.transaction() as conn:
+                if cancelled:
+                    conn.execute(
+                        "UPDATE analysis_tasks SET status='cancelled', completed_at=? WHERE id=?",
+                        (time.time(), task_id),
+                    )
+                else:
+                    conn.execute(
+                        "UPDATE analysis_tasks SET status='success', output_json=?, completed_at=? WHERE id=?",
+                        (
+                            json.dumps(result, ensure_ascii=False) if result else "{}",
+                            time.time(),
+                            task_id,
+                        ),
+                    )
+                conn.commit()
         except Exception as e:
             logger.exception("任务 %s 执行失败: %s", task_id, e)
-            conn.execute(
-                "UPDATE analysis_tasks SET status='failed', error=?, completed_at=? WHERE id=?",
-                (str(e), time.time(), task_id),
-            )
-            conn.commit()
+            with db.transaction() as conn:
+                conn.execute(
+                    "UPDATE analysis_tasks SET status='failed', error=?, completed_at=? WHERE id=?",
+                    (str(e), time.time(), task_id),
+                )
+                conn.commit()
         finally:
-            self._futures.pop(task_id, None)
-            self._cancelled.discard(task_id)
+            with self._state_lock:
+                self._futures.pop(task_id, None)
+                self._cancelled.discard(task_id)
 
     def get_task(self, task_id: str) -> Optional[dict[str, Any]]:
         """查询任务状态"""
-        conn = Database()._conn
-        row = conn.execute(
-            "SELECT * FROM analysis_tasks WHERE id=?", (task_id,)
-        ).fetchone()
+        db = Database()
+        with db.transaction() as conn:
+            row = conn.execute(
+                "SELECT * FROM analysis_tasks WHERE id=?", (task_id,)
+            ).fetchone()
         if not row:
             return None
         return {
@@ -162,17 +179,18 @@ class TaskQueue:
         self, status: Optional[str] = None, limit: int = 50
     ) -> list[dict[str, Any]]:
         """列出任务"""
-        conn = Database()._conn
-        if status:
-            rows = conn.execute(
-                "SELECT * FROM analysis_tasks WHERE status=? ORDER BY created_at DESC LIMIT ?",
-                (status, limit),
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM analysis_tasks ORDER BY created_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+        db = Database()
+        with db.transaction() as conn:
+            if status:
+                rows = conn.execute(
+                    "SELECT * FROM analysis_tasks WHERE status=? ORDER BY created_at DESC LIMIT ?",
+                    (status, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM analysis_tasks ORDER BY created_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
         return [
             {
                 "id": r["id"],
@@ -189,7 +207,8 @@ class TaskQueue:
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""
-        self._cancelled.add(task_id)
+        with self._state_lock:
+            self._cancelled.add(task_id)
         task = self.get_task(task_id)
         if not task:
             return False
@@ -197,11 +216,16 @@ class TaskQueue:
             return False
         # 如果任务还在 pending，直接标记取消
         if task["status"] == "pending":
-            conn = Database()._conn
-            conn.execute(
-                "UPDATE analysis_tasks SET status='cancelled', completed_at=? WHERE id=?",
-                (time.time(), task_id),
-            )
-            conn.commit()
+            db = Database()
+            with db.transaction() as conn:
+                conn.execute(
+                    "UPDATE analysis_tasks SET status='cancelled', completed_at=? WHERE id=?",
+                    (time.time(), task_id),
+                )
+                conn.commit()
         # 如果正在运行，future 会在检查点取消
         return True
+
+    def shutdown(self) -> None:
+        """优雅关闭线程池，释放资源"""
+        self._executor.shutdown(wait=False)

@@ -34,3 +34,5 @@ pydantic==2.11.3
 tenacity==9.1.2
 aiohttp==3.12.4
 apscheduler==3.11.0
+cryptography>=43.0  # AES-GCM 加密 API 密钥 (key_vault.py); 缺失时降级为不安全的 XOR
+python-multipart>=0.0.20  # FastAPI 文件上传 (UploadFile) 必需

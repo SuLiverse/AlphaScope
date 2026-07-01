@@ -16,9 +16,9 @@ from dataclasses import dataclass
 from collections import defaultdict
 
 try:
-    from project_paths import CACHE_DIR
-except ImportError:
     from backend.project_paths import CACHE_DIR
+except ImportError:
+    from project_paths import CACHE_DIR  # type: ignore[no-redef]
 
 COST_LOG_PATH = CACHE_DIR / "cost_log.jsonl"
 

@@ -55,17 +55,24 @@ CREATE TABLE IF NOT EXISTS agent_team_members (
 """
 
 
-def _ensure_tables(conn) -> None:
-    conn.execute(_AGENT_TABLE)
-    conn.execute(_TEAM_TABLE)
-    conn.execute(_MEMBER_TABLE)
-    conn.commit()
+def _ensure_tables() -> None:
+    """Create tables if not exist (idempotent, safe to call on every use)."""
+    db = Database()
+    with db.transaction() as conn:
+        conn.execute(_AGENT_TABLE)
+        conn.execute(_TEAM_TABLE)
+        conn.execute(_MEMBER_TABLE)
+        conn.commit()
 
 
 def _get_conn():
-    db = Database()
-    _ensure_tables(db._conn)
-    return db._conn
+    """Ensure tables exist and return the database connection (public API)."""
+    _ensure_tables()
+    return Database().conn
+
+
+# Ensure tables exist on import
+_ensure_tables()
 
 
 # ============== Agent CRUD ==============
