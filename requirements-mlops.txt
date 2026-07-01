@@ -1,0 +1,12 @@
+# 研策中枢 AlphaScope MLOps 可选依赖
+# Install: pip install -r requirements-mlops.txt
+#
+# 所有包缺失时对应能力优雅降级, 不影响核心功能。
+
+mlflow>=2.0  # 实验管理/模型注册/LLM trace
+optuna>=3.0  # 超参优化
+langgraph>=0.2  # 多 Agent 工作流编排
+evidently>=0.4  # 数据漂移与质量监控
+ragas>=0.1  # RAG/LLM 输出评测 (依赖较重, 可选)
+prefect>=3.0  # Python 工作流 (调度/重试/缓存)
+opentelemetry-sdk>=1.20  # 分布式追踪 (trace/metrics/logs 标准)

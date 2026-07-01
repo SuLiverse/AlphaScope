@@ -1,0 +1,15 @@
+# 研策中枢 AlphaScope 量化可选依赖
+# Install: pip install -r requirements-quant.txt
+#
+# 所有包缺失时对应能力优雅降级, 不影响核心功能。
+
+duckdb>=1.0,<2  # DuckDB/Parquet 数据湖 (批量选股/因子扫描)
+exchange_calendars>=4.0  # 真实交易日历 (节假日/周末/T+1)
+pandera>=0.20  # 数据契约 schema 校验
+quantstats>=0.0.62  # 专业级绩效报告 (Sharpe/Sortino/Max DD/热力图)
+backtrader>=1.9.78  # 经典事件驱动回测引擎 (多引擎互补)
+lib-pybroker>=1.2.0  # ML + walk-forward 回测引擎 (PyPI 包名 lib-pybroker, import 名 pybroker)
+skfolio>=0.20  # 组合优化 (均值方差/CVaR/HRP)
+riskfolio>=7.0  # 组合优化 (风险预算/CVaR/多种风险模型)
+pypfopt>=1.5  # 组合优化 (经典均值方差/Black-Litterman)
+bt>=1.2  # 组合级策略回测 (algo 链做资产配置/再平衡)

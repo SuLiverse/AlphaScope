@@ -1,5 +1,8 @@
 # 研策中枢 AlphaScope Development Dependencies
-# Install: pip install -r requirements-core.txt -r requirements-dev.txt
+# Install: pip install -r requirements-dev.txt
+#
+# 可选量化/MLOps 依赖 (本地开发按需安装):
+#   pip install -r requirements-quant.txt -r requirements-mlops.txt
 
 -r requirements-core.txt
 pytest==8.4.0

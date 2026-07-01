@@ -1,28 +1,15 @@
 # 研策中枢 AlphaScope Core Runtime Dependencies
 # Install: pip install -r requirements-core.txt
+#
+# 仅包含运行时必需依赖。可选的量化/MLOps 依赖见:
+#   requirements-quant.txt  (组合优化/回测/数据湖)
+#   requirements-mlops.txt  (实验管理/超参优化/工作流编排/监控)
 
 streamlit==1.57.0
 pandas==3.0.3
 numpy==2.4.5
 plotly==6.7.0
-duckdb>=1.0,<2  # DuckDB/Parquet 数据湖 (批量选股/因子扫描); 缺失时数据湖能力优雅降级, 不影响其余功能
-exchange_calendars>=4.0  # 真实交易日历 (节假日/周末/T+1); 缺失时回落周末启发式, 不影响其余功能
-pandera>=0.20  # 数据契约 schema 校验; 缺失时仅做字段存在性检查, 不影响其余功能
-quantstats>=0.0.62  # 专业级绩效报告 (Sharpe/Sortino/Max DD/热力图); 缺失时降级, 不影响其余功能
-backtrader>=1.9.78  # 经典事件驱动回测引擎 (多引擎互补); 缺失时降级, 不影响其余功能
-lib-pybroker>=1.2.0  # ML + walk-forward 回测引擎 (PyPI 包名 lib-pybroker, import 名 pybroker); 缺失时降级
 mcp>=1.0  # Model Context Protocol server (暴露研究工具给外部 LLM); 缺失时 MCP 能力降级, 不影响其余功能
-skfolio>=0.20  # 组合优化 (均值方差/CVaR/HRP); 缺失时降级到下一个优化器或等权
-riskfolio>=7.0  # 组合优化 (风险预算/CVaR/多种风险模型); 缺失时降级
-pypfopt>=1.5  # 组合优化 (经典均值方差/Black-Litterman); 缺失时降级
-bt>=1.2  # 组合级策略回测 (algo 链做资产配置/再平衡); 缺失时降级
-mlflow>=2.0  # 实验管理/模型注册/LLM trace; 缺失时实验记录降级
-optuna>=3.0  # 超参优化; 缺失时调参能力降级
-langgraph>=0.2  # 多 Agent 工作流编排; 缺失时自研编排兜底
-evidently>=0.4  # 数据漂移与质量监控; 缺失时降级
-ragas>=0.1  # RAG/LLM 输出评测; 缺失时降级 (依赖较重, 可选)
-prefect>=3.0  # Python 工作流 (调度/重试/缓存); 缺失时降级, 不影响自研 task_queue
-opentelemetry-sdk>=1.20  # 分布式追踪 (trace/metrics/logs 标准); 缺失时降级
 akshare==1.18.60
 requests==2.32.3
 curl_cffi==0.13.0
