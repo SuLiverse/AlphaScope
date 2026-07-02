@@ -25,8 +25,18 @@ CREATE TABLE IF NOT EXISTS watchlist_alerts (
 """
 
 
+_schema_ensured = False
+
+
 def _ensure_schema() -> None:
-    """建表(幂等)。包进进程级 DB 锁, 避免与后台监控线程/请求线程并发写时撞锁。"""
+    """建表(幂等)。包进进程级 DB 锁, 避免与后台监控线程/请求线程并发写时撞锁。
+
+    首次建表+索引后置 _schema_ensured=True, 后续调用直接跳过(CREATE IF NOT EXISTS 虽
+    幂等但每次仍占锁 + 2 次 execute; 告警铃铛 30s 轮询 + 后台监控线程高频调)。
+    """
+    global _schema_ensured
+    if _schema_ensured:
+        return
     db = Database()
     with db.transaction() as conn:
         conn.execute(_ALERT_TABLE)
@@ -35,6 +45,7 @@ def _ensure_schema() -> None:
             "ON watchlist_alerts(timestamp DESC)"
         )
         conn.commit()
+    _schema_ensured = True
 
 
 def list_alerts(

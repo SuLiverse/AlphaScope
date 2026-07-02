@@ -19,12 +19,20 @@ CREATE TABLE IF NOT EXISTS watchlist (
 """
 
 
+_schema_ensured = False
+
+
 def _ensure_schema() -> None:
-    """建表(幂等)。包进进程级 DB 锁, 避免与后台告警扫描线程并发撞锁。"""
+    """建表(幂等)。包进进程级 DB 锁, 避免与后台告警扫描线程并发撞锁。
+    首次建表后置 flag, 后续高频调用跳过(后台扫描 + API 每次都调)。"""
+    global _schema_ensured
+    if _schema_ensured:
+        return
     db = Database()
     with db.transaction() as conn:
         conn.execute(_WATCHLIST_TABLE)
         conn.commit()
+    _schema_ensured = True
 
 
 def list_watchlist() -> list[dict[str, Any]]:

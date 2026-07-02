@@ -26,6 +26,11 @@ def tmp_db(monkeypatch):
     tmp = Path(path)
     monkeypatch.setattr(db_mod, "DB_PATH", tmp)
     db_mod.Database._instance = None
+    # 重置 watchlist_store 的 _schema_ensured: 临时 DB 是空的, 必须重新建表。
+    # 该 flag 是模块级全局, 不随 Database._instance 重置, 跨测试会污染。
+    from backend import watchlist_store
+
+    watchlist_store._schema_ensured = False
     yield tmp
     db_mod.Database._instance = None
     try:

@@ -24,12 +24,19 @@ CREATE TABLE IF NOT EXISTS notifier_channels (
 """
 
 
+_schema_ensured = False
+
+
 def _ensure_schema() -> None:
-    """建表(幂等)。包进进程级 DB 锁。"""
+    """建表(幂等)。包进进程级 DB 锁。首次建表后置 flag, 后续调用跳过。"""
+    global _schema_ensured
+    if _schema_ensured:
+        return
     db = Database()
     with db.transaction() as conn:
         conn.execute(_TABLE)
         conn.commit()
+    _schema_ensured = True
 
 
 def _encrypt(plaintext: str) -> str:
