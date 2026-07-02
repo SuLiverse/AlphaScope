@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Bookmark,
@@ -122,22 +122,28 @@ export function EvidenceChain() {
     [selectedTarget],
   );
 
+  // 轮次序号: loadEvidence 自增, fetch 返回后若非最新则丢弃(防切标的 stale 覆盖)。
+  const evidenceSeqRef = useRef(0);
+
   const loadEvidence = useCallback(async (stock: StockTarget) => {
+    const seq = ++evidenceSeqRef.current;
     setLoading(true);
     setLoadError(null);
     try {
       const payload = await fetchApi<{ evidence?: EvidenceItem[]; total?: number }>(
         `/api/evidence?symbol=${encodeURIComponent(stripSymbolSuffix(stock.symbol))}&limit=50`,
       );
+      if (seq !== evidenceSeqRef.current) return; // 已有更新的请求, 丢弃 stale 结果
       const items = (payload.evidence || []).map(toNode);
       setEvidence(items);
       setSourceLabel(`真实证据库 · ${items.length} 条 · 共 ${payload.total ?? items.length} 条`);
     } catch (err) {
+      if (seq !== evidenceSeqRef.current) return;
       setEvidence([]);
       setLoadError(getErrorMessage(err));
       setSourceLabel('证据库不可用');
     } finally {
-      setLoading(false);
+      if (seq === evidenceSeqRef.current) setLoading(false);
     }
   }, []);
 
