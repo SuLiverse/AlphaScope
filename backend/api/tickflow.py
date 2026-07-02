@@ -15,10 +15,10 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from fastapi import APIRouter, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from backend.schemas.api import ApiResponse
 
@@ -28,6 +28,14 @@ router = APIRouter(prefix="/api/tickflow", tags=["tickflow"])
 
 
 # 请求体必须是模块级类(FastAPI + from __future__ import annotations 前置引用求值)。
+def _validate_http_url(url: str) -> str:
+    """url 非空时必须是 http/https 开头(防完全无效地址到 dispatch 时才崩)。"""
+    u = (url or "").strip()
+    if u and not (u.startswith("http://") or u.startswith("https://")):
+        raise ValueError("url 必须以 http:// 或 https:// 开头")
+    return u
+
+
 class SourceBody(BaseModel):
     """HTTP/JSON 源配置。"""
 
@@ -35,21 +43,31 @@ class SourceBody(BaseModel):
     name: str = "自定义源"
     url: str = ""
     symbol: str = ""
-    method: str = "GET"
+    method: Literal["GET", "POST"] = "GET"
     headers: Optional[dict[str, Any]] = None
     body: Optional[Any] = None
     records_path: str = ""
     field_map: Optional[dict[str, Any]] = None
+
+    @field_validator("url")
+    @classmethod
+    def _check_url(cls, v: str) -> str:
+        return _validate_http_url(v)
 
 
 class PreviewBody(BaseModel):
     """试抓预览请求。"""
 
     url: str = ""
-    method: str = "GET"
+    method: Literal["GET", "POST"] = "GET"
     headers: Optional[dict[str, Any]] = None
     body: Optional[Any] = None
     records_path: str = ""
+
+    @field_validator("url")
+    @classmethod
+    def _check_url(cls, v: str) -> str:
+        return _validate_http_url(v)
 
 
 @router.get("/sources", response_model=ApiResponse[dict])
