@@ -1,5 +1,44 @@
 # Changelog
 
+## v1.9.40 - 2026-07-03
+
+> **健壮性加固**:一轮「检查并修复」驱动的批次。code-review + 自主扫描发现并修复了一批并发、崩溃、假成功、误删、数据质量盲区问题。纯修复 + 观测层增强, 未删改既有功能, 未引入新依赖。
+
+### DB 并发安全: 全部 store 统一进程级锁(防 `database is locked`)
+- **根因**: `Database` 是进程级单例(`check_same_thread=False`), 多个 store 此前直接访问 `db._conn` / `Database().conn` 绕过 `_db_lock`。后台 ingestion 线程批量写 + FastAPI 请求读写共享同一连接不加锁, 并发时 `database is locked` 或读到半写状态。
+- **16 个 store 全部改为 `with Database().transaction() as conn:`**:alert / research_portfolio / notifier(此前已修) + price_store / news_store / agent_store / watchlist_store / pipeline(高频批) + datasource_config / diagnostics_store / evidence_store / file_store / factors/generator / funds/portfolio / quant/research_memory / quant/experiment_store(中频批) + settings_store(深嵌套攻坚)。
+- **`_db_lock` 不可重入避坑**: 写方法内调用另一个会加锁的方法(如 `save_agent`→`get_agent`、`record_snapshot`→`_prune`、`save_provider`→`_sync_to_gateway`)会死锁; 统一改为 DB 操作在事务内 commit 后、锁外再调下游。
+- **测试**: mock `_get_conn` 旧写法改 mock `Database().transaction()`; 真实临时 SQLite fixture 给 `_FakeDB` 加 transaction; price_store 补 4 写 + 1 读线程并发回归测试锁住改造成果。
+
+### 真 bug 修复(运行时炸弹)
+- **[P0] `/api/diagnostics/mcp` 一个请求打死后端**:`describe()` 经 `list_tool_names()` 在 uvicorn 请求路径 `asyncio.run(server.list_tools())` probe FastMCP, 底层 `py_mini_racer`/V8 重复初始化触发 `partition_address_space` fatal abort 整个进程。改 `describe()` 返回静态 `REGISTERED_TOOLS`, 不在请求路径 probe; 补「静态 == 运行时 probe 一致」回归测试。
+- **[P1] Schema 升级从未执行**:`_upgrade_schema()` 调 `db.get_connection()` 但 `Database` 无此方法, 每次启动抛 AttributeError 被吞, 架构文档要求的 15+ 表迁移从没跑过。改 `with db.transaction() as conn:`。
+- **[P1] 飞书消息体 `[:3500]` 截断失效**:f-string 内 `[:3500]` 是字面文本, 长告警原样发送且末尾泄漏 `[:3500]`。移到 f-string 外。
+- **[P2] dispatch-alerts 部分渠道失败也清空全部告警**:`any(r.ok)` 即 `acknowledge_all`, 一个渠道成功就把失败渠道告警永久丢。改仅全部成功才标读。
+- **[P2] 替代因子无缓存打爆外部 API**:`/api/factors/alternative` 每次直连 FRED+Finnhub。加 5 分钟 TTL 缓存。
+- **Finnhub 凭证错配**:provider 只读 `FINNHUB_API_KEY` 但 UI 存 `FINNHUB_TOKEN`, 改双变量兼容。
+- **`_safe_filename` 中文崩 Content-Disposition**:`isalnum()` 放过中文 → latin-1 编码崩溃, 收紧 ASCII-only。
+
+### UI 错误处理 / 防误删(假成功治理)
+- **告警铃铛 ack 假成功**(核心监控入口防失语):`ackAlert/ackAll` `.then()` 乐观更新无 catch, POST 失败 UI 标已读但服务端未读, 告警被静默消化。加 catch 回滚提示 + 防重复点击。
+- **通知设置页**:清除凭证加二次确认(破坏性); 推送结果显示每渠道成败(用 `all_succeeded`); 测试前检测未保存草稿(防测旧凭证); 加载失败不再静默白屏。
+- **研究组合移除持仓**:加二次确认 + 后端同步失败提示(防"刷新凭空恢复"困惑)。
+- **4 处破坏性操作加二次确认**:清空数据湖 / 清空本股记忆 / 删自定义数据源 / 删回测实验。
+- **K 线首帧堆叠**:`autoSize` 与 `fitContent` 时序竞争, 0 宽度拟合致蜡烛堆叠。createChart 传初始尺寸 + fitContent 延迟到 rAF。
+- **主页/专家团模式菜单被遮挡**:面板 `overflow-hidden` 裁切下拉菜单; header 与卡片网格同 z-10 遮挡。改 overflow-visible + header z-30。
+
+### 数据质量观测层(激活沉睡模块)
+- **anomaly_detector 接线**(此前完全沉睡):pipeline 落库前对每条 bar 跑 `check_price`(零负价/高低倒挂)、对每条新闻跑 `check_news`(标题过短/乱码/重复时间戳), 异常 log 标记 + 计数。纯观测、失败安全、不阻断/不丢弃(尊重既有"数据进来"语义)。补接线测试。
+
+### 验证
+- 离线套件 `pytest -m "not network"`:**1677 passed, 5 skipped, 1 deselected**(0 回归)。
+- `ruff check` / 前端 `tsc --noEmit` / `vite build` 全程通过。
+- 每批独立 commit + push, HEAD `d63db3d` 同步 origin/main。
+
+### 合规与边界
+- 全程未碰 `.env`/密钥/凭据; 未引入新依赖; 未删改既有功能; 未弱化任何测试。
+- anomaly_detector 是纯观测层, 不改变落库语义; settings_store 加锁未改写入逻辑。
+
 ## v1.9.29 - 2026-06-30
 
 > **Phase 2 收尾 / TradingAgents 外部投研团队 (首个 AgentTeamAdapter)**:把 [TradingAgents](https://github.com/TauricResearch/TradingAgents)(多智能体 LLM 金融投研框架)接入 Integration Registry, 作为外部投研团队输出 BUY/SELL/HOLD + 研报。**至此四类 adapter 协议 (Backtest+Data+Factor+Agent) 全部被真实开源项目验证走通, Phase 2 完整收尾。** API 对照真实源码核对 (吸取 v1.9.28 Qlib 臆测错误的教训)。纯增量, 未删改既有研究/回测/Agent 能力。
