@@ -43,6 +43,21 @@ def test_assert_no_forbidden_tools():
     assert_no_forbidden_tools()
 
 
+def test_static_registered_tools_match_runtime_probe():
+    """describe() 用静态 REGISTERED_TOOLS 避免 uvicorn 进程内 probe 崩溃;
+    该常量必须与运行时 probe (list_tool_names, 独立进程安全) 结果一致,
+    防止以后加工具漏改常量。"""
+    from backend.mcp_server import REGISTERED_TOOLS, list_tool_names, describe
+
+    probed = set(list_tool_names())
+    assert probed == set(REGISTERED_TOOLS), (
+        f"静态 REGISTERED_TOOLS 与运行时 probe 不一致: "
+        f"probe={sorted(probed)} static={sorted(REGISTERED_TOOLS)}"
+    )
+    # describe() 不调 probe, 但 tools 字段应等于 probe 结果
+    assert set(describe()["tools"]) == probed
+
+
 def test_assert_no_forbidden_tools_detects_violation():
     """构造一个违规场景:若 server 注册了禁止工具,断言应抛。"""
     from backend import mcp_server

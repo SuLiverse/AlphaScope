@@ -45,6 +45,18 @@ FORBIDDEN_TOOL_NAMES: tuple[str, ...] = (
     "live_gateway",
 )
 
+# 本 server 注册的研究语义工具名 (静态, 与 create_server() 内 @server.tool() 一一对应)。
+# 用静态常量而非运行时 probe, 避免在 uvicorn 请求处理路径里调 FastMCP.list_tools()
+# 触发 py_mini_racer/V8 重复初始化 (partition_address_space fatal 会打死整个进程)。
+# 运行时 probe 仅由 list_tool_names() 在独立进程 (console_script 启动守卫 / 测试) 做。
+REGISTERED_TOOLS: tuple[str, ...] = (
+    "get_market_data",
+    "search_evidence",
+    "list_integrations",
+    "get_trading_boundary",
+    "is_trading_day",
+)
+
 
 # ============================================================
 # Server 工厂
@@ -208,7 +220,14 @@ def create_server() -> "FastMCP | None":
 
 
 def list_tool_names() -> list[str]:
-    """返回 server 注册的所有工具名 (供测试与边界断言; mcp 不可用时返回空)。"""
+    """返回 server 注册的所有工具名 (运行时 probe)。
+
+    注意: 本函数会在当前进程创建 FastMCP server 并 asyncio.run(list_tools())。
+    在已运行事件循环的进程里 (uvicorn / 已有 loop) 多次调用, FastMCP 底层
+    py_mini_racer/V8 的 PartitionAlloc 可能重复初始化触发 fatal abort。
+    **仅供独立进程使用** (alphascope-mcp console_script 启动守卫、单元测试)。
+    uvicorn 请求处理路径请改用 describe() (返回静态 REGISTERED_TOOLS)。
+    """
     if not _MCP_AVAILABLE:
         return []
     server = create_server()
@@ -237,11 +256,15 @@ def assert_no_forbidden_tools() -> None:
 
 
 def describe() -> dict[str, Any]:
-    """MCP 能力概览 (供 UI/调试)。"""
+    """MCP 能力概览 (供 UI/调试)。
+
+    **静态**: 不在运行时 probe FastMCP, 直接返回 REGISTERED_TOOLS, 因此可在
+    uvicorn 请求处理路径安全调用 (不会触发 py_mini_racer/V8 重复初始化 fatal)。
+    """
     return {
         "available": _MCP_AVAILABLE,
-        "tool_count": len(list_tool_names()) if _MCP_AVAILABLE else 0,
-        "tools": list_tool_names() if _MCP_AVAILABLE else [],
+        "tool_count": len(REGISTERED_TOOLS) if _MCP_AVAILABLE else 0,
+        "tools": list(REGISTERED_TOOLS) if _MCP_AVAILABLE else [],
         "forbidden_tools": list(FORBIDDEN_TOOL_NAMES),
         "note": (
             "mcp 就绪: 暴露 get_market_data / search_evidence / list_integrations / "
