@@ -37,6 +37,7 @@ import { cn } from '../lib/utils';
 import { API_BASE_URL, API_KEY, LOCAL_API_TOKEN, type ApiResponse } from '../lib/api';
 import { ProviderHealthPanel } from './ProviderHealthPanel';
 import { DataSourceConfigPanel } from './DataSourceConfigPanel';
+import { NotifierSettings } from './NotifierSettings';
 import {
   AI_ROUTE_LABELS,
   AiModelRoutes,
@@ -70,7 +71,7 @@ import {
 import { ThemedSelect, type ThemedSelectOption } from './ThemedSelect';
 import { dispatchSettingsChanged } from '../lib/workspaceEvents';
 
-type SettingTab = 'general' | 'models' | 'agents' | 'api' | 'network' | 'security' | 'data';
+type SettingTab = 'general' | 'models' | 'agents' | 'api' | 'network' | 'security' | 'data' | 'notifiers';
 const DEFAULT_API_BASE_URL = 'http://localhost:8000';
 
 const SETTING_TABS: Array<{ id: SettingTab; label: string; icon: ComponentType<{ className?: string }> }> = [
@@ -81,6 +82,7 @@ const SETTING_TABS: Array<{ id: SettingTab; label: string; icon: ComponentType<{
   { id: 'network', label: '网络节点', icon: Globe },
   { id: 'security', label: '安全策略', icon: Shield },
   { id: 'data', label: '数据源健康', icon: Database },
+  { id: 'notifiers', label: '通知推送', icon: Bell },
 ];
 
 const AGENT_ICON_MAP: Record<AgentIconKey, ComponentType<{ className?: string }>> = {
@@ -1742,6 +1744,12 @@ export function Settings({ initialTab }: SettingsProps) {
               <motion.div key="data" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
                 <ProviderHealthPanel />
                 <DataSourceConfigPanel />
+              </motion.div>
+            )}
+
+            {activeTab === 'notifiers' && (
+              <motion.div key="notifiers" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
+                <NotifierSettings />
               </motion.div>
             )}
           </div>

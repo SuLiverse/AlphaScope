@@ -192,6 +192,7 @@ if HAS_FASTAPI:
     from backend.api.integrations import router as integrations_router
     from backend.api.alerts import router as alerts_router
     from backend.api.portfolio_calc import router as portfolio_calc_router
+    from backend.api.notifiers import router as notifiers_router
 
     # 启动时把已保存的数据源凭证注入环境变量, 使 provider 自动注册时可用
     from backend.datasource_config import init_credentials_on_startup
@@ -236,6 +237,7 @@ if HAS_FASTAPI:
     app.include_router(factor_registry_router)
     app.include_router(integrations_router)
     app.include_router(alerts_router)
+    app.include_router(notifiers_router)
 
     # ============== 启动钩子: 后台监控 ==============
 
