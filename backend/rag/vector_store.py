@@ -23,12 +23,18 @@ class _OpenAIEmbeddingFunction:
         self.model = model
         self.base_url = base_url
         self.api_key = api_key
+        self._client = None  # OpenAI client 懒建 + 复用(避免每次检索新建泄漏 fd)
+
+    def _get_client(self):
+        # 懒建: openai 是可选依赖, 首次调用时 import + 实例化, 之后复用同一连接池。
+        if self._client is None:
+            from openai import OpenAI
+
+            self._client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=30.0)
+        return self._client
 
     def __call__(self, input):  # Chroma validates this exact parameter name.
-        from openai import OpenAI
-
-        client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=30.0)
-        response = client.embeddings.create(model=self.model, input=list(input))
+        response = self._get_client().embeddings.create(model=self.model, input=list(input))
         return [item.embedding for item in response.data]
 
 
