@@ -568,6 +568,12 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
   const [selectedReasoningModelKey, setSelectedReasoningModelKey] = useState('');
   const [saveMessage, setSaveMessage] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // 订阅回调需读最新 chartData/uploadedImage, 但不能让它们进 subscribe 的 deps
+  // (否则每次行情刷新都 unsubscribe→resubscribe, 窗口期事件丢失)。用 ref 在 render 同步。
+  const chartDataRef = useRef(chartData);
+  chartDataRef.current = chartData;
+  const uploadedFileNameRef = useRef(uploadedImage?.fileName);
+  uploadedFileNameRef.current = uploadedImage?.fileName;
 
   const selectedVisionModel = useMemo(
     () => visionModels.find((model) => model.key === selectedVisionModelKey) ?? visionModels[0],
@@ -610,11 +616,12 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
         ? stock
         : findStockTarget(stock.symbol) ?? stock;
       setSelectedStock(resolved);
-      setVisionSource((current) => buildVisionSource(resolved, current.kind, current.url, uploadedImage?.fileName, chartData));
+      // 读 ref 而非闭包变量, 避免 chartData/uploadedImage 进 deps 导致频繁 resubscribe
+      setVisionSource((current) => buildVisionSource(resolved, current.kind, current.url, uploadedFileNameRef.current, chartDataRef.current));
       setShowResult(false);
       setActiveTab('vision');
     });
-  }, [chartData, uploadedImage?.fileName]);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
