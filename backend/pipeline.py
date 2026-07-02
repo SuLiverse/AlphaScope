@@ -253,6 +253,10 @@ class DataPipeline:
                 self._log_fetch("prices", symbol, "success", 0, 0)
                 return []
 
+            # 数据质量观测: 落库前检测每条 bar 的异常(零负价/高低倒挂等)。
+            # 失败安全 + 不阻断落库(尊重既有"数据进来"语义), 仅 log 标记。
+            anomaly_count = self._detect_price_anomalies(items, symbol)
+
             with self._db.transaction() as conn:
                 for item in items:
                     conn.execute(
@@ -283,7 +287,12 @@ class DataPipeline:
             # _log_fetch → insert_fetch_log 自带 _db_lock; 必须在 transaction 锁外调用, 否则死锁。
             latency = (time.time() - start) * 1000
             self._log_fetch("prices", symbol, "success", latency, len(items))
-            logger.info("[Pipeline] 行情采集完成: %d 条 (%.0fms)", len(items), latency)
+            logger.info(
+                "[Pipeline] 行情采集完成: %d 条 (%.0fms)%s",
+                len(items),
+                latency,
+                f", 检测到 {anomaly_count} 条异常 bar" if anomaly_count else "",
+            )
             return items
 
         except Exception as e:
@@ -291,6 +300,33 @@ class DataPipeline:
             self._log_fetch("prices", symbol, "error", latency, 0, str(e))
             logger.error("[Pipeline] 行情采集失败: %s", e)
             return []
+
+    def _detect_price_anomalies(self, items: list[dict], symbol: str) -> int:
+        """落库前对 bars 做数据质量观测(零负价/高低倒挂等不依赖历史的异常)。
+
+        失败安全: anomaly_detector 不可用或抛错时返回 0, 绝不阻断采集落库。
+        仅 log 标记异常, 不修改/丢弃数据(尊重既有"数据进来"语义)。
+        返回检测到异常的 bar 数量。
+        """
+        try:
+            from backend.quality.anomaly_detector import get_anomaly_detector
+
+            detector = get_anomaly_detector()
+            count = 0
+            for item in items:
+                anomalies = detector.check_price(item, history=None, symbol=symbol)
+                if anomalies:
+                    count += 1
+                    logger.warning(
+                        "[Pipeline] 行情异常 %s %s: %s",
+                        symbol,
+                        item.get("date", ""),
+                        "; ".join(anomalies),
+                    )
+            return count
+        except Exception as e:  # noqa: BLE001
+            logger.debug("[Pipeline] 异常检测跳过(检测器不可用): %s", e)
+            return 0
 
     # ---- 基本面管道 ----
 

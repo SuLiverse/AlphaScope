@@ -96,3 +96,38 @@ class TestPipelineStatus:
             assert "db_path" in s
             assert "timestamp" in s
             DataPipeline._instance = None
+
+
+def test_detect_price_anomalies_flags_dirty_bars():
+    """_detect_price_anomalies 对零负价/高低倒挂计数, 正常 bar 返回 0, 检测器异常失败安全。"""
+    from unittest.mock import patch
+
+    from backend.pipeline import DataPipeline
+
+    DataPipeline._instance = None
+    # 用最小 mock 构造 pipeline(避免拉真实 registry)
+    with (
+        patch("backend.pipeline.get_registry"),
+        patch("backend.pipeline.Deduplicator"),
+        patch("backend.pipeline.SourceRanker"),
+        patch("backend.pipeline.Database"),
+    ):
+        p = DataPipeline()
+
+    # 正常 bar → 0
+    clean = [{"date": "2025-01-01", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100}]
+    assert p._detect_price_anomalies(clean, "600519") == 0
+
+    # 脏 bar(收盘价 0 + 高低倒挂)→ 2 条
+    dirty = [
+        {"date": "2025-01-01", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100},
+        {"date": "2025-01-02", "open": 10, "high": 8, "low": 9, "close": 0, "volume": 100},
+        {"date": "2025-01-03", "open": 10, "high": 11, "low": 9, "close": -5, "volume": 100},
+    ]
+    assert p._detect_price_anomalies(dirty, "600519") == 2
+
+    # 检测器 import 失败 → 失败安全返回 0, 不抛
+    with patch("backend.quality.anomaly_detector.get_anomaly_detector", side_effect=RuntimeError("boom")):
+        assert p._detect_price_anomalies(dirty, "600519") == 0
+
+    DataPipeline._instance = None
