@@ -109,20 +109,55 @@ export function NotifierSettings() {
     setDispatching(true);
     setDispatchMsg('');
     try {
-      const res = await fetchApi<{ results: { ok: boolean }[]; alert_count: number; sent?: boolean; reason?: string }>(
-        '/api/notifiers/dispatch-alerts',
-        { method: 'POST' },
-      );
+      const res = await fetchApi<{
+        results: { ok: boolean; channel?: string; message?: string }[];
+        alert_count: number;
+        sent?: boolean;
+        reason?: string;
+        all_succeeded?: boolean;
+      }>('/api/notifiers/dispatch-alerts', { method: 'POST' });
       if (res?.sent === false) {
         setDispatchMsg(res.reason || '无未确认告警');
+        return;
+      }
+      const results = res?.results || [];
+      const okCount = results.filter((r) => r.ok).length;
+      if (results.length === 0) {
+        setDispatchMsg('没有已启用的渠道,无法推送');
+        return;
+      }
+      // 全部成功 vs 部分失败: 后端仅全部成功才标读, 部分失败需提示用户重试
+      const failed = results.filter((r) => !r.ok);
+      if (failed.length === 0) {
+        setDispatchMsg(`✓ 已推送 ${res?.alert_count ?? 0} 条告警到全部 ${okCount} 个渠道(已标记已读)`);
       } else {
-        const ok = (res?.results || []).filter((r) => r.ok).length;
-        setDispatchMsg(`已推送 ${res?.alert_count ?? 0} 条告警到 ${ok} 个渠道`);
+        const failedDetail = failed
+          .map((r) => `${r.channel || '?'}: ${r.message || '失败'}`)
+          .join('; ');
+        setDispatchMsg(
+          `⚠ ${okCount}/${results.length} 个渠道成功, ${failed.length} 个失败(告警未标记已读, 可重试): ${failedDetail}`,
+        );
       }
     } catch (e) {
-      setDispatchMsg(e instanceof Error ? e.message : '推送失败');
+      setDispatchMsg(`✗ ${e instanceof Error ? e.message : '推送失败'}`);
     } finally {
       setDispatching(false);
+    }
+  };
+
+  const clearChannel = async (ch: Channel) => {
+    if (!window.confirm(`确认清除 ${CHANNEL_LABELS[ch]} 的已存凭证?此操作不可撤销。`)) {
+      return;
+    }
+    try {
+      await fetchApi(`/api/notifiers/${ch}`, { method: 'DELETE' });
+      setTestMsg((prev) => ({ ...prev, [ch]: '已清除凭证' }));
+      await load();
+    } catch (e) {
+      setTestMsg((prev) => ({
+        ...prev,
+        [ch]: `✗ 清除失败: ${e instanceof Error ? e.message : '未知错误'}`,
+      }));
     }
   };
 
@@ -175,7 +210,22 @@ export function NotifierSettings() {
         </button>
       </div>
 
-      {dispatchMsg && <p className="text-xs text-neutral-400">{dispatchMsg}</p>}
+      {dispatchMsg && (
+        <p
+          className={cn(
+            'text-xs',
+            dispatchMsg.startsWith('✓')
+              ? 'text-emerald-300'
+              : dispatchMsg.startsWith('⚠')
+                ? 'text-amber-300'
+                : dispatchMsg.startsWith('✗')
+                  ? 'text-rose-400'
+                  : 'text-neutral-400',
+          )}
+        >
+          {dispatchMsg}
+        </p>
+      )}
 
       {loading ? (
         <p className="text-xs text-neutral-500">加载中…</p>
@@ -234,9 +284,7 @@ export function NotifierSettings() {
                 {configured && (
                   <button
                     type="button"
-                    onClick={() => {
-                      void fetchApi(`/api/notifiers/${ch}`, { method: 'DELETE' }).then(() => load());
-                    }}
+                    onClick={() => void clearChannel(ch)}
                     className="inline-flex h-8 items-center gap-1 rounded-lg border border-white/10 px-2.5 text-[11px] text-neutral-500 hover:bg-rose-500/10 hover:text-rose-400"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -247,7 +295,11 @@ export function NotifierSettings() {
                   <span
                     className={cn(
                       'text-[11px]',
-                      testMsg[ch].startsWith('✓') ? 'text-emerald-300' : 'text-rose-400',
+                      testMsg[ch].startsWith('✓') || testMsg[ch].startsWith('已')
+                        ? 'text-emerald-300'
+                        : testMsg[ch].startsWith('✗')
+                          ? 'text-rose-400'
+                          : 'text-neutral-400',
                     )}
                   >
                     {testMsg[ch]}
