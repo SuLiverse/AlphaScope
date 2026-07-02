@@ -446,7 +446,7 @@ export function Portfolio() {
       const others = prev.filter((item) => item.symbol !== next.symbol);
       return [next, ...others];
     });
-    // 同步到后端持久化(失败静默,本地仍保留)
+    // 同步到后端持久化(本地仍保留, 但失败需告知 — 否则刷新后"凭空消失")
     void fetchApi('/api/portfolio/positions', {
       method: 'POST',
       body: JSON.stringify({
@@ -456,7 +456,11 @@ export function Portfolio() {
         shares: next.shares,
         cost: next.cost,
       }),
-    }).catch(() => {});
+    }).catch((e) => {
+      setSyncMsg(
+        `⚠ ${next.symbol} 已加入本地组合, 但后端同步失败(${e instanceof Error ? e.message : '网络错误'}), 刷新后会丢失。请检查后端或重试。`,
+      );
+    });
     setDraft((prev) => ({ ...prev, symbol: '', name: '', sector: '', cost: '' }));
   };
 
