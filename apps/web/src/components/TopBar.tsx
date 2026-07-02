@@ -62,6 +62,8 @@ export function TopBar() {
   const [costOpen, setCostOpen] = useState(false);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [unackCount, setUnackCount] = useState(0);
+  const [ackError, setAckError] = useState('');
+  const [acking, setAcking] = useState(false);
 
   const localSuggestions = useMemo(() => searchStockTargets(searchValue, 6), [searchValue]);
   const suggestions = remoteSuggestions.length ? remoteSuggestions : localSuggestions;
@@ -126,18 +128,33 @@ export function TopBar() {
   }, [noticeOpen]);
 
   const ackAlert = (alertId: string) => {
-    void fetchApi(`/api/alerts/${alertId}/ack`, { method: 'POST' }).then(() => {
-      setAlerts((prev) =>
-        prev.map((a) => (a.alert_id === alertId ? { ...a, acknowledged: true } : a)),
-      );
-      setUnackCount((c) => Math.max(0, c - 1));
-    });
+    setAcking(true);
+    setAckError('');
+    void fetchApi(`/api/alerts/${alertId}/ack`, { method: 'POST' })
+      .then(() => {
+        setAlerts((prev) =>
+          prev.map((a) => (a.alert_id === alertId ? { ...a, acknowledged: true } : a)),
+        );
+        setUnackCount((c) => Math.max(0, c - 1));
+      })
+      .catch((e) => {
+        // 确认失败必须告知用户, 否则 UI 标已读但服务端未读, 告警被静默"消化"。
+        setAckError(`标记已读失败:${e instanceof Error ? e.message : '网络错误'},该告警仍未确认`);
+      })
+      .finally(() => setAcking(false));
   };
   const ackAll = () => {
-    void fetchApi('/api/alerts/ack-all', { method: 'POST' }).then(() => {
-      setAlerts((prev) => prev.map((a) => ({ ...a, acknowledged: true })));
-      setUnackCount(0);
-    });
+    setAcking(true);
+    setAckError('');
+    void fetchApi('/api/alerts/ack-all', { method: 'POST' })
+      .then(() => {
+        setAlerts((prev) => prev.map((a) => ({ ...a, acknowledged: true })));
+        setUnackCount(0);
+      })
+      .catch((e) => {
+        setAckError(`全部已读失败:${e instanceof Error ? e.message : '网络错误'},告警仍未确认`);
+      })
+      .finally(() => setAcking(false));
   };
 
   useEffect(() => {
@@ -383,9 +400,10 @@ export function TopBar() {
                       <button
                         type="button"
                         onClick={ackAll}
-                        className="rounded-md px-2 py-1 text-[11px] text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
+                        disabled={acking}
+                        className="rounded-md px-2 py-1 text-[11px] text-neutral-400 hover:bg-white/5 hover:text-neutral-200 disabled:opacity-40"
                       >
-                        全部已读
+                        {acking ? '处理中…' : '全部已读'}
                       </button>
                     )}
                     <button
@@ -397,6 +415,11 @@ export function TopBar() {
                     </button>
                   </div>
                 </div>
+                {ackError && (
+                  <p className="mx-4 mb-2 rounded-md border border-rose-500/20 bg-rose-500/5 px-2.5 py-1.5 text-[11px] text-rose-300">
+                    {ackError}
+                  </p>
+                )}
                 <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
                   {alerts.length === 0 ? (
                     <div className="py-10 text-center">
@@ -435,9 +458,10 @@ export function TopBar() {
                             <button
                               type="button"
                               onClick={() => ackAlert(a.alert_id)}
-                              className="shrink-0 rounded-md px-2 py-1 text-[10px] text-sky-400 hover:bg-sky-500/10"
+                              disabled={acking}
+                              className="shrink-0 rounded-md px-2 py-1 text-[10px] text-sky-400 hover:bg-sky-500/10 disabled:opacity-40"
                             >
-                              已读
+                              {acking ? '…' : '已读'}
                             </button>
                           )}
                         </div>
