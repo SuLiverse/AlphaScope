@@ -482,6 +482,9 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   
   const eventSourceRef = useRef<EventSource | null>(null);
   const pollTimerRef = useRef<number | null>(null);
+  // 轮询活跃标志: stopTaskListeners 置 false 后, 进行中的 await 回调检查它即停,
+  // 不对已卸载组件 setState、不递归重启已被清理的轮询链。
+  const pollingActiveRef = useRef(false);
   const selectedReportModel = modelOptions.find((option) => option.key === selectedReportModelKey) ?? modelOptions[0];
   const selectableStocks = [selectedTarget, ...STOCK_UNIVERSE].filter(
     (stock, index, list) => list.findIndex((item) => item.symbol === stock.symbol) === index,
@@ -497,6 +500,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   ];
 
   const stopTaskListeners = () => {
+    pollingActiveRef.current = false;
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;
@@ -529,9 +533,12 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   };
 
   const pollTaskStatus = (taskId: string) => {
+    pollingActiveRef.current = true;
     pollTimerRef.current = window.setTimeout(async () => {
       try {
         const snapshot = await getTaskStatus(taskId);
+        // 卸载/停止后不再 setState、不再递归(避免对已卸载组件 setState + 重启已清理轮询)
+        if (!pollingActiveRef.current) return;
         const p = Number(snapshot.progress) || 0;
         setProgressPercent((current) => Math.max(current, p));
         setGenerationStatus(snapshot.message || `任务状态：${snapshot.status}`);
@@ -545,6 +552,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         }
         pollTaskStatus(taskId);
       } catch (error) {
+        if (!pollingActiveRef.current) return;
         console.warn('Failed to poll task status', error);
         pollTaskStatus(taskId);
       }
