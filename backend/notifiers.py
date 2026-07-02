@@ -97,9 +97,10 @@ def send_feishu(webhook: str, title: str, body: str) -> SendResult:
     webhook = (webhook or "").strip()
     if not webhook or "feishu.cn" not in webhook and "larksuite" not in webhook:
         return SendResult(False, "feishu", "webhook 缺失或非飞书地址")
+    # [:3500] 必须在 f-string 外(飞书文本上限 ~3500 字), 否则是字面文本会原样发送。
     res = _http_post_json(
         webhook,
-        {"msg_type": "text", "content": {"text": f"{title}\n\n{body}[:3500]"}},
+        {"msg_type": "text", "content": {"text": f"{title}\n\n{body}"[:3500]}},
     )
     return SendResult(res["ok"], "feishu", res.get("error") or res.get("body", ""))
 

@@ -133,6 +133,27 @@ def test_dispatch_feishu_invalid_webhook():
     assert r.ok is False  # 非飞书地址被拒
 
 
+def test_dispatch_feishu_truncates_long_body():
+    """飞书消息体应在 ~3500 字处截断, [:3500] 不能作为字面文本泄漏到消息里。"""
+    from backend.notifiers import send_feishu
+
+    captured = {}
+
+    def _fake_post(url, payload, headers=None, timeout=10):
+        captured["payload"] = payload
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    with patch("backend.notifiers._http_post_json", side_effect=_fake_post):
+        long_body = "X" * 10000
+        r = send_feishu("https://open.feishu.cn/open-apis/bot/v2/hook/xxx", "T", long_body)
+    assert r.ok is True
+    text = captured["payload"]["content"]["text"]
+    # 消息体被截断到上限内, 不再是完整 10000 字 + 杂散 [:3500]
+    assert len(text) <= 3500
+    assert "[:3500]" not in text
+    assert text.startswith("T")  # 标题保留
+
+
 def test_dispatch_email_missing_config():
     from backend.notifiers import send_email
 
