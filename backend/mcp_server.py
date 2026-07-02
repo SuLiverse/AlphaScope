@@ -250,3 +250,33 @@ def describe() -> dict[str, Any]:
             else "mcp 未安装。pip install 'mcp[cli]' 启用 MCP server (暴露研究工具给外部 LLM)。"
         ),
     }
+
+
+def run_server() -> int:
+    """启动 MCP server (stdio 传输), 供 console_script / ``python -m`` 调用。
+
+    启动前先断言未注册禁止工具(No-Live-Order 边界);mcp 未安装时打印提示并返回非零。
+    返回退出码 (0 成功)。
+    """
+    if not _MCP_AVAILABLE:
+        print(
+            "mcp 库未安装。启用 MCP server 请执行: pip install 'mcp[cli]'",
+            flush=True,
+        )
+        return 1
+
+    # 边界守卫:绝不暴露实盘下单工具
+    assert_no_forbidden_tools()
+
+    server = create_server()
+    if server is None:
+        print("MCP server 创建失败", flush=True)
+        return 1
+
+    # FastMCP.run() 默认 stdio 传输, 由外部 MCP client (Claude Desktop 等) 拉起
+    server.run()
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(run_server())

@@ -79,3 +79,21 @@ async def get_cost_summary():
     from backend.diagnostics_store import get_cost_summary as _summary
 
     return ApiResponse(success=True, data=_summary())
+
+
+@router.get("/mcp")
+async def get_mcp_status():
+    """MCP server 能力概览 + 启动方式(供 UI/诊断)。
+
+    暴露 mcp_server.describe() + console_script 启动命令, 让用户知道如何把
+    AlphaScope 的研究能力接到 Claude Desktop 等外部 LLM。
+    """
+    from backend.mcp_server import describe
+
+    info = describe()
+    info["start_command"] = "alphascope-mcp  # 或 python -m backend.mcp_server"
+    info["claude_desktop_config"] = {
+        "command": "alphascope-mcp",
+        "note": "把此段加入 Claude Desktop 的 mcpServers 配置即可调用 AlphaScope 研究工具",
+    }
+    return ApiResponse(success=True, data=info)

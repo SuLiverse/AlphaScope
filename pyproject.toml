@@ -35,6 +35,10 @@ dependencies = [
     "python-multipart>=0.0.20",
 ]
 
+[project.scripts]
+# MCP server 入口: pip install 后可直接 `alphascope-mcp` 启动(暴露研究工具给 Claude Desktop 等外部 LLM)
+alphascope-mcp = "backend.mcp_server:run_server"
+
 [project.optional-dependencies]
 api = ["fastapi>=0.115.0,<1.0", "uvicorn>=0.34.0,<1.0", "python-multipart>=0.0.20"]
 rag = ["chromadb==0.6.3"]
