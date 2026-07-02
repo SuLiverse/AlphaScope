@@ -94,13 +94,20 @@ def dispatch_alerts():
         )
         results.append(r.to_dict())
 
-    # 推送成功后把告警标记为已确认,避免重复推送
-    if any(r["ok"] for r in results):
-        alert_store.acknowledge_all()
+    # 仅当全部已启用渠道都成功才标读; 否则保留告警以便下次 dispatch 重试,
+    # 避免一个渠道成功就把失败渠道的告警永久丢。
+    acknowledged = 0
+    if results and all(r["ok"] for r in results):
+        acknowledged = alert_store.acknowledge_all()
 
     return ApiResponse(
         success=True,
-        data={"results": results, "alert_count": len(alerts)},
+        data={
+            "results": results,
+            "alert_count": len(alerts),
+            "acknowledged": acknowledged,
+            "all_succeeded": bool(results) and all(r["ok"] for r in results),
+        },
     )
 
 

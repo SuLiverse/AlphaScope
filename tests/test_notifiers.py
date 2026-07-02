@@ -98,6 +98,67 @@ def test_api_dispatch_alerts_empty(client):
     assert r.json()["data"]["reason"] == "无未确认告警"
 
 
+def test_api_dispatch_alerts_all_succeed_marks_acked(client):
+    """全部渠道成功 → acknowledge_all, 告警不再未确认。"""
+    from backend import alert_store
+    from backend import notifier_store
+
+    _clear_channels()
+    alert_store.clear_all()
+    alert_store.add_alert(
+        alert_id="d1", symbol="s", name="", alert_type="price_change", message="m1"
+    )
+    # 配两个启用渠道
+    notifier_store.save_channel("serverchan", True, {"sckey": "SCT1"})
+    notifier_store.save_channel("pushplus", True, {"token": "tok1"})
+
+    with patch(
+        "backend.notifiers._http_get", return_value={"ok": True, "status": 200, "body": "{}"}
+    ):
+        r = client.post("/api/notifiers/dispatch-alerts")
+    data = r.json()["data"]
+    assert data["all_succeeded"] is True
+    assert data["acknowledged"] >= 1
+    assert alert_store.count_unacknowledged() == 0
+    _clear_channels()
+    alert_store.clear_all()
+
+
+def test_api_dispatch_alerts_partial_fail_keeps_unacked(client):
+    """部分渠道失败 → 不标读, 告警保留以便下次重试。"""
+    from backend import alert_store
+    from backend import notifier_store
+
+    _clear_channels()
+    alert_store.clear_all()
+    alert_store.add_alert(
+        alert_id="d2", symbol="s", name="", alert_type="price_change", message="m2"
+    )
+    notifier_store.save_channel("serverchan", True, {"sckey": "SCT1"})
+    notifier_store.save_channel("pushplus", True, {"token": "tok1"})
+
+    # serverchan 走 _http_get, pushplus 走 _http_post_json; 让 post 失败
+    def fake_get(url, timeout=10):
+        return {"ok": True, "status": 200, "body": "{}"}
+
+    def fake_post(url, payload, headers=None, timeout=10):
+        return {"ok": False, "error": "HTTP 500"}
+
+    import backend.notifiers as N
+
+    with patch.object(N, "_http_get", side_effect=fake_get), patch.object(
+        N, "_http_post_json", side_effect=fake_post
+    ):
+        r = client.post("/api/notifiers/dispatch-alerts")
+    data = r.json()["data"]
+    assert data["all_succeeded"] is False
+    assert data["acknowledged"] == 0
+    # 告警仍为未确认(失败渠道下次可重试)
+    assert alert_store.count_unacknowledged() == 1
+    _clear_channels()
+    alert_store.clear_all()
+
+
 # ---------------- 分发纯函数(mock 网络) ----------------
 
 
