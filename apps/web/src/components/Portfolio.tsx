@@ -176,6 +176,7 @@ export function Portfolio() {
   const [loadingPrices, setLoadingPrices] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [formError, setFormError] = useState('');
+  const [syncMsg, setSyncMsg] = useState('');
   const [draft, setDraft] = useState({
     symbol: '',
     name: '',
@@ -460,10 +461,19 @@ export function Portfolio() {
   };
 
   const removePosition = (symbol: string) => {
+    if (!window.confirm(`确认从研究组合移除 ${symbol}?`)) {
+      return;
+    }
     setPositions((prev) => prev.filter((item) => item.symbol !== symbol));
     void fetchApi(`/api/portfolio/positions/${encodeURIComponent(symbol)}`, {
       method: 'DELETE',
-    }).catch(() => {});
+    }).catch((e) => {
+      // 本地已乐观删除(尊重既有设计), 但后端同步失败时需告知:
+      // 否则刷新后会"凭空恢复", 用户不知删除其实没落库。
+      setSyncMsg(
+        `⚠ ${symbol} 本地已移除, 但后端同步失败(${e instanceof Error ? e.message : '网络错误'}), 刷新后会恢复。请检查后端或重试。`,
+      );
+    });
   };
 
   const quickStocks = [
@@ -652,6 +662,11 @@ export function Portfolio() {
           ))}
         </div>
         {formError && <div className="mt-3 text-xs text-rose-300">{formError}</div>}
+        {syncMsg && (
+          <div className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-300">
+            {syncMsg}
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
