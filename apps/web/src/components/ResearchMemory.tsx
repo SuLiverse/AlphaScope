@@ -128,29 +128,29 @@ export const ResearchMemory: React.FC = () => {
     }
   }, []);
 
-  const loadTimeline = useCallback(async (symbol: string) => {
-    if (!symbol) {
-      setTimeline(null);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await fetchApi<Timeline>(`/api/research-memory/timeline/${encodeURIComponent(symbol)}`);
-      setTimeline(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '时间线读取失败');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     void loadSymbols();
   }, [loadSymbols]);
 
   useEffect(() => {
-    if (selected) void loadTimeline(selected);
-  }, [selected, loadTimeline]);
+    if (!selected) return;
+    // cancelled 守卫: 快速点选不同 symbol 时旧 timeline 晚返回不覆盖新选中
+    let cancelled = false;
+    setLoading(true);
+    void fetchApi<Timeline>(`/api/research-memory/timeline/${encodeURIComponent(selected)}`)
+      .then((data) => {
+        if (!cancelled) setTimeline(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : '时间线读取失败');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selected]);
 
   const handleDeleteSymbol = async (symbol: string) => {
     if (!window.confirm(`确认清空 ${symbol} 的全部研究记忆?所有历史快照将被删除,此操作不可撤销。`)) {

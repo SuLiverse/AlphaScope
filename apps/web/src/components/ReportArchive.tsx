@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Archive,
   RefreshCw,
@@ -76,7 +76,12 @@ export function ReportArchive() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillMsg, setBackfillMsg] = useState('');
 
+  // 轮次序号: load 自增, fetch 返回后若不是最新轮次则丢弃(stale 结果不覆盖新查询)。
+  // 防快速打字/切筛选时旧请求晚返回覆盖新结果。
+  const loadSeqRef = useRef(0);
+
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
     setLoading(true);
     setLoadError('');
     try {
@@ -89,14 +94,16 @@ export function ReportArchive() {
         fetchApi<{ reports: ArchiveItem[]; total: number }>(`/api/archive?${params.toString()}`),
         fetchApi<ArchiveStats>('/api/archive/stats'),
       ]);
+      if (seq !== loadSeqRef.current) return; // 已有更新的请求在途/完成, 丢弃本次 stale 结果
       setItems(listRes?.reports || []);
       setStats(statsRes || null);
     } catch (e) {
+      if (seq !== loadSeqRef.current) return;
       setItems([]);
       setStats(null);
       setLoadError(e instanceof Error ? e.message : '加载归档报告失败');
     } finally {
-      setLoading(false);
+      if (seq === loadSeqRef.current) setLoading(false);
     }
   }, [query, decisionFilter, typeFilter]);
 
