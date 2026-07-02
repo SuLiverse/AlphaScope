@@ -112,7 +112,7 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
       transition={{ duration: 0.3 }}
       className="h-full flex flex-col p-4 text-neutral-300"
     >
-      <div className="flex flex-col gap-4 px-2 mb-6 relative z-10 lg:flex-row lg:items-end lg:justify-between">
+      <div className="flex flex-col gap-4 px-2 mb-6 relative z-30 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <h2 className="text-3xl font-display font-medium tracking-tight text-white mb-2 flex flex-wrap items-center gap-3">
             专家圆桌
