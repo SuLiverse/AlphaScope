@@ -93,12 +93,14 @@ def create_server() -> "FastMCP | None":
         """
         try:
             # 复用 AlphaScope 现有 provider 链 (不触网交易, 只读历史)
+            import json
+
             from backend.price_fetcher import fetch_prices
 
             bars = fetch_prices(symbol, period="daily", count=30)
             if not bars:
-                return f'{{"error": "无 {symbol} 行情数据"}}'
-            import json
+                # json.dumps 而非 f-string — symbol 含双引号会破坏 JSON
+                return json.dumps({"error": f"无 {symbol} 行情数据"}, ensure_ascii=False)
 
             rows = [
                 {
@@ -126,12 +128,13 @@ def create_server() -> "FastMCP | None":
         try:
             from backend.rag.hybrid_retriever import retrieve
 
+            import json
+
             k = max(1, min(int(top_k), 20))
             hits = retrieve(query, top_k=k)
             if not hits:
-                return f'{{"query": "{query}", "hits": []}}'
-            import json
-
+                # 用 json.dumps 而非 f-string 拼 — query 含双引号会破坏 JSON 结构
+                return json.dumps({"query": query, "hits": []}, ensure_ascii=False)
             rows = [
                 {
                     "content": str(getattr(h, "content", h.get("content", "")))[:300],
