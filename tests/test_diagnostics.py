@@ -185,3 +185,14 @@ async def test_limit_caps_reject_oversize(client):
     assert resp.status_code == 422  # ge=1
     resp = await client.get("/api/diagnostics/tool-calls?limit=50")
     assert resp.status_code == 200
+
+
+@pytest.mark.anyio
+async def test_mlops_endpoint(client):
+    """GET /api/diagnostics/mlops 返回 MLOps 能力概览(激活 ai_evaluation)。"""
+    resp = await client.get("/api/diagnostics/mlops")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert "available_tools" in data
+    assert "ready" in data
+    assert isinstance(data["available_tools"], dict)

@@ -97,3 +97,18 @@ async def get_mcp_status():
         "note": "把此段加入 Claude Desktop 的 mcpServers 配置即可调用 AlphaScope 研究工具",
     }
     return ApiResponse(success=True, data=info)
+
+
+@router.get("/mlops")
+async def get_mlops_status():
+    """MLOps 能力概览(激活沉睡的 ai_evaluation 模块)。
+
+    暴露 ai_evaluation.describe(): 哪些 MLOps 库(mlflow/optuna/evidently/...)已装就绪,
+    缺装如何 pip install。纯只读诊断, 失败安全。
+    """
+    try:
+        from backend.ai_evaluation import describe
+
+        return ApiResponse(success=True, data=describe())
+    except Exception as e:
+        return ApiResponse(success=False, error=str(e))
