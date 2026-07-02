@@ -11,6 +11,7 @@ Simple rule-based + historical comparison to detect obviously bad data:
 from __future__ import annotations
 
 import logging
+import re
 from typing import List, Optional, Dict, Any
 
 logger = logging.getLogger(__name__)
@@ -183,9 +184,20 @@ class AnomalyDetector:
         }
 
     def _get_price_limit(self, symbol: str) -> float:
-        """Get price limit percentage based on stock symbol"""
+        """Get price limit percentage based on stock symbol.
+
+        A 股主板 10% / 创业板(300)+科创板(688)20%。港股(5 位数字)、美股(字母代码)
+        无涨跌停限制 → 返大值(999)避免误报"超涨跌停"。
+        """
         if not symbol:
             return self.DEFAULT_PRICE_LIMIT_PCT
+        digits = re.sub(r"\D", "", symbol)
+        # 港股 5 位纯数字(如 00700)→ 无涨跌停
+        if len(digits) == 5 and digits.isdigit():
+            return 999.0
+        # 美股字母代码(如 AAPL)→ 无涨跌停
+        if not symbol[:1].isdigit():
+            return 999.0
         # ChiNext (300xxx) and STAR (688xxx) have 20% limit
         if symbol.startswith("300") or symbol.startswith("688"):
             return self.CHINEXT_STAR_PRICE_LIMIT_PCT

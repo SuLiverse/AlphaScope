@@ -135,6 +135,15 @@ def test_get_price_limit_main_vs_chinext_star():
     assert d._get_price_limit("") == 10.0  # 缺省主板
 
 
+def test_get_price_limit_hk_and_us_no_limit():
+    """港股(5位数字)/美股(字母)无涨跌停, 返 999 防误报\"超涨跌停\"。"""
+    d = AnomalyDetector()
+    assert d._get_price_limit("00700") == 999.0  # 港股 腾讯
+    assert d._get_price_limit("09988") == 999.0  # 港股 阿里
+    assert d._get_price_limit("AAPL") == 999.0  # 美股
+    assert d._get_price_limit("TSLA") == 999.0  # 美股
+
+
 # ---------------- check_batch ----------------
 
 
