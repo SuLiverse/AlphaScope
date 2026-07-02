@@ -145,11 +145,18 @@ def _db() -> Database:
     return Database()
 
 
+_schema_ensured = False
+
+
 def _ensure_table() -> None:
-    """建表(幂等)。包进进程级 DB 锁。"""
+    """建表(幂等)。包进进程级 DB 锁。首次建表后置 flag 跳过(provider 启动读凭证高频调)。"""
+    global _schema_ensured
+    if _schema_ensured:
+        return
     with _db().transaction() as conn:
         conn.execute(_TABLE_SQL)
         conn.commit()
+    _schema_ensured = True
 
 
 def list_presets() -> list[dict[str, Any]]:
