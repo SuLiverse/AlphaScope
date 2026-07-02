@@ -85,3 +85,25 @@ class TestExpertPanelConsumes:
             pytest.skip("未发现公开的 experts 加载函数")
         result = loader()
         assert result is not None
+
+
+def test_v2_member_prompt_files_all_load_nonempty():
+    """所有 v2 team member 的 promptFile 必须存在且非空(防止路径写错/文件缺失回归)。
+
+    回归: 上轮 5 个 member(sentiment/fund_flow/devil/compliance/summarizer)的 promptFile
+    指向不存在文件, load_prompt_file 静默返回空 → 空白人设。此测试锁住。
+    """
+    from backend.expert_panel import load_prompt_file
+
+    data = _load()
+    teams = data.get("teams") or []
+    assert teams, "应至少有一个 v2 team"
+    for team in teams:
+        members = team.get("members") or []
+        for m in members:
+            pf = m.get("promptFile")
+            if not pf:
+                continue
+            content = load_prompt_file(pf)
+            assert content, f"member {m.get('id')} 的 promptFile {pf} 加载为空(文件缺失?)"
+            assert len(content) > 50, f"member {m.get('id')} 的 prompt {pf} 内容过短(疑似 stub)"
