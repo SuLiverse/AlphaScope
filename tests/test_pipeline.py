@@ -131,3 +131,33 @@ def test_detect_price_anomalies_flags_dirty_bars():
         assert p._detect_price_anomalies(dirty, "600519") == 0
 
     DataPipeline._instance = None
+
+
+def test_detect_news_anomalies_flags_short_and_garbled_titles():
+    """_detect_news_anomalies 对标题过短计数, 正常标题 0, 检测器异常失败安全。"""
+    from unittest.mock import patch
+
+    from backend.pipeline import DataPipeline
+
+    DataPipeline._instance = None
+    with (
+        patch("backend.pipeline.get_registry"),
+        patch("backend.pipeline.Deduplicator"),
+        patch("backend.pipeline.SourceRanker"),
+        patch("backend.pipeline.Database"),
+    ):
+        p = DataPipeline()
+
+    clean = [{"title": "贵州茅台发布年度业绩报告", "source": "x", "published_at": "2025-01-01"}]
+    assert p._detect_news_anomalies(clean) == 0
+
+    dirty = [
+        {"title": "贵州茅台发布年度业绩报告", "source": "x"},
+        {"title": "ab", "source": "x"},  # 过短(<4)
+    ]
+    assert p._detect_news_anomalies(dirty) == 1
+
+    with patch("backend.quality.anomaly_detector.get_anomaly_detector", side_effect=RuntimeError("boom")):
+        assert p._detect_news_anomalies(dirty) == 0
+
+    DataPipeline._instance = None

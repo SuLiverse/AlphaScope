@@ -127,6 +127,9 @@ class DataPipeline:
             # 4. 事件抽取 (v0.12)
             items = self._enrich_news_with_events(items)
 
+            # 4.5 数据质量观测: 持久化前检测标题过短/乱码/重复时间戳。失败安全不阻断。
+            news_anomaly_count = self._detect_news_anomalies(items)
+
             # 5. 持久化
             for item in items:
                 self._db.insert_news(self._to_news_row(item))
@@ -136,7 +139,12 @@ class DataPipeline:
 
             latency = (time.time() - start) * 1000
             self._log_fetch("news", market, "success", latency, len(items))
-            logger.info("[Pipeline] 新闻采集完成: %d 条 (%.0fms)", len(items), latency)
+            logger.info(
+                "[Pipeline] 新闻采集完成: %d 条 (%.0fms)%s",
+                len(items),
+                latency,
+                f", 检测到 {news_anomaly_count} 条异常" if news_anomaly_count else "",
+            )
             return items
 
         except Exception as e:
@@ -326,6 +334,37 @@ class DataPipeline:
             return count
         except Exception as e:  # noqa: BLE001
             logger.debug("[Pipeline] 异常检测跳过(检测器不可用): %s", e)
+            return 0
+
+    def _detect_news_anomalies(self, items: list[dict]) -> int:
+        """持久化前对新闻做质量观测(标题过短/乱码/重复时间戳)。
+
+        失败安全不阻断; check_news 用 datetime 字段, provider item 可能用 published_at,
+        这里归一化传入。返回检测到异常的条数。
+        """
+        try:
+            from backend.quality.anomaly_detector import get_anomaly_detector
+
+            detector = get_anomaly_detector()
+            # 归一化字段名: check_news 读 datetime, 兼容 published_at
+            normalized = []
+            for item in items:
+                norm = dict(item)
+                if "datetime" not in norm and item.get("published_at"):
+                    norm["datetime"] = item["published_at"]
+                normalized.append(norm)
+            count = 0
+            for news in normalized:
+                anomalies = detector.check_news(news, all_news=normalized)
+                if anomalies:
+                    count += 1
+                    logger.warning(
+                        "[Pipeline] 新闻异常: %s",
+                        "; ".join(anomalies),
+                    )
+            return count
+        except Exception as e:  # noqa: BLE001
+            logger.debug("[Pipeline] 新闻异常检测跳过: %s", e)
             return 0
 
     # ---- 基本面管道 ----
