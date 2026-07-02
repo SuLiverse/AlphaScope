@@ -453,11 +453,12 @@ export async function startAsyncAnalysis(
   mode: string = 'deep',
   useMockForcefully: boolean = false,
   globalAiSettings?: Record<string, unknown>,
+  reportTemplate?: string,
 ): Promise<string> {
   if (useMockForcefully) {
     return 'mock-task-123';
   }
-  
+
   try {
     const rawResult = await fetchApi<AsyncAnalysisStartData>('/api/analysis/async', {
       method: 'POST',
@@ -468,6 +469,7 @@ export async function startAsyncAnalysis(
         conversation_id: '',
         agent_configs: getEnabledAgentRuntimeConfigs(),
         global_ai_settings: globalAiSettings,
+        report_template: reportTemplate || 'standard',
       })
     });
     return rawResult.task_id;
@@ -478,6 +480,16 @@ export async function startAsyncAnalysis(
     }
     throw err;
   }
+}
+
+/** 已完成研报的 Markdown 导出 URL(浏览器直接下载)。 */
+export function getReportExportUrl(taskId: string): string {
+  const base = API_BASE_URL.replace(/\/+$/, '');
+  const url = new URL(`${base}/api/export/report/${taskId}.md`);
+  if (API_KEY) {
+    url.searchParams.set('token', API_KEY);
+  }
+  return url.toString();
 }
 
 /**

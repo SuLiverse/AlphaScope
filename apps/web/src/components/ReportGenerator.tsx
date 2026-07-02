@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { 
-  FileText, 
-  Sparkles, 
-  Award, 
+import {
+  FileText,
+  Sparkles,
+  Award,
   FileCheck,
   Settings2,
   AlertTriangle,
@@ -16,10 +16,11 @@ import {
   Cpu,
   CheckCircle2,
   XCircle,
-  BarChart3
+  BarChart3,
+  Download
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { startAsyncAnalysis, getTaskResult, getTaskEventsUrl, getTaskStatus } from '../lib/analysisAdapter';
+import { startAsyncAnalysis, getTaskResult, getTaskEventsUrl, getTaskStatus, getReportExportUrl } from '../lib/analysisAdapter';
 import { AnalysisResult, DebateResult, RatingBreakdown } from '../types';
 import { DecisionSummary } from './report/DecisionSummary';
 import { ReportCharts } from './ReportCharts';
@@ -474,6 +475,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   );
   const [generationError, setGenerationError] = useState('');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
+  const [currentTaskId, setCurrentTaskId] = useState('');
   const [providers, setProviders] = useState<ModelProvider[]>([]);
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [selectedReportModelKey, setSelectedReportModelKey] = useState('');
@@ -598,6 +600,29 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
     };
   }, [reportModelsReloadKey]);
 
+  const [loadTaskId, setLoadTaskId] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const [isLoadingTask, setIsLoadingTask] = useState(false);
+
+  // 从历史任务载入结果(修复圆桌分析结果不可达: 报告页可按 task_id 加载已完成任务)
+  const loadExistingTask = async () => {
+    const tid = loadTaskId.trim();
+    if (!tid) return;
+    setIsLoadingTask(true);
+    setLoadError('');
+    try {
+      const result = await getTaskResult(tid, false);
+      setAnalysisResult(result);
+      setCurrentTaskId(tid);
+      setGenerationStatus('已载入历史任务结果');
+      setLoadTaskId('');
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : '任务载入失败');
+    } finally {
+      setIsLoadingTask(false);
+    }
+  };
+
   const startGeneration = async () => {
     stopTaskListeners();
     setIsGenerating(true);
@@ -606,6 +631,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
     setGenerationStatus('正在提交报告生成任务...');
     setGenerationError('');
     setAnalysisResult(null);
+    setCurrentTaskId('');
 
     const symbol = selectedTarget.symbol;
     const name = selectedTarget.name;
@@ -652,7 +678,8 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         : undefined;
 
       // Real API Flow with SSE
-      const taskId = await startAsyncAnalysis(symbol, name, 'deep', false, globalAiSettings);
+      const taskId = await startAsyncAnalysis(symbol, name, 'deep', false, globalAiSettings, selectedTemplate);
+      setCurrentTaskId(taskId);
       setProgressPercent(8);
       setGenerationStatus(`任务已启动：${taskId}`);
       pollTaskStatus(taskId);
@@ -803,6 +830,35 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
           </div>
 
           <div className="mt-auto pt-4 border-t border-white/5 flex flex-col gap-4">
+            {/* 载入历史任务: 从圆桌/任务中心跳转来的结果可在此按 task_id 打开 */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-medium text-neutral-500 select-none">
+                载入历史任务
+              </label>
+              <div className="flex gap-1.5">
+                <input
+                  value={loadTaskId}
+                  onChange={(e) => setLoadTaskId(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void loadExistingTask();
+                  }}
+                  placeholder="粘贴任务 ID"
+                  className="h-8 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 text-[11px] text-neutral-300 outline-none focus:border-indigo-500/50 placeholder:text-neutral-600"
+                />
+                <button
+                  type="button"
+                  onClick={loadExistingTask}
+                  disabled={!loadTaskId.trim() || isLoadingTask}
+                  className="h-8 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] text-neutral-300 hover:border-indigo-400/40 hover:text-indigo-200 disabled:opacity-40"
+                >
+                  {isLoadingTask ? '载入中' : '载入'}
+                </button>
+              </div>
+              {loadError && (
+                <p className="text-[10px] text-rose-400">{loadError}</p>
+              )}
+            </div>
+
             <button
               data-testid="report-generate-button"
               onClick={startGeneration}
@@ -899,12 +955,35 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                 className="flex-1 flex flex-col min-h-0 bg-[#0c0c0c] overflow-y-auto custom-scrollbar p-6 lg:p-8"
               >
                 <div className="mx-auto w-full max-w-5xl">
-                  
+
+                  {/* 导出操作栏 */}
+                  <div className="mb-5 flex items-center justify-between gap-3">
+                    <p className="text-xs text-neutral-500">
+                      研报已生成 · {selectedStock}
+                      {currentTaskId && (
+                        <span className="ml-2 font-mono text-neutral-600">任务 {currentTaskId.slice(0, 8)}</span>
+                      )}
+                    </p>
+                    {currentTaskId && (
+                      <a
+                        href={getReportExportUrl(currentTaskId)}
+                        target="_blank"
+                        rel="noreferrer"
+                        download
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-200"
+                        title="下载 Markdown 研报"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        导出 Markdown
+                      </a>
+                    )}
+                  </div>
+
                   {/* P0: Decision Summary */}
-                  <DecisionSummary 
+                  <DecisionSummary
                     stockSymbol={selectedTarget.symbol}
                     stockName={selectedTarget.name}
-                    result={analysisResult} 
+                    result={analysisResult}
                   />
 
                   <GeneratedResearchReport result={analysisResult} symbol={selectedTarget.symbol} stockName={selectedTarget.name} onOpenModelSettings={onOpenModelSettings} />

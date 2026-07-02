@@ -188,6 +188,10 @@ class AsyncAnalysisRequest(BaseModel):
     global_ai_settings: Optional[dict[str, Any]] = Field(
         default=None, description="全局 AI 模型设置"
     )
+    report_template: str = Field(
+        default="standard",
+        description="研报大纲范式: standard(个股深度) / macro(行业专题) / risk(黑天鹅预警)",
+    )
 
 
 @router.get("/api/tasks")
@@ -307,12 +311,16 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
         }
         mode = mode_map.get(req.mode, AnalysisMode.DEEP)
         stock_data = _build_analysis_stock_data(req.stock_symbol, req.stock_name)
-        return run_agents_with_mode(
+        result = run_agents_with_mode(
             stock_data=stock_data,
             mode=mode,
             agent_configs=req.agent_configs,
             global_ai_settings=req.global_ai_settings,
         )
+        # 回显用户选择的研报范式, 供前端导出/排版使用(不改变分析本身)
+        if isinstance(result, dict):
+            result["report_template"] = req.report_template
+        return result
 
     task_id = TaskQueue().submit(
         task_type="analysis",
@@ -322,6 +330,7 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
             "stock_symbol": req.stock_symbol,
             "stock_name": req.stock_name,
             "mode": req.mode,
+            "report_template": req.report_template,
             "agent_configs": req.agent_configs,
             "global_ai_settings": req.global_ai_settings,
         },
