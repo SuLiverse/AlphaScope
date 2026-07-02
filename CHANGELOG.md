@@ -1,5 +1,34 @@
 # Changelog
 
+## v1.9.41 - 2026-07-03
+
+> **输入校验 + 前端竞态加固**:继 v1.9.40 健壮性批次后的第二批「检查并修复」。Explore 扫描发现 API 输入校验盲区(limit 无上限、body 弱类型)和前端异步竞态(切标的 stale 覆盖、订阅频繁 resubscribe)。纯修复 + 测试,未删改既有功能。
+
+### API 输入校验(防资源耗尽 / 脏数据)
+- **limit 参数加上限**(约 13 端点):diagnostics(5 端点 le=500)、main(/conversations le=500、/audit le=1000)、tickflow refresh(le=2000)、datalake(3 body 模型 Field le)、prices(le=2000)、quant experiments(le=500)、research_memory(le=500/1000)、funds/fund_analysis search(le=200)、knowledge/evidence(le=500)。对齐项目既有 `Query(ge=, le=)` 正例,超限返回 422。
+- **tickflow SourceBody/PreviewBody 校验**:url 非空必须 http/https(封堵 ftp://、file://、相对路径);method 用 `Literal["GET","POST"]` 限枚举(http_json_provider 只支持这两种)。补 3 个 Pydantic 校验测试。
+- **MCP 工具 JSON 注入修复**:search_evidence/get_market_data 的空结果分支此前 f-string 拼 JSON,query/symbol 含双引号会破坏结构/注入字段,改 json.dumps。
+- **回归测试**:diagnostics limit 上限 422 测试锁住防御。
+
+### 前端竞态 / 订阅(切标的 stale 覆盖、卸载后 setState)
+- **报告生成轮询卸载竞态**(最复杂):pollTaskStatus 的 await 返回后对已卸载组件 setState + 递归重启已清理轮询链(幽灵轮询)。加 pollingActiveRef 守卫。
+- **估值/龙虎榜/研究记忆 切标的竞态**:useEffect[stock?.symbol] 内联 cancelled 守卫,旧请求晚返回不覆盖新数据。
+- **证据链/研究存档 竞态**:loadEvidence/load 加轮次序号(seqRef),fetch 返回后非最新轮次则丢弃 stale 结果(所有调用点含按钮均受益)。
+- **多模态图订阅 deps 优化**:subscribeStockSelected 的 deps 含 chartData 导致每次行情刷新都 resubscribe(事件丢失+抖动),改 ref 读最新值 + deps []。
+- **研究组合添加同步失败提示**:与移除一致(尊重本地优先乐观设计,仅告知后端同步状态)。
+
+### 数据质量观测(扩展)
+- **data_contract 接线**(激活沉睡模块):pipeline 落库前字段完整性观测(缺 date/volume 等),与 anomaly_detector 值域检测互补。pandera 不可用退化为字段存在性底线。失败安全不阻断。
+- **anomaly_detector 单元测试**:补 18 用例覆盖核心纯函数(涨跌停主板/创业板边界、乱码判定、单例等),此前零测试。
+
+### 测试覆盖
+- **watchlist_store CRUD + 并发测试**:此前零测试的高频 store,补 4 用例(往返/去重/空/并发)。
+
+### 验证
+- 离线套件 **1707 passed, 5 skipped, 1 deselected**(较 v1.9.40 持续增长,0 回归)。
+- `ruff check` / `tsc --noEmit` / `vite build` 全程通过。
+- 每批独立 commit + push, HEAD `d2dfd22` 同步 origin/main。
+
 ## v1.9.40 - 2026-07-03
 
 > **健壮性加固**:一轮「检查并修复」驱动的批次。code-review + 自主扫描发现并修复了一批并发、崩溃、假成功、误删、数据质量盲区问题。纯修复 + 观测层增强, 未删改既有功能, 未引入新依赖。
