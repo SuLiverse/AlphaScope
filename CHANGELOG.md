@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.9.43 - 2026-07-03
+
+> **配置一致性 + 测试加固**:第四批。Explore 扫描配置文件发现 v2 专家团 5 个 promptFile 指向不存在文件(运行时空白人设),修复;并为上批业务健壮性修复补回归测试。
+
+### 配置一致性(运行时缺陷)
+- **v2 专家团 5 个 promptFile 缺失修复**:`config/experts.yaml` v2.0 teams 的消息面/资金面/反方/合规/总结官 5 个 member 的 promptFile 指向不存在的 `.md`,`load_prompt_file` 缺失静默返回空 → 5 个专家运行时 system_prompt 为空白人设。创建 5 个真实 prompt 文件(角色定位+核心原则+关注维度+输出要求,对标 buffett.md)。
+- **wood persona 元数据 stub**:focus_dims `[5, R&D, ...]` 的裸 5 占位、style 泛化"投资人"、prompt 首句重复句式,修正为完整维度名 + "颠覆式创新" + 干净句式。
+
+### 测试加固(锁住 v1.9.42 业务健壮性修复)
+- **risk_controller.check_stop_loss**:4 用例锁住除零防护(entry_price<=0 不崩 + 触发/不触发)。
+- **vector_store.query**:4 用例锁住索引越界修复(空命中/缺键/长度不一致)。
+- **orchestrator 单 Agent 抛错整批不崩**:2-agent 场景,1 个抛错验证失败隔离 + 其余正常。
+
+### 验证
+- 离线套件 **1720 passed, 5 skipped, 1 deselected**(较 v1.9.42 +5 测试, 0 回归)。
+- `ruff check` / `tsc` / `vite build` 通过。HEAD `35042a7` 同步 origin/main。
+
 ## v1.9.42 - 2026-07-03
 
 > **业务健壮性 + 性能 + 沉睡模块激活**:第三批「检查并修复」。Explore 扫描核心业务层(orchestrator/agents/quant/rag)的异常处理与资源管理,修了除零/索引越界/整批崩/资源泄漏/吞错;给高频 store 加建表 flag 跳过重复 DDL;激活 marketplace/mlops 两个沉睡模块。纯修复 + 性能 + 只读端点,未删改既有功能。
