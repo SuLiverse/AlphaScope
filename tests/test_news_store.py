@@ -22,15 +22,24 @@ class _Row(dict):
 # ============== news_store 测试 ==============
 
 
+def _patch_news_db():
+    """mock 进程级单例 Database, transaction() 上下文给出同一 mock conn。
+    CRUD 现在走 with Database().transaction() as conn:, 不再暴露 _get_conn。"""
+    conn = MagicMock()
+    db_mock = MagicMock()
+    db_mock.transaction.return_value.__enter__.return_value = conn
+    db_mock.transaction.return_value.__exit__.return_value = False
+    return patch("backend.news_store.Database", return_value=db_mock), conn
+
+
 class TestNewsStore:
     """测试 news_store CRUD"""
 
     def test_list_news(self):
         from backend.news_store import list_news
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = list_news()
             assert isinstance(result, list)
@@ -38,36 +47,32 @@ class TestNewsStore:
     def test_list_news_with_symbol(self):
         from backend.news_store import list_news
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             list_news(symbol="600519")
 
     def test_list_news_with_event_type(self):
         from backend.news_store import list_news
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             list_news(event_type="earnings")
 
     def test_get_news_not_found(self):
         from backend.news_store import get_news
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = None
             assert get_news("nonexistent") is None
 
     def test_search_news(self):
         from backend.news_store import search_news
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = search_news("茅台")
             assert isinstance(result, list)
@@ -98,9 +103,8 @@ class TestNewsStore:
     def test_list_announcements(self):
         from backend.news_store import list_announcements
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = list_announcements()
             assert isinstance(result, list)
@@ -108,18 +112,16 @@ class TestNewsStore:
     def test_list_announcements_with_symbol(self):
         from backend.news_store import list_announcements
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             list_announcements(symbol="600519")
 
     def test_get_announcement_not_found(self):
         from backend.news_store import get_announcement
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = None
             assert get_announcement("nonexistent") is None
 
@@ -148,9 +150,8 @@ class TestNewsStore:
     def test_get_event_summary(self):
         from backend.news_store import get_event_summary
 
-        with patch("backend.news_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_news_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             conn.execute.return_value.fetchone.return_value = {
                 "total": 0,

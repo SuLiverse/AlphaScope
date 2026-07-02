@@ -65,12 +65,6 @@ def _ensure_tables() -> None:
         conn.commit()
 
 
-def _get_conn():
-    """Ensure tables exist and return the database connection (public API)."""
-    _ensure_tables()
-    return Database().conn
-
-
 # Ensure tables exist on import
 _ensure_tables()
 
@@ -79,14 +73,18 @@ _ensure_tables()
 
 
 def list_agents() -> list[dict[str, Any]]:
-    conn = _get_conn()
-    rows = conn.execute("SELECT * FROM agent_configs ORDER BY name").fetchall()
+    _ensure_tables()
+    db = Database()
+    with db.transaction() as conn:
+        rows = conn.execute("SELECT * FROM agent_configs ORDER BY name").fetchall()
     return [_row_to_agent(r) for r in rows]
 
 
 def get_agent(agent_id: str) -> Optional[dict[str, Any]]:
-    conn = _get_conn()
-    row = conn.execute("SELECT * FROM agent_configs WHERE id=?", (agent_id,)).fetchone()
+    _ensure_tables()
+    db = Database()
+    with db.transaction() as conn:
+        row = conn.execute("SELECT * FROM agent_configs WHERE id=?", (agent_id,)).fetchone()
     return _row_to_agent(row) if row else None
 
 
@@ -102,65 +100,70 @@ def save_agent(
     max_tokens: int = 2048,
     enabled: bool = True,
 ) -> dict[str, Any]:
-    conn = _get_conn()
+    _ensure_tables()
     now = time.time()
     tools_json = json.dumps(tools or [], ensure_ascii=False)
-
-    existing = conn.execute(
-        "SELECT id FROM agent_configs WHERE id=?", (agent_id,)
-    ).fetchone()
-    if existing:
-        conn.execute(
-            "UPDATE agent_configs SET name=?, description=?, system_prompt=?, provider=?, model=?, "
-            "tools=?, temperature=?, max_tokens=?, enabled=?, updated_at=? WHERE id=?",
-            (
-                name,
-                description,
-                system_prompt,
-                provider,
-                model,
-                tools_json,
-                temperature,
-                max_tokens,
-                int(enabled),
-                now,
-                agent_id,
-            ),
-        )
-    else:
-        conn.execute(
-            "INSERT INTO agent_configs (id, name, description, system_prompt, provider, model, tools, "
-            "temperature, max_tokens, enabled, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            (
-                agent_id,
-                name,
-                description,
-                system_prompt,
-                provider,
-                model,
-                tools_json,
-                temperature,
-                max_tokens,
-                int(enabled),
-                now,
-                now,
-            ),
-        )
-    conn.commit()
+    db = Database()
+    # 注意: _db_lock 不可重入, 写入事务内不得调用 get_agent(它会再次获取同一把锁)。
+    # 写完提交后在锁外再读回结果。
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT id FROM agent_configs WHERE id=?", (agent_id,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE agent_configs SET name=?, description=?, system_prompt=?, provider=?, model=?, "
+                "tools=?, temperature=?, max_tokens=?, enabled=?, updated_at=? WHERE id=?",
+                (
+                    name,
+                    description,
+                    system_prompt,
+                    provider,
+                    model,
+                    tools_json,
+                    temperature,
+                    max_tokens,
+                    int(enabled),
+                    now,
+                    agent_id,
+                ),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO agent_configs (id, name, description, system_prompt, provider, model, tools, "
+                "temperature, max_tokens, enabled, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    agent_id,
+                    name,
+                    description,
+                    system_prompt,
+                    provider,
+                    model,
+                    tools_json,
+                    temperature,
+                    max_tokens,
+                    int(enabled),
+                    now,
+                    now,
+                ),
+            )
+        conn.commit()
     return get_agent(agent_id)
 
 
 def delete_agent(agent_id: str) -> bool:
-    conn = _get_conn()
-    existing = conn.execute(
-        "SELECT id FROM agent_configs WHERE id=?", (agent_id,)
-    ).fetchone()
-    if not existing:
-        return False
-    conn.execute("DELETE FROM agent_configs WHERE id=?", (agent_id,))
-    conn.execute("DELETE FROM agent_team_members WHERE agent_id=?", (agent_id,))
-    conn.commit()
-    return True
+    _ensure_tables()
+    db = Database()
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT id FROM agent_configs WHERE id=?", (agent_id,)
+        ).fetchone()
+        if not existing:
+            return False
+        conn.execute("DELETE FROM agent_configs WHERE id=?", (agent_id,))
+        conn.execute("DELETE FROM agent_team_members WHERE agent_id=?", (agent_id,))
+        conn.commit()
+        return True
 
 
 def _row_to_agent(row) -> dict[str, Any]:
@@ -182,22 +185,26 @@ def _row_to_agent(row) -> dict[str, Any]:
 
 
 def list_teams() -> list[dict[str, Any]]:
-    conn = _get_conn()
-    rows = conn.execute("SELECT * FROM agent_teams ORDER BY name").fetchall()
+    _ensure_tables()
+    db = Database()
+    with db.transaction() as conn:
+        rows = conn.execute("SELECT * FROM agent_teams ORDER BY name").fetchall()
     return [_row_to_team(r) for r in rows]
 
 
 def get_team(team_id: str) -> Optional[dict[str, Any]]:
-    conn = _get_conn()
-    row = conn.execute("SELECT * FROM agent_teams WHERE id=?", (team_id,)).fetchone()
-    if not row:
-        return None
-    team = _row_to_team(row)
-    # Load members
-    members = conn.execute(
-        "SELECT agent_id, role, sort_order FROM agent_team_members WHERE team_id=? ORDER BY sort_order",
-        (team_id,),
-    ).fetchall()
+    _ensure_tables()
+    db = Database()
+    with db.transaction() as conn:
+        row = conn.execute("SELECT * FROM agent_teams WHERE id=?", (team_id,)).fetchone()
+        if not row:
+            return None
+        team = _row_to_team(row)
+        # Load members
+        members = conn.execute(
+            "SELECT agent_id, role, sort_order FROM agent_team_members WHERE team_id=? ORDER BY sort_order",
+            (team_id,),
+        ).fetchall()
     team["members"] = [
         {"agent_id": m["agent_id"], "role": m["role"], "sort_order": m["sort_order"]}
         for m in members
@@ -211,46 +218,50 @@ def save_team(
     description: str = "",
     member_ids: list[str] | None = None,
 ) -> dict[str, Any]:
-    conn = _get_conn()
+    _ensure_tables()
     now = time.time()
-
-    existing = conn.execute(
-        "SELECT id FROM agent_teams WHERE id=?", (team_id,)
-    ).fetchone()
-    if existing:
-        conn.execute(
-            "UPDATE agent_teams SET name=?, description=?, updated_at=? WHERE id=?",
-            (name, description, now, team_id),
-        )
-    else:
-        conn.execute(
-            "INSERT INTO agent_teams (id, name, description, created_at, updated_at) VALUES (?,?,?,?,?)",
-            (team_id, name, description, now, now),
-        )
-
-    # Update members
-    if member_ids is not None:
-        conn.execute("DELETE FROM agent_team_members WHERE team_id=?", (team_id,))
-        for i, agent_id in enumerate(member_ids):
+    db = Database()
+    # _db_lock 不可重入: 写入事务内不调 get_team。提交后在锁外读回。
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT id FROM agent_teams WHERE id=?", (team_id,)
+        ).fetchone()
+        if existing:
             conn.execute(
-                "INSERT INTO agent_team_members (team_id, agent_id, role, sort_order) VALUES (?,?,?,?)",
-                (team_id, agent_id, "member", i),
+                "UPDATE agent_teams SET name=?, description=?, updated_at=? WHERE id=?",
+                (name, description, now, team_id),
             )
-    conn.commit()
+        else:
+            conn.execute(
+                "INSERT INTO agent_teams (id, name, description, created_at, updated_at) VALUES (?,?,?,?,?)",
+                (team_id, name, description, now, now),
+            )
+
+        # Update members
+        if member_ids is not None:
+            conn.execute("DELETE FROM agent_team_members WHERE team_id=?", (team_id,))
+            for i, agent_id in enumerate(member_ids):
+                conn.execute(
+                    "INSERT INTO agent_team_members (team_id, agent_id, role, sort_order) VALUES (?,?,?,?)",
+                    (team_id, agent_id, "member", i),
+                )
+        conn.commit()
     return get_team(team_id)
 
 
 def delete_team(team_id: str) -> bool:
-    conn = _get_conn()
-    existing = conn.execute(
-        "SELECT id FROM agent_teams WHERE id=?", (team_id,)
-    ).fetchone()
-    if not existing:
-        return False
-    conn.execute("DELETE FROM agent_teams WHERE id=?", (team_id,))
-    conn.execute("DELETE FROM agent_team_members WHERE team_id=?", (team_id,))
-    conn.commit()
-    return True
+    _ensure_tables()
+    db = Database()
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT id FROM agent_teams WHERE id=?", (team_id,)
+        ).fetchone()
+        if not existing:
+            return False
+        conn.execute("DELETE FROM agent_teams WHERE id=?", (team_id,))
+        conn.execute("DELETE FROM agent_team_members WHERE team_id=?", (team_id,))
+        conn.commit()
+        return True
 
 
 def _row_to_team(row) -> dict[str, Any]:

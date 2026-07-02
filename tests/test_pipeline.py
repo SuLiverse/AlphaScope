@@ -78,15 +78,15 @@ class TestPipelineStatus:
                 list_providers=MagicMock(return_value=[{"name": "test"}]),
                 get_all_health=MagicMock(return_value=[]),
             )
-            mock_db.return_value = MagicMock(
-                conn=MagicMock(
-                    execute=MagicMock(
-                        return_value=MagicMock(
-                            fetchone=MagicMock(return_value=(0, "main", "test.db"))
-                        )
-                    )
-                )
-            )
+            # status() 现在走 with self._db.transaction() as conn: (PRAGMA 只读)
+            mock_conn = MagicMock()
+            mock_conn.execute.return_value.fetchone.return_value = (0, "main", "test.db")
+            mock_db_inst = MagicMock()
+            mock_db_inst.transaction.return_value.__enter__.return_value = mock_conn
+            mock_db_inst.transaction.return_value.__exit__.return_value = False
+            # 兼容旧 .conn 访问路径(若有)
+            mock_db_inst.conn = mock_conn
+            mock_db.return_value = mock_db_inst
             from backend.pipeline import DataPipeline
 
             DataPipeline._instance = None

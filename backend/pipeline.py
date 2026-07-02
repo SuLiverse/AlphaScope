@@ -253,32 +253,34 @@ class DataPipeline:
                 self._log_fetch("prices", symbol, "success", 0, 0)
                 return []
 
-            for item in items:
-                self._db.conn.execute(
-                    """INSERT OR REPLACE INTO price_bars
-                    (symbol, date, market, frequency, open, high, low, close,
-                     volume, amount, turnover, amplitude, change_pct, adjust, source)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        item.get("symbol", symbol),
-                        item.get("date", ""),
-                        item.get("market", market),
-                        item.get("frequency", "1d"),
-                        item.get("open", 0),
-                        item.get("high", 0),
-                        item.get("low", 0),
-                        item.get("close", 0),
-                        item.get("volume", 0),
-                        item.get("amount", 0),
-                        item.get("turnover", 0),
-                        item.get("amplitude", 0),
-                        item.get("change_pct", 0),
-                        item.get("adjust", ""),
-                        item.get("source", "akshare"),
-                    ),
-                )
-            self._db.conn.commit()
+            with self._db.transaction() as conn:
+                for item in items:
+                    conn.execute(
+                        """INSERT OR REPLACE INTO price_bars
+                        (symbol, date, market, frequency, open, high, low, close,
+                         volume, amount, turnover, amplitude, change_pct, adjust, source)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                        (
+                            item.get("symbol", symbol),
+                            item.get("date", ""),
+                            item.get("market", market),
+                            item.get("frequency", "1d"),
+                            item.get("open", 0),
+                            item.get("high", 0),
+                            item.get("low", 0),
+                            item.get("close", 0),
+                            item.get("volume", 0),
+                            item.get("amount", 0),
+                            item.get("turnover", 0),
+                            item.get("amplitude", 0),
+                            item.get("change_pct", 0),
+                            item.get("adjust", ""),
+                            item.get("source", "akshare"),
+                        ),
+                    )
+                conn.commit()
 
+            # _log_fetch → insert_fetch_log 自带 _db_lock; 必须在 transaction 锁外调用, 否则死锁。
             latency = (time.time() - start) * 1000
             self._log_fetch("prices", symbol, "success", latency, len(items))
             logger.info("[Pipeline] 行情采集完成: %d 条 (%.0fms)", len(items), latency)
@@ -381,7 +383,8 @@ class DataPipeline:
     def status(self) -> dict:
         """获取管道整体状态"""
         providers = self._registry.list_providers()
-        db_path = self._db.conn.execute("PRAGMA database_list").fetchone()
+        with self._db.transaction() as conn:
+            db_path = conn.execute("PRAGMA database_list").fetchone()
         rag_stats = {}
         if self._retriever:
             try:

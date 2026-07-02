@@ -12,19 +12,16 @@ logger = logging.getLogger(__name__)
 from backend.storage.db import Database
 
 
-def _ensure_tables(conn) -> None:
-    # 补齐 fetched_at 列
-    try:
-        conn.execute("ALTER TABLE price_bars ADD COLUMN fetched_at REAL DEFAULT 0")
-    except Exception:
-        pass
-    conn.commit()
-
-
-def _get_conn():
+def _ensure_schema() -> None:
+    """建表/补列(幂等)。包进进程级 DB 锁, 避免与后台 ingestion 线程并发写时撞锁。"""
     db = Database()
-    _ensure_tables(db._conn)
-    return db._conn
+    with db.transaction() as conn:
+        # 补齐 fetched_at 列
+        try:
+            conn.execute("ALTER TABLE price_bars ADD COLUMN fetched_at REAL DEFAULT 0")
+        except Exception:
+            pass
+        conn.commit()
 
 
 # ============== Symbol 标准化 ==============
@@ -106,41 +103,10 @@ def validate_price_bar(bar: dict) -> tuple[bool, str]:
 
 def save_price_bar(bar: dict) -> None:
     """写入单条 K 线（INSERT OR REPLACE）。"""
-    conn = _get_conn()
+    _ensure_schema()
     symbol = normalize_symbol(bar.get("symbol", ""))
-    conn.execute(
-        "INSERT OR REPLACE INTO price_bars "
-        "(symbol, date, market, frequency, open, high, low, close, "
-        "volume, amount, turnover, amplitude, change_pct, adjust, source, fetched_at) "
-        "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (
-            symbol,
-            bar.get("date", ""),
-            bar.get("market", get_market(symbol)),
-            bar.get("frequency", "1d"),
-            bar.get("open", 0),
-            bar.get("high", 0),
-            bar.get("low", 0),
-            bar.get("close", 0),
-            bar.get("volume", 0),
-            bar.get("amount", 0),
-            bar.get("turnover", 0),
-            bar.get("amplitude", 0),
-            bar.get("change_pct", 0),
-            bar.get("adjust", ""),
-            bar.get("source", "akshare"),
-            bar.get("fetched_at", time.time()),
-        ),
-    )
-    conn.commit()
-
-
-def save_price_bars(bars: list[dict]) -> int:
-    """批量写入 K 线，返回写入数量。"""
-    conn = _get_conn()
-    count = 0
-    for bar in bars:
-        symbol = normalize_symbol(bar.get("symbol", ""))
+    db = Database()
+    with db.transaction() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO price_bars "
             "(symbol, date, market, frequency, open, high, low, close, "
@@ -165,8 +131,43 @@ def save_price_bars(bars: list[dict]) -> int:
                 bar.get("fetched_at", time.time()),
             ),
         )
-        count += 1
-    conn.commit()
+        conn.commit()
+
+
+def save_price_bars(bars: list[dict]) -> int:
+    """批量写入 K 线，返回写入数量。"""
+    _ensure_schema()
+    db = Database()
+    count = 0
+    with db.transaction() as conn:
+        for bar in bars:
+            symbol = normalize_symbol(bar.get("symbol", ""))
+            conn.execute(
+                "INSERT OR REPLACE INTO price_bars "
+                "(symbol, date, market, frequency, open, high, low, close, "
+                "volume, amount, turnover, amplitude, change_pct, adjust, source, fetched_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                (
+                    symbol,
+                    bar.get("date", ""),
+                    bar.get("market", get_market(symbol)),
+                    bar.get("frequency", "1d"),
+                    bar.get("open", 0),
+                    bar.get("high", 0),
+                    bar.get("low", 0),
+                    bar.get("close", 0),
+                    bar.get("volume", 0),
+                    bar.get("amount", 0),
+                    bar.get("turnover", 0),
+                    bar.get("amplitude", 0),
+                    bar.get("change_pct", 0),
+                    bar.get("adjust", ""),
+                    bar.get("source", "akshare"),
+                    bar.get("fetched_at", time.time()),
+                ),
+            )
+            count += 1
+        conn.commit()
     return count
 
 
@@ -179,25 +180,28 @@ def get_prices(
     include_incompatible: bool = False,
 ) -> list[dict[str, Any]]:
     """查询 K 线数据。"""
-    conn = _get_conn()
+    _ensure_schema()
     sym = normalize_symbol(symbol)
-    conditions = ["symbol=?", "frequency=?"]
-    params: list[Any] = [sym, frequency]
+    db = Database()
+    with db.transaction() as conn:
+        conditions = ["symbol=?", "frequency=?"]
+        params: list[Any] = [sym, frequency]
 
-    if start_date:
-        conditions.append("date>=?")
-        params.append(start_date)
-    if end_date:
-        conditions.append("date<=?")
-        params.append(end_date)
+        if start_date:
+            conditions.append("date>=?")
+            params.append(start_date)
+        if end_date:
+            conditions.append("date<=?")
+            params.append(end_date)
 
-    where = " AND ".join(conditions)
-    params.append(limit)
-    rows = conn.execute(
-        f"SELECT * FROM price_bars WHERE {where} ORDER BY date DESC LIMIT ?",
-        params,
-    ).fetchall()
-    bars = [_row_to_bar(r) for r in rows]
+        where = " AND ".join(conditions)
+        params.append(limit)
+        rows = conn.execute(
+            f"SELECT * FROM price_bars WHERE {where} ORDER BY date DESC LIMIT ?",
+            params,
+        ).fetchall()
+        bars = [_row_to_bar(r) for r in rows]
+    # 过滤是纯函数, 在锁外做不占用 DB 锁
     if include_incompatible or frequency == "intraday":
         return bars
 
@@ -208,41 +212,45 @@ def get_prices(
 
 def get_latest_price(symbol: str) -> Optional[dict[str, Any]]:
     """获取最新一条 K 线。"""
-    conn = _get_conn()
+    _ensure_schema()
     sym = normalize_symbol(symbol)
-    rows = conn.execute(
-        "SELECT * FROM price_bars WHERE symbol=? AND frequency='1d' "
-        "ORDER BY date DESC LIMIT 20",
-        (sym,),
-    ).fetchall()
-    bars = [_row_to_bar(row) for row in rows]
-    if bars:
-        from backend.price_quality import filter_incompatible_price_bars
+    db = Database()
+    with db.transaction() as conn:
+        rows = conn.execute(
+            "SELECT * FROM price_bars WHERE symbol=? AND frequency='1d' "
+            "ORDER BY date DESC LIMIT 20",
+            (sym,),
+        ).fetchall()
+        bars = [_row_to_bar(row) for row in rows]
+        if bars:
+            from backend.price_quality import filter_incompatible_price_bars
 
-        filtered = filter_incompatible_price_bars(bars)
-        if filtered:
-            return filtered[0]
+            filtered = filter_incompatible_price_bars(bars)
+            if filtered:
+                return filtered[0]
 
-    row = conn.execute(
-        "SELECT * FROM price_bars WHERE symbol=? ORDER BY date DESC LIMIT 1",
-        (sym,),
-    ).fetchone()
-    return _row_to_bar(row) if row else None
+        row = conn.execute(
+            "SELECT * FROM price_bars WHERE symbol=? ORDER BY date DESC LIMIT 1",
+            (sym,),
+        ).fetchone()
+        return _row_to_bar(row) if row else None
 
 
 def delete_prices(symbol: str, frequency: Optional[str] = None) -> int:
     """删除 K 线数据。"""
-    conn = _get_conn()
+    _ensure_schema()
     sym = normalize_symbol(symbol)
-    if frequency:
-        cursor = conn.execute(
-            "DELETE FROM price_bars WHERE symbol=? AND frequency=?",
-            (sym, frequency),
-        )
-    else:
-        cursor = conn.execute("DELETE FROM price_bars WHERE symbol=?", (sym,))
-    conn.commit()
-    return cursor.rowcount
+    db = Database()
+    with db.transaction() as conn:
+        if frequency:
+            cursor = conn.execute(
+                "DELETE FROM price_bars WHERE symbol=? AND frequency=?",
+                (sym, frequency),
+            )
+        else:
+            cursor = conn.execute("DELETE FROM price_bars WHERE symbol=?", (sym,))
+        conn.commit()
+        return cursor.rowcount
 
 
 def _row_to_bar(row) -> dict[str, Any]:

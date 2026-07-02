@@ -157,12 +157,25 @@ class TestValidatePriceBar:
 class TestPriceStore:
     """测试 price_store CRUD"""
 
+    @staticmethod
+    def _patch_db():
+        """mock 进程级单例 Database, 让 transaction() 上下文给出同一个 mock conn。
+
+        CRUD 现在走 with Database().transaction() as conn:, 不再暴露 _get_conn。
+        _ensure_schema 也用 transaction(), 因此同一个 mock conn 覆盖建表+CRUD。
+        """
+        conn = MagicMock()
+        db_mock = MagicMock()
+        db_mock.transaction.return_value.__enter__.return_value = conn
+        db_mock.transaction.return_value.__exit__.return_value = False
+        patcher = patch("backend.price_store.Database", return_value=db_mock)
+        return patcher, conn
+
     def test_save_price_bar(self):
         from backend.price_store import save_price_bar
 
-        with patch("backend.price_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = self._patch_db()
+        with patcher:
             save_price_bar(
                 {
                     "symbol": "600519",
@@ -180,9 +193,8 @@ class TestPriceStore:
     def test_save_price_bars(self):
         from backend.price_store import save_price_bars
 
-        with patch("backend.price_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = self._patch_db()
+        with patcher:
             bars = [
                 {
                     "symbol": "600519",
@@ -207,9 +219,8 @@ class TestPriceStore:
     def test_get_prices(self):
         from backend.price_store import get_prices
 
-        with patch("backend.price_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = self._patch_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = get_prices("600519")
             assert isinstance(result, list)
@@ -217,9 +228,8 @@ class TestPriceStore:
     def test_get_latest_price_none(self):
         from backend.price_store import get_latest_price
 
-        with patch("backend.price_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = self._patch_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = None
             result = get_latest_price("600519")
             assert result is None
@@ -227,9 +237,8 @@ class TestPriceStore:
     def test_delete_prices(self):
         from backend.price_store import delete_prices
 
-        with patch("backend.price_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = self._patch_db()
+        with patcher:
             conn.execute.return_value.rowcount = 10
             count = delete_prices("600519")
             assert count == 10
@@ -237,9 +246,8 @@ class TestPriceStore:
     def test_delete_prices_with_frequency(self):
         from backend.price_store import delete_prices
 
-        with patch("backend.price_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = self._patch_db()
+        with patcher:
             conn.execute.return_value.rowcount = 5
             count = delete_prices("600519", frequency="1d")
             assert count == 5
