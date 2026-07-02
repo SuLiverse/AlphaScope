@@ -22,7 +22,7 @@ class AgentSaveRequest(BaseModel):
     model: str = Field(default="deepseek-chat", description="模型名称")
     tools: list[str] = Field(default_factory=list, description="工具列表")
     temperature: float = Field(default=0.3, description="温度")
-    max_tokens: int = Field(default=400, description="最大 token")
+    max_tokens: int = Field(default=2048, description="最大 token")
     enabled: bool = Field(default=True, description="是否启用")
 
 

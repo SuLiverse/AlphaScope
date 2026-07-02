@@ -94,7 +94,7 @@ def _fallback_text_to_agent_result(text: str) -> Dict[str, Any]:
     return {
         "signal": signal,
         "confidence": confidence,
-        "reason": clean_text[:220],
+        "reason": clean_text[:2000],
         "structured_fallback": True,
         "evidence": [
             {
@@ -144,7 +144,7 @@ def run_one_agent(
         vendor, model, api_key=api_key
     ):
         try:
-            mtokens = 2048 if vd == "mimo" else 600
+            mtokens = 3072 if vd == "mimo" else 2048
             text = _call_with(
                 vd,
                 md,
@@ -157,7 +157,7 @@ def run_one_agent(
             )
             data = _extract_json(text)
             if not data or not data.get("signal"):
-                retry_tokens = 2048 if vd == "mimo" else 400
+                retry_tokens = mtokens
                 text = _call_with(
                     vd,
                     md,
@@ -308,7 +308,7 @@ def run_custom_agent(
                 "【输出要求】请用 JSON 返回,字段:\n"
                 "- signal: 买入|卖出|观望\n"
                 "- confidence: 0-100 整数\n"
-                "- reason: 100 字内核心理由\n"
+                "- reason: 400 字以上的详细分析(必须包含核心逻辑、关键数据、主要风险与操作建议的完整逻辑链)\n"
                 "- evidence: 数组,每条 {type, claim, data_date},type 取自 fund_flow/technical/fundamental/news/research/macro/sentiment/shareholder/other\n"
                 "- invalid_if: 简短的失效条件\n"
                 "- risks: 1-3 条主要风险(字符串数组)\n"
@@ -324,7 +324,7 @@ def run_custom_agent(
         base_url=resolved_base_url,
     ):
         try:
-            mtokens = 2048 if vd == "mimo" else 500
+            mtokens = 3072 if vd == "mimo" else 2048
             call_messages = (
                 _strict_json_messages(messages) if vd == "mimo" else messages
             )

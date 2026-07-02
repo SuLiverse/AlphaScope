@@ -355,7 +355,7 @@ def run_expert(
             continue
 
         try:
-            mtokens = 1500 if vd == "mimo" else 700
+            mtokens = 3072 if vd == "mimo" else 2048
             # v2.0 支持细粒度 API Key
             text = call_llm(
                 vendor=vd,
@@ -847,7 +847,7 @@ def _run_expert_debate_round(
             continue
 
         try:
-            mtokens = 1500 if vd == "mimo" else 700
+            mtokens = 3072 if vd == "mimo" else 2048
             text = call_llm(
                 vendor=vd,
                 model=md,
@@ -1205,7 +1205,7 @@ def run_devils_advocate(
                 last_err = f"{vd} 未配置完整"
                 continue
             try:
-                mtokens = 1500 if vd == "mimo" else 700
+                mtokens = 3072 if vd == "mimo" else 2048
                 text = call_llm(
                     vendor=vd,
                     model=md,
@@ -1416,7 +1416,7 @@ def _run_chairman_ruling(
             last_err = f"{vd} 未配置完整"
             continue
         try:
-            mtokens = 1500 if vd == "mimo" else 700
+            mtokens = 3072 if vd == "mimo" else 2048
             text = call_llm(
                 vendor=vd,
                 model=md,

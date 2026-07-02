@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS agent_configs (
     model TEXT DEFAULT 'deepseek-chat',
     tools TEXT DEFAULT '[]',
     temperature REAL DEFAULT 0.3,
-    max_tokens INTEGER DEFAULT 400,
+    max_tokens INTEGER DEFAULT 2048,
     output_schema TEXT DEFAULT '{}',
     card_style TEXT DEFAULT 'default',
     enabled INTEGER DEFAULT 1,
@@ -99,7 +99,7 @@ def save_agent(
     model: str = "deepseek-chat",
     tools: list[str] | None = None,
     temperature: float = 0.3,
-    max_tokens: int = 400,
+    max_tokens: int = 2048,
     enabled: bool = True,
 ) -> dict[str, Any]:
     conn = _get_conn()
@@ -173,7 +173,7 @@ def _row_to_agent(row) -> dict[str, Any]:
         "model": row["model"] or "deepseek-chat",
         "tools": json.loads(row["tools"] or "[]"),
         "temperature": row["temperature"] or 0.3,
-        "max_tokens": row["max_tokens"] or 400,
+        "max_tokens": row["max_tokens"] or 2048,
         "enabled": bool(row["enabled"]),
     }
 

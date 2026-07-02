@@ -71,7 +71,7 @@ def interpret_kline(
   "patterns": ["识别到的形态1", "形态2"],
   "indicators": {{"ma": "描述", "macd": "描述", "rsi": "描述", "volume": "描述"}},
   "volume_analysis": "成交量分析",
-  "summary": "100字内综合判断",
+  "summary": "300字以上综合判断(趋势结构、关键支撑压力、量价配合、风险与操作提示)",
   "confidence": 0.0-1.0
 }}
 {context_note}
@@ -83,7 +83,7 @@ def interpret_kline(
     ]
 
     try:
-        text = _call_with(vendor, model, messages, max_tokens=600, temperature=0.2)
+        text = _call_with(vendor, model, messages, max_tokens=1536, temperature=0.2)
         data = _extract_json(text)
         return KlineAnalysis(
             trend=data.get("trend", ""),

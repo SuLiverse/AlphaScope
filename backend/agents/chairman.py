@@ -38,12 +38,13 @@ def summarize_with_chairman(
 汇总投票: 买入 {results["summary"]["buy"]} / 卖出 {results["summary"]["sell"]} / 观望 {results["summary"]["hold"]}
 
 请综合所有观点，输出一份**专业、克制、可执行**的最终建议，包括：
-1. 一句话核心结论
-2. 主要支持论据（2-3 点）
-3. 主要风险与反对意见（1-2 点）
-4. 操作建议（仓位、止损位、关注信号）
+1. 核心结论（明确方向与整体置信度，一段话讲透）
+2. 团队共识与主要分歧（谁看多谁看空、分歧焦点是什么、你如何裁决）
+3. 主要支持论据（3-5 点，尽量引用各分析师给出的具体数据与证据）
+4. 主要风险与反对意见（2-3 点，说明各自的触发条件与应对）
+5. 操作建议（仓位/分批节奏/止损位/需要跟踪的关键信号，给出具体数值或条件）
 
-字数控制在 280 字以内，使用 markdown 格式。"""
+要求 600 字以上的详细论述，使用 markdown 格式；观点要有取舍与裁决，不要平均主义地罗列。"""
 
     default_vendor, default_model = AGENT_MODEL_CONFIG["chairman"]
     vendor = vendor or default_vendor
@@ -67,7 +68,7 @@ def summarize_with_chairman(
                 md,
                 messages,
                 json_mode=False,
-                max_tokens=700,
+                max_tokens=2048,
                 temperature=0.4,
                 api_key=key_override,
             )

@@ -138,7 +138,7 @@ def _clean_agent_reason(reason: Any) -> str:
     text = re.sub(r"\s+", " ", text).strip()
     if not text or text in {"{", "}"}:
         return "模型返回内容未能稳定结构化，建议在修复模型配置后复核。"
-    return text[:140]
+    return text[:2000]
 
 
 def _build_model_status(
@@ -248,7 +248,7 @@ def _build_research_report_body(
             reason = "模型调用未完成，需检查 Provider 后重新生成。"
         agent_lines.append(
             f"- {r.get('name', r.get('key', 'Agent'))}: {state}; 信号 {r.get('signal', '观望')}; "
-            f"置信度 {_safe_float(r.get('confidence')):.0f}%。{reason[:800]}"
+            f"置信度 {_safe_float(r.get('confidence')):.0f}%。{reason[:2000]}"
         )
     if not agent_lines:
         agent_lines.append("- 暂无启用专家席位。")

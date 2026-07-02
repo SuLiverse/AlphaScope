@@ -109,12 +109,12 @@ def _normalize_evidence(value: Any, max_items: int = 6) -> List[Dict[str, str]]:
         if isinstance(raw, dict):
             etype = _safe_str(raw.get("type"), max_len=24).lower()
             claim = _safe_str(
-                raw.get("claim") or raw.get("text") or raw.get("content"), max_len=180
+                raw.get("claim") or raw.get("text") or raw.get("content"), max_len=400
             )
             data_date = _safe_str(raw.get("data_date") or raw.get("date"), max_len=16)
         else:
             etype = ""
-            claim = _safe_str(raw, max_len=180)
+            claim = _safe_str(raw, max_len=400)
             data_date = ""
         if not claim:
             continue
@@ -156,11 +156,11 @@ def validate_agent_output(data: Any) -> Dict[str, Any]:
                 signal = "观望"
 
     confidence = int(_clip(data.get("confidence"), 0, 100, default=50))
-    reason = _safe_str(data.get("reason"), max_len=500, default="无明确观点")
+    reason = _safe_str(data.get("reason"), max_len=4000, default="无明确观点")
 
-    evidence = _normalize_evidence(data.get("evidence"), max_items=6)
-    invalid_if = _safe_str(data.get("invalid_if"), max_len=240)
-    risks = _safe_str_list(data.get("risks"), max_items=5, max_len=160)
+    evidence = _normalize_evidence(data.get("evidence"), max_items=8)
+    invalid_if = _safe_str(data.get("invalid_if"), max_len=400)
+    risks = _safe_str_list(data.get("risks"), max_items=5, max_len=300)
 
     return {
         "signal": signal,
@@ -185,7 +185,7 @@ def validate_expert_output(data: Any) -> Dict[str, Any]:
     if not isinstance(data, dict):
         data = {}
 
-    view = _safe_str(data.get("view"), max_len=240, default="无明确观点")
+    view = _safe_str(data.get("view"), max_len=4000, default="无明确观点")
 
     action = _safe_str(data.get("action"), max_len=8)
     if action not in EXPERT_ACTIONS:
@@ -206,9 +206,9 @@ def validate_expert_output(data: Any) -> Dict[str, Any]:
     except (TypeError, ValueError):
         stop_loss = 0.0
 
-    evidence = _normalize_evidence(data.get("evidence"), max_items=6)
-    invalid_if = _safe_str(data.get("invalid_if"), max_len=240)
-    risks = _safe_str_list(data.get("risks"), max_items=5, max_len=160)
+    evidence = _normalize_evidence(data.get("evidence"), max_items=8)
+    invalid_if = _safe_str(data.get("invalid_if"), max_len=400)
+    risks = _safe_str_list(data.get("risks"), max_items=5, max_len=300)
 
     return {
         "view": view,

@@ -615,7 +615,7 @@ def _call_with(
     model: str,
     messages: list,
     json_mode: bool = False,
-    max_tokens: int = 400,
+    max_tokens: int = 1024,
     temperature: float = 0.3,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,

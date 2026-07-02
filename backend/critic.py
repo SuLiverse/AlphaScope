@@ -237,7 +237,7 @@ def run_batch_critic(
     model: Optional[str] = None,
     api_key: Optional[str] = None,
     base_url: Optional[str] = None,
-    timeout_max_tokens: int = 1200,
+    timeout_max_tokens: int = 2048,
 ) -> Dict[str, Any]:
     """对一组 agent 输出做一次批量审稿。
 

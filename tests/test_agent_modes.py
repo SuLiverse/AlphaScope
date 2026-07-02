@@ -93,7 +93,7 @@ class TestAgentModeConfig:
         assert config.enable_factors is False
         assert config.enable_critic is False
         assert config.enable_chairman is False
-        assert config.max_tokens == 400
+        assert config.max_tokens == 1536
         assert config.temperature == 0.3
 
     def test_enabled_agents(self):

@@ -37,7 +37,7 @@ TEMPLATES: Dict[str, TaskTemplate] = {
         mode="standard",
         requires_stock=True,
         system_prompt="你是一位快速股票诊断专家。基于提供的数据，在3分钟内给出清晰的买入/卖出/观望建议。",
-        output_format="一句话结论 + 核心依据(3点) + 风险提示(1-2点) + 置信度",
+        output_format="明确结论 + 详细依据(3-5点,引用具体数据) + 风险提示(2-3点) + 置信度",
         steps=["拉取行情数据", "查看技术指标", "检查资金流向", "给出诊断结论"],
     ),
     "deep_research": TaskTemplate(

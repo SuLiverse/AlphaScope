@@ -63,7 +63,7 @@ class AgentModeConfig:
     critic_model: str = "claude-opus-4-7"
     chairman_provider: str = "claude"
     chairman_model: str = "claude-opus-4-7"
-    max_tokens: int = 400
+    max_tokens: int = 1536
     temperature: float = 0.3
     threshold_mode: str = "majority"
     # Auto mode specific
@@ -210,7 +210,7 @@ class ModeResolver:
             enable_factors=raw.get("enable_factors", False),
             enable_critic=raw.get("enable_critic", False),
             enable_chairman=raw.get("enable_chairman", False),
-            max_tokens=raw.get("max_tokens", 400),
+            max_tokens=raw.get("max_tokens", 1536),
             temperature=raw.get("temperature", 0.3),
             threshold_mode=raw.get("threshold_mode", "majority"),
             fallback_provider=fallback.get("provider", "deepseek"),
@@ -237,7 +237,7 @@ class ModeResolver:
             critic_model=critic.get("model", "claude-opus-4-7"),
             chairman_provider=chairman.get("provider", "claude"),
             chairman_model=chairman.get("model", "claude-opus-4-7"),
-            max_tokens=raw.get("max_tokens", 600),
+            max_tokens=raw.get("max_tokens", 2048),
             temperature=raw.get("temperature", 0.3),
             threshold_mode=raw.get("threshold_mode", "strict"),
             fallback_provider=fallback.get("provider", "deepseek"),
@@ -265,7 +265,7 @@ class ModeResolver:
             critic_model=deep_critic.get("model", "claude-opus-4-7"),
             chairman_provider=deep_chairman.get("provider", "claude"),
             chairman_model=deep_chairman.get("model", "claude-opus-4-7"),
-            max_tokens=deep_raw.get("max_tokens", 600),
+            max_tokens=deep_raw.get("max_tokens", 2048),
             temperature=deep_raw.get("temperature", 0.3),
             threshold_mode=deep_raw.get("threshold_mode", "strict"),
             # Auto-specific

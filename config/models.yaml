@@ -29,7 +29,7 @@ modes:
     enable_factors: false       # No quantitative factor injection
     enable_critic: false        # No critic review
     enable_chairman: false      # No chairman synthesis
-    max_tokens: 400             # Compact output
+    max_tokens: 1536            # 足够容纳 400 字以上详细分析 + JSON 结构
     temperature: 0.3
     # Decision threshold: simple majority
     threshold_mode: "majority"
@@ -71,7 +71,7 @@ modes:
     chairman:
       provider: claude
       model: claude-opus-4-7
-    max_tokens: 600
+    max_tokens: 2048
     temperature: 0.3
     threshold_mode: "strict"  # Need >=3 votes with 5 agents
 
@@ -84,7 +84,7 @@ modes:
     pre_screen:
       provider: deepseek
       model: deepseek-chat
-      max_tokens: 300
+      max_tokens: 1024
       temperature: 0.3
     # Confidence thresholds for escalation
     escalate_below: 30        # Below 30: clear signal, use pre-screen result
@@ -124,7 +124,7 @@ modes:
       chairman:
         provider: claude
         model: claude-opus-4-7
-      max_tokens: 600
+      max_tokens: 2048
       temperature: 0.3
 
 # ============== Fallback Configuration ==============
