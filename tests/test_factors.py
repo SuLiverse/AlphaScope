@@ -118,6 +118,10 @@ class TestFactorGenerator:
 
         mock_db = MagicMock()
         mock_db.conn = mock_conn
+        # generator 现在走 with Database().transaction() as conn:, 需让 transaction
+        # 上下文给出同一 mock_conn(否则 execute 不走 mock_execute)。
+        mock_db.transaction.return_value.__enter__.return_value = mock_conn
+        mock_db.transaction.return_value.__exit__.return_value = False
         return mock_db
 
     def test_empty_data_returns_zero_factors(self):
@@ -408,6 +412,8 @@ class TestConvenienceFunctions:
         mock_conn = MagicMock()
         mock_conn.execute.return_value.fetchall.return_value = []
         mock_db.conn = mock_conn
+        mock_db.transaction.return_value.__enter__.return_value = mock_conn
+        mock_db.transaction.return_value.__exit__.return_value = False
 
         import backend.factors.generator as mod
 

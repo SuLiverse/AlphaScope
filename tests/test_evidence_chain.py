@@ -18,15 +18,24 @@ from backend.api.main import app
 # ============== evidence_store 测试 ==============
 
 
+def _patch_evidence_db():
+    """mock 进程级单例 Database, transaction() 上下文给出同一 mock conn。
+    CRUD 现在走 with Database().transaction() as conn:, 不再暴露 _get_conn。"""
+    conn = MagicMock()
+    db_mock = MagicMock()
+    db_mock.transaction.return_value.__enter__.return_value = conn
+    db_mock.transaction.return_value.__exit__.return_value = False
+    return patch("backend.evidence_store.Database", return_value=db_mock), conn
+
+
 class TestEvidenceStore:
     """测试 evidence_store CRUD"""
 
     def test_save_evidence(self):
         from backend.evidence_store import save_evidence
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = {
                 "id": "ev1",
                 "evidence_type": "news",
@@ -52,9 +61,8 @@ class TestEvidenceStore:
     def test_get_evidence_not_found(self):
         from backend.evidence_store import get_evidence
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = None
             result = get_evidence("nonexistent")
             assert result is None
@@ -62,9 +70,8 @@ class TestEvidenceStore:
     def test_list_evidence(self):
         from backend.evidence_store import list_evidence
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = list_evidence()
             assert isinstance(result, list)
@@ -72,36 +79,32 @@ class TestEvidenceStore:
     def test_list_evidence_with_filters(self):
         from backend.evidence_store import list_evidence
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             list_evidence(evidence_type="news", symbol="600519")
 
     def test_delete_evidence_not_found(self):
         from backend.evidence_store import delete_evidence
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = None
             assert delete_evidence("nonexistent") is False
 
     def test_delete_evidence_success(self):
         from backend.evidence_store import delete_evidence
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = {"id": "ev1"}
             assert delete_evidence("ev1") is True
 
     def test_search_evidence(self):
         from backend.evidence_store import search_evidence
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = search_evidence("test")
             assert isinstance(result, list)
@@ -109,18 +112,16 @@ class TestEvidenceStore:
     def test_save_evidence_link(self):
         from backend.evidence_store import save_evidence_link
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             save_evidence_link("ev1", "claim text", "conv1", "msg1")
             assert conn.execute.called
 
     def test_get_evidence_for_claim(self):
         from backend.evidence_store import get_evidence_for_claim
 
-        with patch("backend.evidence_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_evidence_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = get_evidence_for_claim("claim")
             assert isinstance(result, list)

@@ -23,20 +23,20 @@ class PortfolioManager:
         if self._db is None:
             return
         try:
-            conn = self._db._conn
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS fund_portfolios (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    description TEXT DEFAULT '',
-                    holdings TEXT DEFAULT '[]',
-                    created_at TEXT,
-                    updated_at TEXT
+            with self._db.transaction() as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS fund_portfolios (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        description TEXT DEFAULT '',
+                        holdings TEXT DEFAULT '[]',
+                        created_at TEXT,
+                        updated_at TEXT
+                    )
+                    """
                 )
-                """
-            )
-            conn.commit()
+                conn.commit()
         except Exception as e:
             logger.warning(f"创建组合表失败: {e}")
 
@@ -53,12 +53,12 @@ class PortfolioManager:
 
         if self._db:
             try:
-                conn = self._db._conn
-                conn.execute(
-                    "INSERT INTO fund_portfolios VALUES (?, ?, ?, ?, ?, ?)",
-                    (portfolio_id, name, description, holdings_json, now, now),
-                )
-                conn.commit()
+                with self._db.transaction() as conn:
+                    conn.execute(
+                        "INSERT INTO fund_portfolios VALUES (?, ?, ?, ?, ?, ?)",
+                        (portfolio_id, name, description, holdings_json, now, now),
+                    )
+                    conn.commit()
             except Exception as e:
                 logger.error(f"保存组合失败: {e}")
 
@@ -76,11 +76,11 @@ class PortfolioManager:
         if not self._db:
             return []
         try:
-            conn = self._db._conn
-            rows = conn.execute(
-                "SELECT id, name, description, holdings, created_at, updated_at "
-                "FROM fund_portfolios ORDER BY updated_at DESC"
-            ).fetchall()
+            with self._db.transaction() as conn:
+                rows = conn.execute(
+                    "SELECT id, name, description, holdings, created_at, updated_at "
+                    "FROM fund_portfolios ORDER BY updated_at DESC"
+                ).fetchall()
             return [
                 {
                     "id": r[0],
@@ -101,12 +101,12 @@ class PortfolioManager:
         if not self._db:
             return None
         try:
-            conn = self._db._conn
-            row = conn.execute(
-                "SELECT id, name, description, holdings, created_at, updated_at "
-                "FROM fund_portfolios WHERE id = ?",
-                (portfolio_id,),
-            ).fetchone()
+            with self._db.transaction() as conn:
+                row = conn.execute(
+                    "SELECT id, name, description, holdings, created_at, updated_at "
+                    "FROM fund_portfolios WHERE id = ?",
+                    (portfolio_id,),
+                ).fetchone()
             if not row:
                 return None
             return {
@@ -129,6 +129,8 @@ class PortfolioManager:
         holdings: list[dict[str, Any]] | None = None,
     ) -> Optional[dict[str, Any]]:
         """更新组合"""
+        # _db_lock 不可重入: get 自己加锁, 不能在 update 的事务内调用。
+        # 先在锁外 get 读现有值, 再单独开事务 UPDATE。
         existing = self.get(portfolio_id)
         if not existing:
             return None
@@ -141,13 +143,13 @@ class PortfolioManager:
 
         if self._db:
             try:
-                conn = self._db._conn
-                conn.execute(
-                    "UPDATE fund_portfolios SET name=?, description=?, holdings=?, "
-                    "updated_at=? WHERE id=?",
-                    (new_name, new_desc, holdings_json, now, portfolio_id),
-                )
-                conn.commit()
+                with self._db.transaction() as conn:
+                    conn.execute(
+                        "UPDATE fund_portfolios SET name=?, description=?, holdings=?, "
+                        "updated_at=? WHERE id=?",
+                        (new_name, new_desc, holdings_json, now, portfolio_id),
+                    )
+                    conn.commit()
             except Exception as e:
                 logger.error(f"更新组合失败: {e}")
 
@@ -165,12 +167,12 @@ class PortfolioManager:
         if not self._db:
             return False
         try:
-            conn = self._db._conn
-            cursor = conn.execute(
-                "DELETE FROM fund_portfolios WHERE id = ?", (portfolio_id,)
-            )
-            conn.commit()
-            return cursor.rowcount > 0
+            with self._db.transaction() as conn:
+                cursor = conn.execute(
+                    "DELETE FROM fund_portfolios WHERE id = ?", (portfolio_id,)
+                )
+                conn.commit()
+                return cursor.rowcount > 0
         except Exception as e:
             logger.error(f"删除组合失败: {e}")
             return False

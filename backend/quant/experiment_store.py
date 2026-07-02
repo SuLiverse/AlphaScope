@@ -39,24 +39,24 @@ def _ensure_table() -> None:
     with _write_lock:
         if _ensured:
             return
-        conn = _db().conn
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {_TABLE} (
-                run_id TEXT PRIMARY KEY,
-                mode TEXT NOT NULL,
-                symbol TEXT,
-                strategy_id TEXT,
-                created_at TEXT NOT NULL,
-                summary TEXT,
-                payload TEXT
+        with _db().transaction() as conn:
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {_TABLE} (
+                    run_id TEXT PRIMARY KEY,
+                    mode TEXT NOT NULL,
+                    symbol TEXT,
+                    strategy_id TEXT,
+                    created_at TEXT NOT NULL,
+                    summary TEXT,
+                    payload TEXT
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{_TABLE}_created ON {_TABLE}(created_at)"
-        )
-        conn.commit()
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_{_TABLE}_created ON {_TABLE}(created_at)"
+            )
+            conn.commit()
         _ensured = True
 
 
@@ -136,8 +136,7 @@ def save_experiment(payload: dict[str, Any]) -> Optional[str]:
             or datetime.now().isoformat()
         )
         summary = _summarize(mode, payload)
-        with _write_lock:
-            conn = _db().conn
+        with _db().transaction() as conn:
             conn.execute(
                 f"""INSERT OR REPLACE INTO {_TABLE}
                     (run_id, mode, symbol, strategy_id, created_at, summary, payload)
@@ -153,6 +152,7 @@ def save_experiment(payload: dict[str, Any]) -> Optional[str]:
                 ),
             )
             conn.commit()
+        # _prune 会再加锁, 必须在事务外调用(_db_lock 不可重入)。
         _prune()
         return run_id
     except Exception:
@@ -178,7 +178,8 @@ def list_experiments(
             sql += " WHERE " + " AND ".join(clauses)
         sql += " ORDER BY created_at DESC LIMIT ?"
         params.append(max(1, min(500, int(limit) if limit else 50)))
-        rows = _db().conn.execute(sql, params).fetchall()
+        with _db().transaction() as conn:
+            rows = conn.execute(sql, params).fetchall()
         out = []
         for r in rows:
             out.append(
@@ -200,11 +201,10 @@ def get_experiment(run_id: str) -> Optional[dict[str, Any]]:
     """取一次实验的**完整载荷**。失败/不存在返回 None。"""
     try:
         _ensure_table()
-        r = (
-            _db()
-            .conn.execute(f"SELECT payload FROM {_TABLE} WHERE run_id = ?", (run_id,))
-            .fetchone()
-        )
+        with _db().transaction() as conn:
+            r = conn.execute(
+                f"SELECT payload FROM {_TABLE} WHERE run_id = ?", (run_id,)
+            ).fetchone()
         return json.loads(r["payload"]) if r and r["payload"] else None
     except Exception:
         return None
@@ -214,8 +214,7 @@ def delete_experiment(run_id: str) -> bool:
     """删除一次实验。失败返回 False。"""
     try:
         _ensure_table()
-        with _write_lock:
-            conn = _db().conn
+        with _db().transaction() as conn:
             cur = conn.execute(f"DELETE FROM {_TABLE} WHERE run_id = ?", (run_id,))
             conn.commit()
             return cur.rowcount > 0
@@ -252,7 +251,8 @@ def count_experiments() -> int:
     """实验总数。失败返回 0。"""
     try:
         _ensure_table()
-        r = _db().conn.execute(f"SELECT COUNT(*) AS c FROM {_TABLE}").fetchone()
+        with _db().transaction() as conn:
+            r = conn.execute(f"SELECT COUNT(*) AS c FROM {_TABLE}").fetchone()
         return int(r["c"]) if r else 0
     except Exception:
         return 0
@@ -261,8 +261,7 @@ def count_experiments() -> int:
 def _prune(keep: int = _KEEP) -> None:
     """只保留最近 keep 条,防止无限增长。失败静默。"""
     try:
-        with _write_lock:
-            conn = _db().conn
+        with _db().transaction() as conn:
             conn.execute(
                 f"""DELETE FROM {_TABLE} WHERE run_id NOT IN (
                         SELECT run_id FROM {_TABLE} ORDER BY created_at DESC LIMIT ?

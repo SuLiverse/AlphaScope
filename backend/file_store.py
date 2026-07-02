@@ -40,16 +40,13 @@ CREATE TABLE IF NOT EXISTS document_chunks (
 """
 
 
-def _ensure_tables(conn) -> None:
-    conn.execute(_DOC_TABLE)
-    conn.execute(_CHUNK_TABLE)
-    conn.commit()
-
-
-def _get_conn():
+def _ensure_schema() -> None:
+    """建表(幂等)。包进进程级 DB 锁, 避免与后台线程/请求线程并发写时撞锁。"""
     db = Database()
-    _ensure_tables(db._conn)
-    return db._conn
+    with db.transaction() as conn:
+        conn.execute(_DOC_TABLE)
+        conn.execute(_CHUNK_TABLE)
+        conn.commit()
 
 
 # ============== Document CRUD ==============
@@ -62,51 +59,62 @@ def save_document(
     source_type: str = "upload",
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    conn = _get_conn()
+    _ensure_schema()
     now = time.time()
     doc_id = uuid.uuid4().hex[:16]
     meta_json = json.dumps(metadata or {}, ensure_ascii=False)
-
-    conn.execute(
-        "INSERT INTO documents (id, title, file_path, content_hash, source_type, metadata, created_at) "
-        "VALUES (?,?,?,?,?,?,?)",
-        (doc_id, title, file_path, content_hash, source_type, meta_json, now),
-    )
-    conn.commit()
+    db = Database()
+    # 注意: _db_lock 不可重入, 写入事务内不得调用 get_document(它会再次获取同一把锁)。
+    # 写完提交后在锁外再调 get_document 读回结果。
+    with db.transaction() as conn:
+        conn.execute(
+            "INSERT INTO documents (id, title, file_path, content_hash, source_type, metadata, created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (doc_id, title, file_path, content_hash, source_type, meta_json, now),
+        )
+        conn.commit()
     return get_document(doc_id)
 
 
 def get_document(doc_id: str) -> Optional[dict[str, Any]]:
-    conn = _get_conn()
-    row = conn.execute("SELECT * FROM documents WHERE id=?", (doc_id,)).fetchone()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        row = conn.execute("SELECT * FROM documents WHERE id=?", (doc_id,)).fetchone()
     return _row_to_doc(row) if row else None
 
 
 def list_documents(
     source_type: Optional[str] = None, limit: int = 50
 ) -> list[dict[str, Any]]:
-    conn = _get_conn()
-    if source_type:
-        rows = conn.execute(
-            "SELECT * FROM documents WHERE source_type=? ORDER BY created_at DESC LIMIT ?",
-            (source_type, limit),
-        ).fetchall()
-    else:
-        rows = conn.execute(
-            "SELECT * FROM documents ORDER BY created_at DESC LIMIT ?", (limit,)
-        ).fetchall()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        if source_type:
+            rows = conn.execute(
+                "SELECT * FROM documents WHERE source_type=? ORDER BY created_at DESC LIMIT ?",
+                (source_type, limit),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM documents ORDER BY created_at DESC LIMIT ?", (limit,)
+            ).fetchall()
     return [_row_to_doc(r) for r in rows]
 
 
 def delete_document(doc_id: str) -> bool:
-    conn = _get_conn()
-    existing = conn.execute("SELECT id FROM documents WHERE id=?", (doc_id,)).fetchone()
-    if not existing:
-        return False
-    conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
-    conn.execute("DELETE FROM document_chunks WHERE document_id=?", (doc_id,))
-    conn.commit()
-    return True
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT id FROM documents WHERE id=?", (doc_id,)
+        ).fetchone()
+        if not existing:
+            return False
+        conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
+        conn.execute("DELETE FROM document_chunks WHERE document_id=?", (doc_id,))
+        conn.commit()
+        return True
 
 
 def _row_to_doc(row) -> dict[str, Any]:
@@ -128,23 +136,27 @@ def _row_to_doc(row) -> dict[str, Any]:
 def save_chunks(
     doc_id: str, chunks: list[str], embedding_ids: list[str] | None = None
 ) -> int:
-    conn = _get_conn()
-    ids = embedding_ids or [""] * len(chunks)
-    for i, (chunk, eid) in enumerate(zip(chunks, ids)):
-        conn.execute(
-            "INSERT INTO document_chunks (document_id, chunk_index, content, embedding_id) VALUES (?,?,?,?)",
-            (doc_id, i, chunk, eid),
-        )
-    conn.commit()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        ids = embedding_ids or [""] * len(chunks)
+        for i, (chunk, eid) in enumerate(zip(chunks, ids)):
+            conn.execute(
+                "INSERT INTO document_chunks (document_id, chunk_index, content, embedding_id) VALUES (?,?,?,?)",
+                (doc_id, i, chunk, eid),
+            )
+        conn.commit()
     return len(chunks)
 
 
 def get_chunks(doc_id: str) -> list[dict[str, Any]]:
-    conn = _get_conn()
-    rows = conn.execute(
-        "SELECT * FROM document_chunks WHERE document_id=? ORDER BY chunk_index",
-        (doc_id,),
-    ).fetchall()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        rows = conn.execute(
+            "SELECT * FROM document_chunks WHERE document_id=? ORDER BY chunk_index",
+            (doc_id,),
+        ).fetchall()
     return [
         {
             "id": r["id"],
@@ -158,25 +170,31 @@ def get_chunks(doc_id: str) -> list[dict[str, Any]]:
 
 
 def delete_chunks(doc_id: str) -> int:
-    conn = _get_conn()
-    cursor = conn.execute("DELETE FROM document_chunks WHERE document_id=?", (doc_id,))
-    conn.commit()
-    return cursor.rowcount
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        cursor = conn.execute(
+            "DELETE FROM document_chunks WHERE document_id=?", (doc_id,)
+        )
+        conn.commit()
+        return cursor.rowcount
 
 
 # ============== Search ==============
 
 
 def search_documents(query: str, limit: int = 20) -> list[dict[str, Any]]:
-    conn = _get_conn()
-    pattern = f"%{query}%"
-    rows = conn.execute(
-        "SELECT DISTINCT d.* FROM documents d "
-        "LEFT JOIN document_chunks c ON d.id = c.document_id "
-        "WHERE d.title LIKE ? OR c.content LIKE ? "
-        "ORDER BY d.created_at DESC LIMIT ?",
-        (pattern, pattern, limit),
-    ).fetchall()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        pattern = f"%{query}%"
+        rows = conn.execute(
+            "SELECT DISTINCT d.* FROM documents d "
+            "LEFT JOIN document_chunks c ON d.id = c.document_id "
+            "WHERE d.title LIKE ? OR c.content LIKE ? "
+            "ORDER BY d.created_at DESC LIMIT ?",
+            (pattern, pattern, limit),
+        ).fetchall()
     return [_row_to_doc(r) for r in rows]
 
 

@@ -146,9 +146,10 @@ def _db() -> Database:
 
 
 def _ensure_table() -> None:
-    db = _db()
-    db.conn.execute(_TABLE_SQL)
-    db.conn.commit()
+    """建表(幂等)。包进进程级 DB 锁。"""
+    with _db().transaction() as conn:
+        conn.execute(_TABLE_SQL)
+        conn.commit()
 
 
 def list_presets() -> list[dict[str, Any]]:
@@ -181,10 +182,11 @@ def list_presets() -> list[dict[str, Any]]:
 
 
 def _list_credentials_map() -> dict[str, dict[str, Any]]:
-    db = _db()
-    rows = db.conn.execute(
-        "SELECT name, token_env, encrypted_key, config_json, updated_at FROM datasource_credentials"
-    ).fetchall()
+    with _db().transaction() as conn:
+        rows = conn.execute(
+            "SELECT name, token_env, encrypted_key, config_json, updated_at FROM datasource_credentials"
+        ).fetchall()
+    # 解密在锁外做(不占 DB 锁)
     out: dict[str, dict[str, Any]] = {}
     for r in rows:
         name, token_env, encrypted_key, config_json, updated_at = r
@@ -204,11 +206,11 @@ def _list_credentials_map() -> dict[str, dict[str, Any]]:
 def get_credential(name: str) -> Optional[dict[str, Any]]:
     """获取某数据源凭证 (含明文 key, 仅供后端注入用; API 层不直接返回明文)。"""
     _ensure_table()
-    db = _db()
-    row = db.conn.execute(
-        "SELECT name, token_env, encrypted_key, config_json FROM datasource_credentials WHERE name=?",
-        (name,),
-    ).fetchone()
+    with _db().transaction() as conn:
+        row = conn.execute(
+            "SELECT name, token_env, encrypted_key, config_json FROM datasource_credentials WHERE name=?",
+            (name,),
+        ).fetchone()
     if not row:
         return None
     name, token_env, encrypted_key, config_json = row
@@ -237,21 +239,23 @@ def save_credential(
     )
     now = time.time()
     encrypted = encrypt_key(api_key) if api_key else ""
-    db = _db()
-    existing = db.conn.execute(
-        "SELECT name FROM datasource_credentials WHERE name=?", (name,)
-    ).fetchone()
-    if existing:
-        db.conn.execute(
-            "UPDATE datasource_credentials SET token_env=?, encrypted_key=?, updated_at=? WHERE name=?",
-            (env, encrypted, now, name),
-        )
-    else:
-        db.conn.execute(
-            "INSERT INTO datasource_credentials (name, token_env, encrypted_key, config_json, created_at, updated_at) VALUES (?,?,?,?,?,?)",
-            (name, env, encrypted, "{}", now, now),
-        )
-    db.conn.commit()
+    # existing 查询 + INSERT/UPDATE 在同一事务内(原子性); _reload_registry 不碰 DB,
+    # 但为稳妥放在锁外。
+    with _db().transaction() as conn:
+        existing = conn.execute(
+            "SELECT name FROM datasource_credentials WHERE name=?", (name,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                "UPDATE datasource_credentials SET token_env=?, encrypted_key=?, updated_at=? WHERE name=?",
+                (env, encrypted, now, name),
+            )
+        else:
+            conn.execute(
+                "INSERT INTO datasource_credentials (name, token_env, encrypted_key, config_json, created_at, updated_at) VALUES (?,?,?,?,?,?)",
+                (name, env, encrypted, "{}", now, now),
+            )
+        conn.commit()
     # 立即注入环境变量, 让 provider 重新实例化时能读到
     if api_key:
         os.environ[env] = api_key
@@ -267,15 +271,16 @@ def save_credential(
 
 def delete_credential(name: str) -> bool:
     _ensure_table()
-    db = _db()
-    cur = db.conn.execute("DELETE FROM datasource_credentials WHERE name=?", (name,))
-    db.conn.commit()
+    with _db().transaction() as conn:
+        cur = conn.execute("DELETE FROM datasource_credentials WHERE name=?", (name,))
+        conn.commit()
+        rowcount = cur.rowcount
     # 清掉环境变量并重载 (provider 将因无 key 而不可用)
     preset = _PRESET_BY_NAME.get(name)
     env = preset["token_env"] if preset else f"{name.upper()}_TOKEN"
     os.environ.pop(env, None)
     _reload_registry()
-    return cur.rowcount > 0
+    return rowcount > 0
 
 
 # ---------------- 权重 / 启停 (落盘 yaml, 保留注释) ----------------

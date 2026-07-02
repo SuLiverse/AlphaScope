@@ -17,15 +17,24 @@ from backend.api.main import app
 # ============== diagnostics_store 测试 ==============
 
 
+def _patch_diagnostics_db():
+    """mock 进程级单例 Database, transaction() 上下文给出同一 mock conn。
+    CRUD 现在走 with Database().transaction() as conn:, 不再暴露 _get_conn。"""
+    conn = MagicMock()
+    db_mock = MagicMock()
+    db_mock.transaction.return_value.__enter__.return_value = conn
+    db_mock.transaction.return_value.__exit__.return_value = False
+    return patch("backend.diagnostics_store.Database", return_value=db_mock), conn
+
+
 class TestDiagnosticsStore:
     """测试 diagnostics_store CRUD"""
 
     def test_save_tool_call(self):
         from backend.diagnostics_store import save_tool_call
 
-        with patch("backend.diagnostics_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_diagnostics_db()
+        with patcher:
             save_tool_call("search", '{"q": "test"}', '{"results": []}', "ok", 100)
             assert conn.execute.called
             assert conn.commit.called
@@ -33,9 +42,8 @@ class TestDiagnosticsStore:
     def test_list_tool_calls(self):
         from backend.diagnostics_store import list_tool_calls
 
-        with patch("backend.diagnostics_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_diagnostics_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = list_tool_calls()
             assert isinstance(result, list)
@@ -43,18 +51,16 @@ class TestDiagnosticsStore:
     def test_save_cost_record(self):
         from backend.diagnostics_store import save_cost_record
 
-        with patch("backend.diagnostics_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_diagnostics_db()
+        with patcher:
             save_cost_record("deepseek-chat", "deepseek", 1000, 500, 0.01, "standard")
             assert conn.execute.called
 
     def test_list_cost_records(self):
         from backend.diagnostics_store import list_cost_records
 
-        with patch("backend.diagnostics_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_diagnostics_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = list_cost_records()
             assert isinstance(result, list)
@@ -62,18 +68,16 @@ class TestDiagnosticsStore:
     def test_list_cost_records_with_model(self):
         from backend.diagnostics_store import list_cost_records
 
-        with patch("backend.diagnostics_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_diagnostics_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             list_cost_records(model="deepseek-chat")
 
     def test_get_health_history(self):
         from backend.diagnostics_store import get_health_history
 
-        with patch("backend.diagnostics_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_diagnostics_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
             result = get_health_history()
             assert isinstance(result, list)
@@ -81,9 +85,8 @@ class TestDiagnosticsStore:
     def test_get_diagnostics_summary(self):
         from backend.diagnostics_store import get_diagnostics_summary
 
-        with patch("backend.diagnostics_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_diagnostics_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = {
                 "total": 0,
                 "cnt": 0,

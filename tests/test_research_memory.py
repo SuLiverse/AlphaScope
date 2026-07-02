@@ -158,7 +158,11 @@ class TestSummarizeHistory:
 
 @pytest.fixture
 def mem(tmp_path, monkeypatch):
-    """把 research_memory 的 _db() 指向临时 SQLite 连接,完全隔离。"""
+    """把 research_memory 的 _db() 指向临时 SQLite 连接,完全隔离。
+    CRUD 现在走 with _db().transaction() as conn:, 故 _FakeDB 需提供
+    transaction() 上下文(单线程测试无需真锁, 直接 yield 同一连接)。"""
+    from contextlib import contextmanager
+
     conn = sqlite3.connect(str(tmp_path / "rm.db"), check_same_thread=False)
     conn.row_factory = sqlite3.Row
 
@@ -166,6 +170,11 @@ def mem(tmp_path, monkeypatch):
         @property
         def conn(self):
             return conn
+
+        @contextmanager
+        def transaction(self):
+            # 临时隔离 DB 单线程使用, 无需真锁; 直接复用同一连接。
+            yield conn
 
     rm._ensured = False
     monkeypatch.setattr(rm, "_db", lambda: _FakeDB())

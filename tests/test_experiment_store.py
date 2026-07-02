@@ -9,7 +9,11 @@ import pytest
 
 @pytest.fixture
 def store(tmp_path, monkeypatch):
-    """把 experiment_store 的 _db() 指向一条临时 SQLite 连接,完全隔离。"""
+    """把 experiment_store 的 _db() 指向一条临时 SQLite 连接,完全隔离。
+    CRUD 现在走 with _db().transaction() as conn:, 故 _FakeDB 需提供
+    transaction() 上下文(单线程测试无需真锁)。"""
+    from contextlib import contextmanager
+
     import backend.quant.experiment_store as es
 
     conn = sqlite3.connect(str(tmp_path / "exp.db"), check_same_thread=False)
@@ -19,6 +23,10 @@ def store(tmp_path, monkeypatch):
         @property
         def conn(self):
             return conn
+
+        @contextmanager
+        def transaction(self):
+            yield conn
 
     es._ensured = False  # 强制在临时连接上建表
     monkeypatch.setattr(es, "_db", lambda: _FakeDB())

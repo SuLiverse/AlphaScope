@@ -228,13 +228,14 @@ class FactorGenerator:
         from backend.storage.db import Database
 
         db = Database()
-        rows = db.conn.execute(
-            """SELECT title, sentiment, importance, confidence, published_at
-               FROM news_items
-               WHERE published_at >= ? AND symbols LIKE ?
-               ORDER BY published_at DESC""",
-            (cutoff, f'%"{symbol}"%'),
-        ).fetchall()
+        with db.transaction() as conn:
+            rows = conn.execute(
+                """SELECT title, sentiment, importance, confidence, published_at
+                   FROM news_items
+                   WHERE published_at >= ? AND symbols LIKE ?
+                   ORDER BY published_at DESC""",
+                (cutoff, f'%"{symbol}"%'),
+            ).fetchall()
 
         sentiments = []
         for row in rows:
@@ -275,13 +276,14 @@ class FactorGenerator:
         from backend.storage.db import Database
 
         db = Database()
-        rows = db.conn.execute(
-            """SELECT title, category, importance, published_at
-               FROM announcements
-               WHERE symbol = ? AND published_at >= ?
-               ORDER BY published_at DESC""",
-            (symbol, cutoff),
-        ).fetchall()
+        with db.transaction() as conn:
+            rows = conn.execute(
+                """SELECT title, category, importance, published_at
+                   FROM announcements
+                   WHERE symbol = ? AND published_at >= ?
+                   ORDER BY published_at DESC""",
+                (symbol, cutoff),
+            ).fetchall()
 
         scores = []
         for row in rows:
@@ -324,13 +326,14 @@ class FactorGenerator:
         from backend.storage.db import Database
 
         db = Database()
-        rows = db.conn.execute(
-            """SELECT title, rating, target_price, institution, published_at
-               FROM research_reports
-               WHERE published_at >= ? AND symbols LIKE ?
-               ORDER BY published_at DESC""",
-            (cutoff, f'%"{symbol}"%'),
-        ).fetchall()
+        with db.transaction() as conn:
+            rows = conn.execute(
+                """SELECT title, rating, target_price, institution, published_at
+                   FROM research_reports
+                   WHERE published_at >= ? AND symbols LIKE ?
+                   ORDER BY published_at DESC""",
+                (cutoff, f'%"{symbol}"%'),
+            ).fetchall()
 
         ratings = []
         for row in rows:

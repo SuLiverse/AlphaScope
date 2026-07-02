@@ -52,34 +52,34 @@ def _ensure_table() -> None:
     with _write_lock:
         if _ensured:
             return
-        conn = _db().conn
-        conn.execute(
-            f"""
-            CREATE TABLE IF NOT EXISTS {_TABLE} (
-                snapshot_id TEXT PRIMARY KEY,
-                symbol TEXT NOT NULL,
-                name TEXT,
-                created_at TEXT NOT NULL,
-                signal TEXT,
-                confidence REAL,
-                buy INTEGER,
-                sell INTEGER,
-                hold INTEGER,
-                consensus TEXT,
-                consensus_score REAL,
-                divergence TEXT,
-                risk_vetoed INTEGER,
-                data_status TEXT,
-                close REAL,
-                mode TEXT,
-                payload TEXT
+        with _db().transaction() as conn:
+            conn.execute(
+                f"""
+                CREATE TABLE IF NOT EXISTS {_TABLE} (
+                    snapshot_id TEXT PRIMARY KEY,
+                    symbol TEXT NOT NULL,
+                    name TEXT,
+                    created_at TEXT NOT NULL,
+                    signal TEXT,
+                    confidence REAL,
+                    buy INTEGER,
+                    sell INTEGER,
+                    hold INTEGER,
+                    consensus TEXT,
+                    consensus_score REAL,
+                    divergence TEXT,
+                    risk_vetoed INTEGER,
+                    data_status TEXT,
+                    close REAL,
+                    mode TEXT,
+                    payload TEXT
+                )
+                """
             )
-            """
-        )
-        conn.execute(
-            f"CREATE INDEX IF NOT EXISTS idx_{_TABLE}_symbol ON {_TABLE}(symbol, created_at)"
-        )
-        conn.commit()
+            conn.execute(
+                f"CREATE INDEX IF NOT EXISTS idx_{_TABLE}_symbol ON {_TABLE}(symbol, created_at)"
+            )
+            conn.commit()
         _ensured = True
 
 
@@ -269,8 +269,7 @@ def record_snapshot(
         if not _is_meaningful(snap):
             return None
         _ensure_table()
-        with _write_lock:
-            conn = _db().conn
+        with _db().transaction() as conn:
             conn.execute(
                 f"""INSERT OR REPLACE INTO {_TABLE}
                     (snapshot_id, symbol, name, created_at, signal, confidence,
@@ -298,6 +297,7 @@ def record_snapshot(
                 ),
             )
             conn.commit()
+        # _prune_symbol 会再加锁, 必须在事务外调用(_db_lock 不可重入)。
         _prune_symbol(snap["symbol"])
         return snap["snapshot_id"]
     except Exception:
@@ -325,14 +325,11 @@ def list_symbols(limit: int = 100) -> list[dict[str, Any]]:
     """列举有研究记忆的股票(按最近一次分析倒序),每只带次数/最新信号/置信度。失败返回 []。"""
     try:
         _ensure_table()
-        rows = (
-            _db()
-            .conn.execute(
+        with _db().transaction() as conn:
+            rows = conn.execute(
                 f"SELECT symbol, name, created_at, signal, confidence "
                 f"FROM {_TABLE} ORDER BY created_at DESC"
-            )
-            .fetchall()
-        )
+            ).fetchall()
         agg: dict[str, dict[str, Any]] = {}
         for r in rows:
             sym = r["symbol"]
@@ -356,14 +353,11 @@ def get_history(symbol: str, limit: int = 200) -> list[dict[str, Any]]:
     """取某股票的快照(**时间倒序**,新在前),供表格展示。失败返回 []。"""
     try:
         _ensure_table()
-        rows = (
-            _db()
-            .conn.execute(
+        with _db().transaction() as conn:
+            rows = conn.execute(
                 f"SELECT * FROM {_TABLE} WHERE symbol = ? ORDER BY created_at DESC LIMIT ?",
                 (symbol, max(1, min(500, int(limit) if limit else 200))),
-            )
-            .fetchall()
-        )
+            ).fetchall()
         return [_row_to_snapshot(r) for r in rows]
     except Exception:
         return []
@@ -395,8 +389,7 @@ def delete_snapshot(snapshot_id: str) -> bool:
     """删除单条快照。失败返回 False。"""
     try:
         _ensure_table()
-        with _write_lock:
-            conn = _db().conn
+        with _db().transaction() as conn:
             cur = conn.execute(
                 f"DELETE FROM {_TABLE} WHERE snapshot_id = ?", (snapshot_id,)
             )
@@ -410,8 +403,7 @@ def delete_symbol(symbol: str) -> int:
     """删除某股票的全部记忆,返回删除条数。失败返回 0。"""
     try:
         _ensure_table()
-        with _write_lock:
-            conn = _db().conn
+        with _db().transaction() as conn:
             cur = conn.execute(f"DELETE FROM {_TABLE} WHERE symbol = ?", (symbol,))
             conn.commit()
             return int(cur.rowcount or 0)
@@ -423,7 +415,8 @@ def count() -> int:
     """快照总数。失败返回 0。"""
     try:
         _ensure_table()
-        r = _db().conn.execute(f"SELECT COUNT(*) AS c FROM {_TABLE}").fetchone()
+        with _db().transaction() as conn:
+            r = conn.execute(f"SELECT COUNT(*) AS c FROM {_TABLE}").fetchone()
         return int(r["c"]) if r else 0
     except Exception:
         return 0
@@ -432,8 +425,7 @@ def count() -> int:
 def _prune_symbol(symbol: str, keep: int = _KEEP_PER_SYMBOL) -> None:
     """每只股票只保留最近 keep 条,防止无限增长。失败静默。"""
     try:
-        with _write_lock:
-            conn = _db().conn
+        with _db().transaction() as conn:
             conn.execute(
                 f"""DELETE FROM {_TABLE} WHERE symbol = ? AND snapshot_id NOT IN (
                         SELECT snapshot_id FROM {_TABLE} WHERE symbol = ?

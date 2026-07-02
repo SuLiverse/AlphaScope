@@ -18,6 +18,16 @@ from backend.api.main import app
 # ============== file_store 单元测试 ==============
 
 
+def _patch_file_db():
+    """mock 进程级单例 Database, transaction() 上下文给出同一 mock conn。
+    CRUD 现在走 with Database().transaction() as conn:, 不再暴露 _get_conn。"""
+    conn = MagicMock()
+    db_mock = MagicMock()
+    db_mock.transaction.return_value.__enter__.return_value = conn
+    db_mock.transaction.return_value.__exit__.return_value = False
+    return patch("backend.file_store.Database", return_value=db_mock), conn
+
+
 class TestFileStore:
     """测试 file_store CRUD 函数"""
 
@@ -25,9 +35,8 @@ class TestFileStore:
         """save_document 返回正确的文档结构"""
         from backend.file_store import save_document
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = None
             conn.execute.return_value.fetchall.return_value = []
 
@@ -46,9 +55,8 @@ class TestFileStore:
         """list_documents 调用正确的 SQL"""
         from backend.file_store import list_documents
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
 
             result = list_documents()
@@ -59,9 +67,8 @@ class TestFileStore:
         """list_documents 支持 source_type 过滤"""
         from backend.file_store import list_documents
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
 
             list_documents(source_type="upload", limit=10)
@@ -71,9 +78,8 @@ class TestFileStore:
         """delete_document 删除不存在的文档返回 False"""
         from backend.file_store import delete_document
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = None
 
             result = delete_document("nonexistent")
@@ -83,9 +89,8 @@ class TestFileStore:
         """delete_document 删除存在的文档返回 True"""
         from backend.file_store import delete_document
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.fetchone.return_value = {"id": "abc"}
 
             result = delete_document("abc")
@@ -96,21 +101,23 @@ class TestFileStore:
         """save_chunks 返回正确的 chunk 数量"""
         from backend.file_store import save_chunks
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
-
+        patcher, conn = _patch_file_db()
+        with patcher:
             count = save_chunks("doc1", ["chunk1", "chunk2", "chunk3"])
             assert count == 3
-            assert conn.execute.call_count == 3
+            # 只统计插入 chunk 的 execute(建表 SQL 不计入业务调用计数)
+            insert_calls = [
+                c for c in conn.execute.call_args_list
+                if "INSERT INTO document_chunks" in str(c)
+            ]
+            assert len(insert_calls) == 3
 
     def test_get_chunks(self):
         """get_chunks 返回列表"""
         from backend.file_store import get_chunks
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
 
             result = get_chunks("doc1")
@@ -120,9 +127,8 @@ class TestFileStore:
         """delete_chunks 返回删除数量"""
         from backend.file_store import delete_chunks
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.rowcount = 5
 
             count = delete_chunks("doc1")
@@ -132,9 +138,8 @@ class TestFileStore:
         """search_documents 调用正确的 SQL"""
         from backend.file_store import search_documents
 
-        with patch("backend.file_store._get_conn") as mock_conn:
-            conn = MagicMock()
-            mock_conn.return_value = conn
+        patcher, conn = _patch_file_db()
+        with patcher:
             conn.execute.return_value.fetchall.return_value = []
 
             result = search_documents("test query")
