@@ -190,6 +190,7 @@ if HAS_FASTAPI:
     from backend.api.datalake import router as datalake_router
     from backend.api.factor_registry import router as factor_registry_router
     from backend.api.integrations import router as integrations_router
+    from backend.api.alerts import router as alerts_router
 
     # 启动时把已保存的数据源凭证注入环境变量, 使 provider 自动注册时可用
     from backend.datasource_config import init_credentials_on_startup
@@ -230,6 +231,19 @@ if HAS_FASTAPI:
     app.include_router(datalake_router)
     app.include_router(factor_registry_router)
     app.include_router(integrations_router)
+    app.include_router(alerts_router)
+
+    # ============== 启动钩子: 后台监控 ==============
+
+    @app.on_event("startup")
+    def _startup_hook():
+        # 启动自选股定时监控后台线程(非阻塞,失败不影响 API)
+        try:
+            from backend.ingestion.startup import auto_startup
+
+            auto_startup()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("启动监控后台线程失败: %s", e)
 
     # ============== 全局错误处理 ==============
 

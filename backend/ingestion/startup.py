@@ -63,11 +63,28 @@ def _discover_plugins():
 
 
 def _start_monitoring():
-    """启动定时监控（后台线程）"""
+    """启动定时监控（后台线程, 每 10 分钟扫一次自选股告警）"""
     try:
-        from backend.ingestion.scheduled_reports import get_scheduled_report_manager  # noqa: F401
+        import time as _time
 
-        logger.info("[Startup] 定时监控已初始化")
+        from backend.ingestion.scheduled_reports import get_scheduled_report_manager
+
+        # 触发单例创建
+        get_scheduled_report_manager()
+
+        def _scan_loop():
+            # 启动后先 sleep 一段, 避免与 provider 注册抢资源
+            _time.sleep(15)
+            while True:
+                try:
+                    get_scheduled_report_manager().check_alerts(persist=True)
+                except Exception as exc:  # 监控线程绝不能因异常退出
+                    logger.debug(f"[Monitor] 扫描告警失败: {exc}")
+                _time.sleep(600)  # 10 分钟一次
+
+        thread = threading.Thread(target=_scan_loop, daemon=True)
+        thread.start()
+        logger.info("[Startup] 定时监控已启动 (每 10 分钟扫描自选股告警)")
     except Exception as e:
         logger.warning(f"[Startup] 定时监控初始化失败: {e}")
 

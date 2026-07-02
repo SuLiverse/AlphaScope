@@ -22,6 +22,34 @@ interface CostSummary {
 
 const fmtUsd = (n: number) => `$${(n ?? 0).toFixed((n ?? 0) < 1 ? 4 : 2)}`;
 
+interface AlertItem {
+  alert_id: string;
+  symbol: string;
+  name: string;
+  type: string;
+  message: string;
+  severity: string;
+  timestamp: number;
+  acknowledged: boolean;
+}
+
+const SEVERITY_COLOR: Record<string, string> = {
+  critical: 'border-rose-500/30 bg-rose-500/10',
+  warning: 'border-amber-500/30 bg-amber-500/10',
+  info: 'border-sky-500/30 bg-sky-500/10',
+};
+
+const fmtAlertTime = (ts: number) => {
+  if (!ts) return '';
+  const d = new Date(ts * 1000);
+  const now = new Date();
+  const diff = (now.getTime() - d.getTime()) / 1000;
+  if (diff < 60) return '刚刚';
+  if (diff < 3600) return `${Math.floor(diff / 60)} 分钟前`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} 小时前`;
+  return d.toLocaleDateString('zh-CN');
+};
+
 export function TopBar() {
   const [searchValue, setSearchValue] = useState('');
   const [isOpen, setIsOpen] = useState(false);
@@ -32,6 +60,8 @@ export function TopBar() {
   const [remoteSuggestions, setRemoteSuggestions] = useState<StockTarget[]>([]);
   const [cost, setCost] = useState<CostSummary | null>(null);
   const [costOpen, setCostOpen] = useState(false);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [unackCount, setUnackCount] = useState(0);
 
   const localSuggestions = useMemo(() => searchStockTargets(searchValue, 6), [searchValue]);
   const suggestions = remoteSuggestions.length ? remoteSuggestions : localSuggestions;
@@ -61,6 +91,54 @@ export function TopBar() {
       window.clearInterval(timer);
     };
   }, []);
+
+  // 自选股监控告警:拉取数量(红点)+列表;每 30 秒刷新一次
+  useEffect(() => {
+    let cancelled = false;
+    const loadCount = () => {
+      void fetchApi<{ unacknowledged: number }>('/api/alerts/count')
+        .then((data) => {
+          if (!cancelled) setUnackCount(data?.unacknowledged ?? 0);
+        })
+        .catch(() => {
+          /* 通知为非关键功能,静默 */
+        });
+    };
+    const loadList = () => {
+      void fetchApi<{ items: AlertItem[] }>('/api/alerts?limit=20')
+        .then((data) => {
+          if (!cancelled) setAlerts(data?.items ?? []);
+        })
+        .catch(() => {
+          /* 静默 */
+        });
+    };
+    loadCount();
+    loadList();
+    const timer = window.setInterval(() => {
+      loadCount();
+      if (noticeOpen) loadList();
+    }, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [noticeOpen]);
+
+  const ackAlert = (alertId: string) => {
+    void fetchApi(`/api/alerts/${alertId}/ack`, { method: 'POST' }).then(() => {
+      setAlerts((prev) =>
+        prev.map((a) => (a.alert_id === alertId ? { ...a, acknowledged: true } : a)),
+      );
+      setUnackCount((c) => Math.max(0, c - 1));
+    });
+  };
+  const ackAll = () => {
+    void fetchApi('/api/alerts/ack-all', { method: 'POST' }).then(() => {
+      setAlerts((prev) => prev.map((a) => ({ ...a, acknowledged: true })));
+      setUnackCount(0);
+    });
+  };
 
   useEffect(() => {
     setActiveIndex(0);
@@ -274,10 +352,14 @@ export function TopBar() {
             whileTap={{ scale: 0.95 }}
             onClick={() => setNoticeOpen((open) => !open)}
             className="relative p-2 hover:bg-white/5 rounded-lg transition-colors text-neutral-500 hover:text-neutral-300"
-            title="查看系统通知"
+            title="查看自选股监控告警"
           >
             <Bell className="w-[18px] h-[18px]" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-indigo-500 rounded-full border-2 border-[#050505]"></span>
+            {unackCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[16px] h-[16px] px-1 flex items-center justify-center rounded-full bg-rose-500 border-2 border-[#050505] text-[10px] font-semibold text-white">
+                {unackCount > 99 ? '99+' : unackCount}
+              </span>
+            )}
           </motion.button>
           <AnimatePresence>
             {noticeOpen && (
@@ -285,28 +367,84 @@ export function TopBar() {
                 initial={{ opacity: 0, y: -6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                className="absolute right-24 top-11 z-[120] w-80 rounded-2xl border border-white/10 bg-[#0b0c12] p-4 shadow-2xl ring-1 ring-black/70"
+                className="absolute right-24 top-11 z-[120] w-[22rem] max-h-[28rem] flex flex-col rounded-2xl border border-white/10 bg-[#0b0c12] shadow-2xl ring-1 ring-black/70"
               >
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-neutral-100">系统通知</h3>
-                  <button
-                    type="button"
-                    onClick={() => setNoticeOpen(false)}
-                    className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-300"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-                {[
-                  ['数据源', '腾讯行情与东财数据中心已纳入降级链路。'],
-                  ['任务队列', '重复股票分析会复用已有任务，避免重复运行。'],
-                  ['提示', `当前全局标的：${lastSelected}`],
-                ].map(([title, text]) => (
-                  <div key={title} className="mb-2 rounded-xl border border-white/5 bg-white/[0.03] p-3">
-                    <p className="text-xs font-medium text-neutral-200">{title}</p>
-                    <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">{text}</p>
+                <div className="flex items-center justify-between p-4 pb-3">
+                  <h3 className="text-sm font-semibold text-neutral-100">
+                    自选股监控
+                    {unackCount > 0 && (
+                      <span className="ml-2 text-[11px] font-normal text-rose-400">
+                        {unackCount} 条未确认
+                      </span>
+                    )}
+                  </h3>
+                  <div className="flex items-center gap-1">
+                    {unackCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={ackAll}
+                        className="rounded-md px-2 py-1 text-[11px] text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
+                      >
+                        全部已读
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setNoticeOpen(false)}
+                      className="rounded-md p-1 text-neutral-500 hover:bg-white/5 hover:text-neutral-300"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                ))}
+                </div>
+                <div className="flex-1 overflow-y-auto px-4 pb-4 space-y-2">
+                  {alerts.length === 0 ? (
+                    <div className="py-10 text-center">
+                      <CheckCircle2 className="mx-auto mb-2 h-8 w-8 text-neutral-700" />
+                      <p className="text-xs text-neutral-500">暂无告警</p>
+                      <p className="mt-1 text-[10px] text-neutral-600">
+                        把股票加入「自选晨报」后,系统会自动监控涨跌幅与量能异动
+                      </p>
+                    </div>
+                  ) : (
+                    alerts.map((a) => (
+                      <div
+                        key={a.alert_id}
+                        className={cn(
+                          'rounded-xl border p-3 transition-opacity',
+                          SEVERITY_COLOR[a.severity] ?? 'border-white/5 bg-white/[0.03]',
+                          a.acknowledged && 'opacity-40',
+                        )}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-neutral-200">
+                                {a.name || a.symbol}
+                              </span>
+                              <span className="text-[10px] text-neutral-600">
+                                {a.type === 'price_change' ? '价格异动' : a.type === 'volume_spike' ? '量能异动' : a.type}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-[11px] leading-relaxed text-neutral-400">
+                              {a.message}
+                            </p>
+                            <p className="mt-1 text-[10px] text-neutral-600">{fmtAlertTime(a.timestamp)}</p>
+                          </div>
+                          {!a.acknowledged && (
+                            <button
+                              type="button"
+                              onClick={() => ackAlert(a.alert_id)}
+                              className="shrink-0 rounded-md px-2 py-1 text-[10px] text-sky-400 hover:bg-sky-500/10"
+                            >
+                              已读
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </motion.div>
             )}
           </AnimatePresence>

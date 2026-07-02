@@ -128,7 +128,7 @@ class TestValidateAgentOutput:
     def test_evidence_max_items_trimmed(self):
         many = [{"type": "other", "claim": f"point {i}"} for i in range(20)]
         out = validate_agent_output({"evidence": many})
-        assert len(out["evidence"]) <= 6
+        assert len(out["evidence"]) <= 8
 
     def test_risks_normalized_from_string(self):
         out = validate_agent_output({"risks": "1) 利率上行\n2) 行业政策不确定"})

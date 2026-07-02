@@ -40,6 +40,7 @@ class Alert:
     severity: str = "info"  # info, warning, critical
     timestamp: float = 0
     acknowledged: bool = False
+    name: str = ""
 
 
 class ScheduledReportManager:
@@ -82,21 +83,73 @@ class ScheduledReportManager:
 
     # ============== 监控与告警 ==============
 
-    def check_alerts(self) -> List[Alert]:
-        """检查所有观察列表项的告警条件"""
-        new_alerts = []
-        for item in self._watchlist:
+    def check_alerts(self, *, persist: bool = True) -> List[Alert]:
+        """检查所有自选股的告警条件。
+
+        自选股来源为持久化的 watchlist_store(SQLite),告警写入 alert_store(SQLite)。
+        persist=False 时仅返回计算结果不落库(供预览/测试)。
+        """
+        new_alerts: List[Alert] = []
+        items = self._load_watchlist_items()
+        for item in items:
             try:
                 alerts = self._check_item_alerts(item)
+                for a in alerts:
+                    a.name = item.name
                 new_alerts.extend(alerts)
             except Exception as e:
                 logger.debug(f"检查 {item.symbol} 告警失败: {e}")
 
         self._alerts.extend(new_alerts)
+        if persist:
+            from backend import alert_store
+
+            for a in new_alerts:
+                try:
+                    alert_store.add_alert(
+                        alert_id=a.alert_id,
+                        symbol=a.symbol,
+                        name=a.name,
+                        alert_type=a.alert_type,
+                        message=a.message,
+                        severity=a.severity,
+                        timestamp=a.timestamp,
+                    )
+                except Exception as e:
+                    logger.debug(f"写入告警失败: {e}")
         return new_alerts
 
+    def _load_watchlist_items(self) -> List[WatchListItem]:
+        """从持久化 watchlist_store 加载自选股为内部 WatchListItem。"""
+        items: List[WatchListItem] = []
+        try:
+            from backend.watchlist_store import list_watchlist
+
+            for row in list_watchlist():
+                symbol = row.get("symbol", "")
+                name = row.get("name", "") or symbol
+                cond = row.get("alert_conditions") or {}
+                if isinstance(cond, dict):
+                    ac = cond
+                else:
+                    ac = {}
+                items.append(
+                    WatchListItem(
+                        symbol=symbol,
+                        name=name,
+                        added_at=row.get("added_at", 0),
+                        alert_conditions=ac,
+                    )
+                )
+        except Exception as e:
+            logger.debug(f"加载自选股失败: {e}")
+        return items
+
     def _check_item_alerts(self, item: WatchListItem) -> List[Alert]:
-        """检查单个观察项的告警"""
+        """检查单个观察项的告警。
+
+        用「交易日 + 价格涨跌幅」做稳定去重 ID,避免同一交易日重复刷告警。
+        """
         alerts = []
         try:
             from backend.price_fetcher import get_price_range
@@ -108,6 +161,8 @@ class ScheduledReportManager:
             latest = data[-1] if data else {}
             price = latest.get("close", 0)
             volume = latest.get("volume", 0)
+            # 用最新一根 K 线的日期做去重维度,同一天同一标的不重复告警
+            trade_day = str(latest.get("date") or latest.get("day") or "")[:10]
 
             # 价格变动告警
             if len(data) >= 2:
@@ -117,9 +172,10 @@ class ScheduledReportManager:
                     threshold = item.alert_conditions.get("price_change_pct", 5)
                     if abs(change_pct) >= threshold:
                         direction = "上涨" if change_pct > 0 else "下跌"
+                        day_tag = trade_day or int(time.time())
                         alerts.append(
                             Alert(
-                                alert_id=f"price_{item.symbol}_{int(time.time())}",
+                                alert_id=f"price_{item.symbol}_{day_tag}",
                                 symbol=item.symbol,
                                 alert_type="price_change",
                                 message=f"{item.name}({item.symbol}) {direction} {abs(change_pct):.1f}%，当前价 ¥{price:.2f}",
@@ -127,14 +183,16 @@ class ScheduledReportManager:
                                 timestamp=time.time(),
                             )
                         )
+                        # 标注名称字段(Alert dataclass 无 name,在 message 体现)
 
             # 成交量异动告警
             if len(data) >= 5:
                 avg_vol = sum(d.get("volume", 0) for d in data[-5:-1]) / 4
                 if avg_vol > 0 and volume > avg_vol * 2:
+                    day_tag = trade_day or int(time.time())
                     alerts.append(
                         Alert(
-                            alert_id=f"vol_{item.symbol}_{int(time.time())}",
+                            alert_id=f"vol_{item.symbol}_{day_tag}",
                             symbol=item.symbol,
                             alert_type="volume_spike",
                             message=f"{item.name}({item.symbol}) 成交量放大 {volume / avg_vol:.1f}倍",
