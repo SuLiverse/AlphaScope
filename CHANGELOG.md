@@ -1,5 +1,26 @@
 # Changelog
 
+## v1.9.44 - 2026-07-03
+
+> **沉睡模块收尾 + 边界修复 + 测试加固**:持续流第五批。激活最后一个沉睡模块 evidence_aggregator(只读端点);修 anomaly 港股/美股涨跌停误报;补 risk_controller 全套除零测试 + expert 配置回归测试。
+
+### 沉睡模块激活(收尾)
+- **`/api/evidence/aggregate`**:暴露 evidence_aggregator(多源并行采集 + 跨源去重 + 矛盾检测)。返回 AggregatedEvidence(item_count/sources/confidence/confirmed_by/contradictions/is_multi_source/is_high_confidence)。**不改主证据链路**(fetch_evidence_pool 不变),独立研究/诊断端点,零风险。至此 Explore 报的 5 个沉睡模块(anomaly_detector/data_contract/plugin_marketplace/ai_evaluation/evidence_aggregator)全部激活。
+
+### 边界修复
+- **anomaly_detector 港股/美股涨跌停误报**:`_get_price_limit` 此前只认 A 股,港股(5 位数字)/美股(字母)走默认 10% 会误报"超涨跌停"。改为返 999(无限制)。
+
+### 配置一致性(续)
+- **agent_teams.yaml 无效 agent id**:模板引用 macro_analyst 等 `_analyst`/`_manager` 后缀 id,代码合法 key 是 fundamental/buyside_research/technical/sentiment/risk。映射修正,用户照搬模板不再拿到无效引用。
+
+### 测试加固
+- **risk_controller 全套除零测试**:check_stop_loss(4)+ check_drawdown/check_daily_loss(5)锁住除零防护。
+- **expert 配置回归**:v2 member promptFile 全加载非空、v1 persona system_prompt 非空非 stub(锁住上轮升级防回归)。
+
+### 验证
+- 离线套件 **1728 passed, 5 skipped**(较 v1.9.43 +多项测试, 0 回归)。
+- `ruff check` / `tsc` / `vite build` 通过。HEAD `a09ac50` 同步 origin/main。
+
 ## v1.9.43 - 2026-07-03
 
 > **配置一致性 + 测试加固**:第四批。Explore 扫描配置文件发现 v2 专家团 5 个 promptFile 指向不存在文件(运行时空白人设),修复;并为上批业务健壮性修复补回归测试。
