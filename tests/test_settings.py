@@ -64,6 +64,21 @@ class _MemoryDatabase:
     def __init__(self, conn: sqlite3.Connection):
         self._conn = conn
 
+    @property
+    def conn(self):
+        return self._conn
+
+    def transaction(self):
+        # 真实 Database.transaction 是 _db_lock 包裹的上下文管理器; 内存测试 DB 单线程,
+        # 无需真锁, 直接 yield 同一连接。
+        from contextlib import contextmanager
+
+        @contextmanager
+        def _ctx():
+            yield self._conn
+
+        return _ctx()
+
 
 @pytest.mark.anyio
 async def test_list_providers(client):
@@ -421,7 +436,7 @@ def test_gateway_startup_sync_skips_private_base_url_by_default():
         ),
     ):
         os.environ.pop("ALLOW_LOCAL_LLM_BASE_URL", None)
-        settings_store._ensure_table(conn)
+        settings_store._ensure_schema()
         conn.execute(
             """
             INSERT INTO model_providers
@@ -647,7 +662,7 @@ def test_gateway_startup_sync_requires_complete_saved_provider_config():
             clear=False,
         ),
     ):
-        settings_store._ensure_table(conn)
+        settings_store._ensure_schema()
         conn.execute(
             """
             INSERT INTO model_providers
@@ -762,7 +777,7 @@ def test_gateway_startup_sync_disabled_known_provider_suppresses_runtime_vendor(
                 clear=False,
             ),
         ):
-            settings_store._ensure_table(conn)
+            settings_store._ensure_schema()
             conn.execute(
                 """
                 INSERT INTO model_providers

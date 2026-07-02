@@ -273,16 +273,12 @@ def _model_config_item(model_id: str, owned_by: str = "") -> dict[str, Any]:
     }
 
 
-def _ensure_table(conn) -> None:
-    conn.execute(_TABLE_SQL)
-    conn.execute(_PREFERENCES_TABLE_SQL)
-    conn.commit()
-
-
-def _get_conn():
-    db = Database()
-    _ensure_table(db._conn)
-    return db._conn
+def _ensure_schema() -> None:
+    """建表(幂等)。包进进程级 DB 锁, 避免与请求线程并发写时撞锁。"""
+    with Database().transaction() as conn:
+        conn.execute(_TABLE_SQL)
+        conn.execute(_PREFERENCES_TABLE_SQL)
+        conn.commit()
 
 
 def _default_preferences() -> dict[str, dict[str, Any]]:
@@ -348,8 +344,10 @@ def _normalize_preferences(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def get_app_preferences() -> dict[str, dict[str, Any]]:
     """读取应用偏好设置，并补齐新增默认项。"""
-    conn = _get_conn()
-    rows = conn.execute("SELECT key, value_json FROM app_preferences").fetchall()
+    _ensure_schema()
+    with Database().transaction() as conn:
+        rows = conn.execute("SELECT key, value_json FROM app_preferences").fetchall()
+    # JSON 解析/合并是纯 Python, 在锁外做
     raw = _default_preferences()
     for row in rows:
         section = row["key"]
@@ -369,29 +367,33 @@ def save_app_preferences(
     preferences: dict[str, Any],
 ) -> dict[str, dict[str, Any]]:
     """合并保存应用偏好设置，只接受已声明的 section/key。"""
-    conn = _get_conn()
+    # get_app_preferences 自带 transaction; 必须在写事务外调用(_db_lock 不可重入)。
     current = get_app_preferences()
     for section, values in (preferences or {}).items():
         if section in current and isinstance(values, dict):
             current[section].update(values)
     normalized = _normalize_preferences(current)
     now = time.time()
-    for section, values in normalized.items():
-        conn.execute(
-            "INSERT OR REPLACE INTO app_preferences (key, value_json, updated_at) VALUES (?, ?, ?)",
-            (section, json.dumps(values, ensure_ascii=False), now),
-        )
-    conn.commit()
+    _ensure_schema()
+    with Database().transaction() as conn:
+        for section, values in normalized.items():
+            conn.execute(
+                "INSERT OR REPLACE INTO app_preferences (key, value_json, updated_at) VALUES (?, ?, ?)",
+                (section, json.dumps(values, ensure_ascii=False), now),
+            )
+        conn.commit()
     return normalized
 
 
 def list_providers() -> list[dict[str, Any]]:
     """列出所有 DB 中的 provider"""
-    conn = _get_conn()
-    rows = conn.execute(
-        "SELECT id, name, type, base_url, encrypted_api_key, enabled, config_json, created_at, updated_at "
-        "FROM model_providers ORDER BY name"
-    ).fetchall()
+    _ensure_schema()
+    with Database().transaction() as conn:
+        rows = conn.execute(
+            "SELECT id, name, type, base_url, encrypted_api_key, enabled, config_json, created_at, updated_at "
+            "FROM model_providers ORDER BY name"
+        ).fetchall()
+    # 解密在锁外做
     result = []
     for row in rows:
         result.append(
@@ -412,20 +414,23 @@ def list_providers() -> list[dict[str, Any]]:
 
 def get_provider(provider_id: str) -> Optional[dict[str, Any]]:
     """获取单个 provider（含解密的 api_key）"""
-    conn = _get_conn()
-    row = conn.execute(
-        "SELECT id, name, type, base_url, encrypted_api_key, enabled, config_json FROM model_providers WHERE id = ?",
-        (provider_id,),
-    ).fetchone()
+    _ensure_schema()
+    with Database().transaction() as conn:
+        row = conn.execute(
+            "SELECT id, name, type, base_url, encrypted_api_key, enabled, config_json FROM model_providers WHERE id = ?",
+            (provider_id,),
+        ).fetchone()
     if not row:
         return None
+    # 解密在锁外做
+    plain = decrypt_key(row["encrypted_api_key"] or "")
     return {
         "id": row["id"],
         "name": _clean_provider_name(row["id"], row["name"], row["base_url"] or ""),
         "type": row["type"],
         "base_url": row["base_url"] or "",
-        "api_key": decrypt_key(row["encrypted_api_key"] or ""),
-        "api_key_masked": mask_key(decrypt_key(row["encrypted_api_key"] or "")),
+        "api_key": plain,
+        "api_key_masked": mask_key(plain),
         "enabled": bool(row["enabled"]),
         "config_json": row["config_json"] or "{}",
     }
@@ -440,77 +445,85 @@ def save_provider(
     config_json: Optional[str] = None,
 ) -> dict[str, Any]:
     """添加或更新 provider"""
-    conn = _get_conn()
     now = time.time()
     from backend.models.provider_gateway import normalize_openai_base_url
 
+    # 参数规整 / 加密在锁外做(_safe_encrypt_api_key 可能抛 RuntimeError 提示用户)
     normalized_base_url = normalize_openai_base_url(base_url)
     if normalized_base_url:
         normalized_base_url = validate_custom_base_url(normalized_base_url)
     display_name = _clean_provider_name(provider_id, name, normalized_base_url)
-    existing = conn.execute(
-        "SELECT id, config_json FROM model_providers WHERE id = ?", (provider_id,)
-    ).fetchone()
-    next_config_json = config_json
-    if next_config_json is None:
-        next_config_json = (existing["config_json"] if existing else None) or "{}"
-    if existing:
-        if api_key:
-            conn.execute(
-                "UPDATE model_providers SET name=?, base_url=?, encrypted_api_key=?, enabled=?, config_json=?, updated_at=? WHERE id=?",
-                (
-                    display_name,
-                    normalized_base_url,
-                    _safe_encrypt_api_key(api_key),
-                    int(enabled),
-                    next_config_json,
-                    now,
-                    provider_id,
-                ),
-            )
+    encrypted_key = _safe_encrypt_api_key(api_key) if api_key else None
+
+    _ensure_schema()
+    db = Database()
+    # existing 查询 + INSERT/UPDATE 在同一事务(原子性); _sync_to_gateway / get_provider
+    # 会再加锁, 必须在事务外调用(_db_lock 不可重入)。
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT id, config_json FROM model_providers WHERE id = ?", (provider_id,)
+        ).fetchone()
+        next_config_json = config_json
+        if next_config_json is None:
+            next_config_json = (existing["config_json"] if existing else None) or "{}"
+        if existing:
+            if encrypted_key is not None:
+                conn.execute(
+                    "UPDATE model_providers SET name=?, base_url=?, encrypted_api_key=?, enabled=?, config_json=?, updated_at=? WHERE id=?",
+                    (
+                        display_name,
+                        normalized_base_url,
+                        encrypted_key,
+                        int(enabled),
+                        next_config_json,
+                        now,
+                        provider_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    "UPDATE model_providers SET name=?, base_url=?, enabled=?, config_json=?, updated_at=? WHERE id=?",
+                    (
+                        display_name,
+                        normalized_base_url,
+                        int(enabled),
+                        next_config_json,
+                        now,
+                        provider_id,
+                    ),
+                )
         else:
             conn.execute(
-                "UPDATE model_providers SET name=?, base_url=?, enabled=?, config_json=?, updated_at=? WHERE id=?",
+                "INSERT INTO model_providers (id, name, type, base_url, encrypted_api_key, enabled, config_json, created_at, updated_at) "
+                "VALUES (?, ?, 'openai_compatible', ?, ?, ?, ?, ?, ?)",
                 (
+                    provider_id,
                     display_name,
                     normalized_base_url,
+                    encrypted_key or "",
                     int(enabled),
                     next_config_json,
                     now,
-                    provider_id,
+                    now,
                 ),
             )
-    else:
-        encrypted = _safe_encrypt_api_key(api_key) if api_key else ""
-        conn.execute(
-            "INSERT INTO model_providers (id, name, type, base_url, encrypted_api_key, enabled, config_json, created_at, updated_at) "
-            "VALUES (?, ?, 'openai_compatible', ?, ?, ?, ?, ?, ?)",
-            (
-                provider_id,
-                display_name,
-                normalized_base_url,
-                encrypted,
-                int(enabled),
-                next_config_json,
-                now,
-                now,
-            ),
-        )
-    conn.commit()
+        conn.commit()
     _sync_to_gateway()
     return get_provider(provider_id)
 
 
 def delete_provider(provider_id: str) -> bool:
     """删除 provider"""
-    conn = _get_conn()
-    existing = conn.execute(
-        "SELECT id FROM model_providers WHERE id = ?", (provider_id,)
-    ).fetchone()
-    if not existing:
-        return False
-    conn.execute("DELETE FROM model_providers WHERE id = ?", (provider_id,))
-    conn.commit()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT id FROM model_providers WHERE id = ?", (provider_id,)
+        ).fetchone()
+        if not existing:
+            return False
+        conn.execute("DELETE FROM model_providers WHERE id = ?", (provider_id,))
+        conn.commit()
     _sync_to_gateway()
     return True
 
