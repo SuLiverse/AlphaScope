@@ -1,7 +1,7 @@
 {
   "name": "alphascope-web",
   "private": true,
-  "version": "1.9.41",
+  "version": "1.9.42",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",

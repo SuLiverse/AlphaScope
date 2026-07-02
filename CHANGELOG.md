@@ -1,5 +1,32 @@
 # Changelog
 
+## v1.9.42 - 2026-07-03
+
+> **业务健壮性 + 性能 + 沉睡模块激活**:第三批「检查并修复」。Explore 扫描核心业务层(orchestrator/agents/quant/rag)的异常处理与资源管理,修了除零/索引越界/整批崩/资源泄漏/吞错;给高频 store 加建表 flag 跳过重复 DDL;激活 marketplace/mlops 两个沉睡模块。纯修复 + 性能 + 只读端点,未删改既有功能。
+
+### 业务健壮性(确定的运行时崩溃/资源泄漏)
+- **除零防护**:`risk_controller.check_stop_loss` 未防 `entry_price<=0`(分红除权/split bug 致 ZeroDivisionError),加防护返回 `rule=invalid_entry_price`(与 check_drawdown/check_daily_loss 一致)。
+- **索引越界防护**:`vector_store.query` 在 ChromaDB 无命中/结构异常(`documents=[]`)时 `documents[0]` IndexError,让整个 search_evidence 链路抛异常。改安全取值 + 逐元素长度检查。
+- **单 Agent bug 不再整批崩**(违反"单点失败不影响其余"):`orchestrator.run_agents_with_mode` / `financial_agents.run_all_agents` / `run_custom_agents` 的 `fut.result()` 无 try/except,单 Agent 配置/编程 bug 让整批分析崩、已成功结果丢失。改 try/except 记错误项(观望/0 置信),整批继续。
+- **fd 泄漏修复**:`vector_store._OpenAIEmbeddingFunction` 每次 RAG 检索新建 OpenAI client 不复用不关闭,长跑进程逐渐耗尽 fd。改懒建 + 实例属性复用同一连接池。
+- **吞错可见**:`save_agent_run_memory` 的 `except: pass` 完全静默(schema/DB 演进 bug 永久无声丢失),改 logger.warning。
+
+### 性能(高频路径跳过重复 DDL)
+- **6 store `_ensure_schema` 加 `_schema_ensured` flag**:price_store(最高频)+ alert/watchlist/notifier/research_portfolio/datasource_config。CREATE/ALTER TABLE 虽幂等但每次占锁+execute,首次建表后跳过。修复 test_watchlist_api 的 flag 跨测试污染(tmp_db fixture 重置 flag)。
+
+### 沉睡模块激活
+- **`/api/integrations/marketplace`**:暴露 plugin_marketplace 目录(category/installed_only 过滤,给安装指引)。
+- **`/api/diagnostics/mlops`**:暴露 ai_evaluation 的 MLOps 库就绪概览(mlflow/optuna/evidently 等)。
+- **api.md 文档同步**:补集成/插件市场/诊断/MLOps/MCP 端点段,修正端点计数。
+
+### 验证
+- 离线套件 **1711 passed, 5 skipped, 1 deselected**(0 回归)。
+- `ruff check` / `tsc --noEmit` / `vite build` 全程通过。
+- 每批独立 commit + push, HEAD `4a06b83` 同步 origin/main。
+
+### 合规与边界(按约束跳过)
+- data_verifier.verify_data 的最外层 except 降级、news_data 的 Pipeline 回退属**有意 fake-success 设计**(见项目约束),未改。
+
 ## v1.9.41 - 2026-07-03
 
 > **输入校验 + 前端竞态加固**:继 v1.9.40 健壮性批次后的第二批「检查并修复」。Explore 扫描发现 API 输入校验盲区(limit 无上限、body 弱类型)和前端异步竞态(切标的 stale 覆盖、订阅频繁 resubscribe)。纯修复 + 测试,未删改既有功能。
