@@ -88,7 +88,7 @@ def _safe_float_for_api(value: Any, default: float = 0.0) -> float:
 
 
 try:
-    from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+    from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -398,7 +398,7 @@ if HAS_FASTAPI:
         )
 
     @app.get("/api/conversations", response_model=ApiResponse[dict[str, Any]])
-    def list_conversations(stock_symbol: Optional[str] = None, limit: int = 20):
+    def list_conversations(stock_symbol: Optional[str] = None, limit: int = Query(20, ge=1, le=500)):
         """列出对话"""
         from backend.ai_assistant.conversation_store import ConversationStore
         from backend.storage.db import Database
@@ -957,7 +957,7 @@ if HAS_FASTAPI:
     # ============== 审计日志 API ==============
 
     @app.get("/api/audit", response_model=ApiResponse[dict[str, Any]])
-    def get_audit_logs(limit: int = 50):
+    def get_audit_logs(limit: int = Query(50, ge=1, le=1000)):
         """获取审计日志"""
         from backend.storage.db import Database
 

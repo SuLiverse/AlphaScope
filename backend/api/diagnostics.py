@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from backend.schemas.api import ApiResponse
 
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/diagnostics", tags=["diagnostics"])
 
 
 @router.get("/traces")
-async def get_traces(limit: int = 50):
+async def get_traces(limit: int = Query(50, ge=1, le=500)):
     """最近 trace/span"""
     try:
         from backend.observability.tracer import get_tracer
@@ -23,7 +23,7 @@ async def get_traces(limit: int = 50):
 
 
 @router.get("/tool-calls")
-async def get_tool_calls(limit: int = 50):
+async def get_tool_calls(limit: int = Query(50, ge=1, le=500)):
     """工具调用日志"""
     from backend.diagnostics_store import list_tool_calls as _list
 
@@ -32,7 +32,7 @@ async def get_tool_calls(limit: int = 50):
 
 
 @router.get("/model-calls")
-async def get_model_calls(model: str | None = None, limit: int = 50):
+async def get_model_calls(model: str | None = None, limit: int = Query(50, ge=1, le=500)):
     """模型调用日志"""
     from backend.diagnostics_store import list_cost_records as _list
 
@@ -41,7 +41,7 @@ async def get_model_calls(model: str | None = None, limit: int = 50):
 
 
 @router.get("/health-history")
-async def get_health_history(limit: int = 50):
+async def get_health_history(limit: int = Query(50, ge=1, le=500)):
     """数据源健康历史"""
     from backend.diagnostics_store import get_health_history as _get
 
@@ -50,7 +50,7 @@ async def get_health_history(limit: int = 50):
 
 
 @router.get("/errors")
-async def get_errors(limit: int = 50):
+async def get_errors(limit: int = Query(50, ge=1, le=500)):
     """错误日志（工具调用错误 + 健康检查错误）"""
     from backend.diagnostics_store import get_health_history, list_tool_calls
 

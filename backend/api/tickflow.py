@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from backend.schemas.api import ApiResponse
@@ -85,7 +85,7 @@ def tickflow_delete_source(source_id: str):
 
 
 @router.post("/sources/{source_id}/refresh", response_model=ApiResponse[dict])
-def tickflow_refresh(source_id: str, limit: int = 1000):
+def tickflow_refresh(source_id: str, limit: int = Query(1000, ge=1, le=2000)):
     """拉取一次源并物化(失败安全, 失败不清空既有缓存)。"""
     from backend.providers.http_json_provider import refresh_source
 
