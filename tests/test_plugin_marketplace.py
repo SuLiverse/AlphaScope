@@ -155,3 +155,56 @@ def test_describe_counts_consistent():
     info = pm.describe()
     # installed + not_installed (catalog 里的) 应该合理
     assert info["installed_count"] >= 1  # demo 至少在
+
+
+# ---------------- API 端点 ----------------
+
+
+def test_marketplace_endpoint_overview():
+    """GET /api/integrations/marketplace 返回概览 + 完整目录。"""
+    from fastapi.testclient import TestClient
+
+    from backend.api.main import app
+
+    client = TestClient(app)
+    r = client.get("/api/integrations/marketplace")
+    assert r.status_code == 200
+    data = r.json()["data"]
+    assert "overview" in data
+    assert "plugins" in data
+    assert isinstance(data["plugins"], list)
+    assert data["total"] == len(data["plugins"])
+    # 概览含分类
+    assert "categories" in data["overview"]
+
+
+def test_marketplace_endpoint_category_filter():
+    """GET /api/integrations/marketplace?category=X 只返回该分类。"""
+    from fastapi.testclient import TestClient
+
+    from backend.api.main import app
+
+    client = TestClient(app)
+    # 先取一个真实分类
+    all_cats = client.get("/api/integrations/marketplace").json()["data"]["overview"]["categories"]
+    if not all_cats:
+        return  # 无分类可测, 跳过
+    cat = all_cats[0]
+    r = client.get(f"/api/integrations/marketplace?category={cat}")
+    assert r.status_code == 200
+    plugins = r.json()["data"]["plugins"]
+    assert all(p["category"] == cat for p in plugins)
+
+
+def test_marketplace_route_not_swallowed_by_name_param():
+    """路由顺序: /marketplace 不能被 /{name} 吞(应返回市场目录, 不是某个 adapter 详情)。"""
+    from fastapi.testclient import TestClient
+
+    from backend.api.main import app
+
+    client = TestClient(app)
+    r = client.get("/api/integrations/marketplace")
+    # 若被 /{name} 吞, 会走 get_integration(name="marketplace"), 返回 adapter 详情或 404,
+    # 不会有 overview/plugins 结构
+    data = r.json()["data"]
+    assert "plugins" in data  # 确认走的是市场端点

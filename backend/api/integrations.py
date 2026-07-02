@@ -69,6 +69,35 @@ async def get_boundary_overview() -> ApiResponse:
         return ApiResponse(success=False, error=str(e))
 
 
+# 注意路由顺序: /marketplace 是字面路径, 必须先于参数路径 /{name} 声明,
+# 否则 GET /marketplace 会被 /{name} 吞(name="marketplace")。
+@router.get("/marketplace")
+async def get_marketplace(category: str | None = None, installed_only: bool = False) -> ApiResponse:
+    """插件市场目录(激活沉睡的 plugin_marketplace 模块)。
+
+    返回市场概览 + 插件目录; 可按 category 过滤、只看已装。全部研究语义, 仅给安装指引不下单。
+    """
+    try:
+        from backend import plugin_marketplace as pm
+
+        if installed_only:
+            plugins = pm.list_installed()
+        elif category:
+            plugins = pm.by_category(category)
+        else:
+            plugins = pm.list_catalog()
+        return ApiResponse(
+            success=True,
+            data={
+                "overview": pm.describe(),
+                "plugins": plugins,
+                "total": len(plugins),
+            },
+        )
+    except Exception as e:
+        return ApiResponse(success=False, error=str(e))
+
+
 @router.get("/{name}")
 async def get_integration(name: str) -> ApiResponse:
     """单个 adapter 详情。"""
