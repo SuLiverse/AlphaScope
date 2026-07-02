@@ -104,6 +104,50 @@ def test_alt_factors_registered_in_registry():
     assert get_factor("us_sentiment") is not None
 
 
+# ---------------- TTL 缓存(避免打爆外部 API 额度) ----------------
+
+
+def test_alt_factor_fetch_caches_within_ttl():
+    """同一 symbol 连续两次取数, 底层 provider 只应被实例化调用一次(TTL 命中)。"""
+    from unittest.mock import patch
+
+    import backend.alternative_factors as af
+    from backend.cache import get_cache
+
+    cache = get_cache()
+    for k in ("alt:fred:overview", "alt:finnhub:sentiment:TEST", "alt:finnhub:insider:TEST"):
+        cache.delete(k)
+
+    calls = {"fred": 0, "sentiment": 0, "insider": 0}
+
+    def fake_fred():
+        calls["fred"] += 1
+        return {"GS10": {"value": "3.0"}}
+
+    def fake_sentiment(sym):
+        calls["sentiment"] += 1
+        return {"bullPercent": 0.6, "bearishPercent": 0.3}
+
+    def fake_insider(sym):
+        calls["insider"] += 1
+        return [{"change": 1000}]
+
+    with patch.object(af, "_fetch_fred_overview_raw", fake_fred), patch.object(
+        af, "_fetch_finnhub_sentiment_raw", fake_sentiment
+    ), patch.object(af, "_fetch_finnhub_insider_raw", fake_insider):
+        af.fetch_fred_overview()
+        af.fetch_fred_overview()
+        af.fetch_finnhub_sentiment("TEST")
+        af.fetch_finnhub_sentiment("TEST")
+        af.fetch_finnhub_insider("TEST")
+        af.fetch_finnhub_insider("TEST")
+
+    assert calls == {"fred": 1, "sentiment": 1, "insider": 1}, calls
+
+    for k in ("alt:fred:overview", "alt:finnhub:sentiment:TEST", "alt:finnhub:insider:TEST"):
+        cache.delete(k)
+
+
 # ---------------- Finnhub 凭证兼容性 ----------------
 
 

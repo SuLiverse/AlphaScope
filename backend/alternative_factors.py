@@ -15,7 +15,13 @@ from __future__ import annotations
 import logging
 from typing import Any, Optional
 
+from backend.cache import get_cached
+
 logger = logging.getLogger(__name__)
+
+# 替代因子 TTL: FRED overview 一次拉 ~8 个序列, Finnhub 免费档 60 req/min 全端点共享。
+# 短缓存避免「因子页轮询/快速连点」打爆额度, 又不至于让宏观数据明显滞后。
+_ALT_TTL_SECONDS = 300
 
 
 def normalize_sentiment(raw: Any) -> Optional[float]:
@@ -110,47 +116,71 @@ def score_macro_overview(overview: Any) -> Optional[float]:
 
 
 def fetch_fred_overview() -> Optional[dict]:
-    """从 FRED provider 取宏观概览(失败/无凭证返回 None)。"""
-    try:
-        from backend.providers.fred_provider import FredProvider
+    """从 FRED provider 取宏观概览(失败/无凭证返回 None)。
 
-        prov = FredProvider()
-        if not prov.is_available():
-            return None
-        raw = prov.get_macro({})
-        return raw if isinstance(raw, dict) and raw else None
+    带 TTL 缓存(默认 5 分钟): get_cached 对 None 不缓存, 故 provider 不可用时
+    每次仍重试; 有数据时缓存命中, 避免反复打 FRED ~8 个序列请求。
+    """
+    try:
+        return get_cached("alt:fred:overview", _fetch_fred_overview_raw, _ALT_TTL_SECONDS)
     except Exception as e:  # noqa: BLE001
         logger.debug("FRED 宏观取数失败: %s", e)
         return None
 
 
-def fetch_finnhub_sentiment(symbol: str) -> Optional[dict]:
-    """从 Finnhub 取个股情绪(失败/无凭证/非美股返回 None)。"""
-    try:
-        from backend.providers.finnhub_provider import FinnhubProvider
+def _fetch_fred_overview_raw() -> Optional[dict]:
+    from backend.providers.fred_provider import FredProvider
 
-        prov = FinnhubProvider()
-        if not prov.is_available() or not prov._api_key:
-            return None
-        return prov.get_sentiment({"symbol": symbol}) or None
+    prov = FredProvider()
+    if not prov.is_available():
+        return None
+    raw = prov.get_macro({})
+    return raw if isinstance(raw, dict) and raw else None
+
+
+def fetch_finnhub_sentiment(symbol: str) -> Optional[dict]:
+    """从 Finnhub 取个股情绪(失败/无凭证/非美股返回 None)。带 5 分钟 TTL 缓存。"""
+    try:
+        return get_cached(
+            f"alt:finnhub:sentiment:{symbol}",
+            lambda: _fetch_finnhub_sentiment_raw(symbol),
+            _ALT_TTL_SECONDS,
+        )
     except Exception as e:  # noqa: BLE001
         logger.debug("Finnhub 情绪取数失败: %s", e)
         return None
 
 
-def fetch_finnhub_insider(symbol: str) -> Optional[list]:
-    """从 Finnhub 取内部人交易(失败返回 None)。"""
-    try:
-        from backend.providers.finnhub_provider import FinnhubProvider
+def _fetch_finnhub_sentiment_raw(symbol: str) -> Optional[dict]:
+    from backend.providers.finnhub_provider import FinnhubProvider
 
-        prov = FinnhubProvider()
-        if not prov.is_available() or not prov._api_key:
-            return None
-        data = prov.get_insider_transactions({"symbol": symbol, "limit": 20})
-        return data if data else None
+    prov = FinnhubProvider()
+    if not prov.is_available() or not prov._api_key:
+        return None
+    return prov.get_sentiment({"symbol": symbol}) or None
+
+
+def fetch_finnhub_insider(symbol: str) -> Optional[list]:
+    """从 Finnhub 取内部人交易(失败返回 None)。带 5 分钟 TTL 缓存。"""
+    try:
+        return get_cached(
+            f"alt:finnhub:insider:{symbol}",
+            lambda: _fetch_finnhub_insider_raw(symbol),
+            _ALT_TTL_SECONDS,
+        )
     except Exception as e:  # noqa: BLE001
         logger.debug("Finnhub 内部人取数失败: %s", e)
         return None
+
+
+def _fetch_finnhub_insider_raw(symbol: str) -> Optional[list]:
+    from backend.providers.finnhub_provider import FinnhubProvider
+
+    prov = FinnhubProvider()
+    if not prov.is_available() or not prov._api_key:
+        return None
+    data = prov.get_insider_transactions({"symbol": symbol, "limit": 20})
+    return data if data else None
 
 
 def build_vector(symbol: str = "") -> dict[str, Any]:
