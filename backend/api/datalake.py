@@ -20,7 +20,7 @@ from __future__ import annotations
 from typing import Optional
 
 from fastapi import APIRouter
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from backend.schemas.api import ApiResponse
 
@@ -32,7 +32,7 @@ class IngestBody(BaseModel):
     symbols: list[str] = []
     start_date: Optional[str] = None
     end_date: Optional[str] = None
-    limit: int = 500
+    limit: int = Field(default=500, ge=1, le=2000)
 
 
 class ScreenFilter(BaseModel):
@@ -45,12 +45,12 @@ class ScreenBody(BaseModel):
     filters: list[ScreenFilter] = []
     order_by: str = "close"
     descending: bool = True
-    limit: int = 100
+    limit: int = Field(default=100, ge=1, le=500)
 
 
 class QueryBody(BaseModel):
     sql: str = ""
-    limit: int = 500
+    limit: int = Field(default=500, ge=1, le=2000)
 
 
 @router.get("/status", response_model=ApiResponse[dict])

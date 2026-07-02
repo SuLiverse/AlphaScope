@@ -9,7 +9,7 @@ import math
 import random
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/funds", tags=["funds"])
@@ -96,7 +96,7 @@ _MOCK_FUNDS = [
 
 @router.get("/search")
 def search_funds(
-    q: str = "", risk: str = "", fund_type: str = "", limit: int = 20
+    q: str = "", risk: str = "", fund_type: str = "", limit: int = Query(20, ge=1, le=200)
 ) -> dict[str, Any]:
     """Search funds by name, symbol, risk level, or type."""
     results = _MOCK_FUNDS

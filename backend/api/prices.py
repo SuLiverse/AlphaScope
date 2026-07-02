@@ -6,7 +6,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from backend.schemas.api import ApiResponse
 
@@ -127,7 +127,7 @@ async def get_prices(
     frequency: str = "1d",
     start: str | None = None,
     end: str | None = None,
-    limit: int = 250,
+    limit: int = Query(250, ge=1, le=2000),
 ):
     """查询 K 线数据"""
     from backend.price_periods import (

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from backend.schemas.api import ApiResponse
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/api/research-memory", tags=["research-memory"])
 
 
 @router.get("/symbols")
-async def list_memory_symbols(limit: int = 100):
+async def list_memory_symbols(limit: int = Query(100, ge=1, le=500)):
     """列举有研究记忆的股票(按最近一次分析倒序)。"""
     from backend.quant import research_memory
 
@@ -29,7 +29,7 @@ async def list_memory_symbols(limit: int = 100):
 
 
 @router.get("/timeline/{symbol}")
-async def memory_timeline(symbol: str, limit: int = 200):
+async def memory_timeline(symbol: str, limit: int = Query(200, ge=1, le=1000)):
     """某股票的研究记忆时间线:升序快照 + 变化转折 + 汇总。"""
     from backend.quant import research_memory
 

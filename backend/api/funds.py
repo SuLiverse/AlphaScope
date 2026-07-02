@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
 from backend.funds.dca import DCASimulator
@@ -165,7 +165,7 @@ async def search_funds(
     q: str = "",
     risk: str = "",
     fund_type: str = "",
-    limit: int = 20,
+    limit: int = Query(20, ge=1, le=200),
 ):
     """搜索基金"""
     if q or risk or fund_type:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
 from backend.schemas.api import ApiResponse
@@ -43,7 +43,7 @@ class ChainBuildRequest(BaseModel):
 
 @router.get("")
 async def list_evidence(
-    evidence_type: str | None = None, symbol: str | None = None, limit: int = 50
+    evidence_type: str | None = None, symbol: str | None = None, limit: int = Query(50, ge=1, le=500)
 ):
     """证据列表"""
     from backend.evidence_store import list_evidence as _list

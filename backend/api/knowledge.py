@@ -6,7 +6,7 @@ import hashlib
 import re
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Query, UploadFile
 from pydantic import BaseModel, Field
 
 from backend.project_paths import UPLOADS_DIR
@@ -97,7 +97,7 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @router.get("/documents")
-async def list_documents(source_type: str | None = None, limit: int = 50):
+async def list_documents(source_type: str | None = None, limit: int = Query(50, ge=1, le=500)):
     """文档列表"""
     from backend.file_store import list_documents as _list
 

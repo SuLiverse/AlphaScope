@@ -15,7 +15,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
@@ -1083,7 +1083,7 @@ async def get_param_space_endpoint(strategy_name: str):
 
 
 @router.get("/experiments")
-async def list_experiments_endpoint(mode: str = "", symbol: str = "", limit: int = 50):
+async def list_experiments_endpoint(mode: str = "", symbol: str = "", limit: int = Query(50, ge=1, le=500)):
     """列举已持久化的量化实验(回测/走查/筹码/策略榜),按时间倒序,可按 mode/symbol 过滤。"""
     from backend.quant.experiment_store import count_experiments, list_experiments
 
