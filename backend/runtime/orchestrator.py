@@ -495,8 +495,23 @@ def run_agents_with_mode(
             for cfg in active
         }
         for fut in as_completed(futures):
-            r = fut.result()
-            results[r["key"]] = r
+            # 单个 Agent 的配置 bug(asdict/resolve 抛错, 非 LLM 失败)不应让整批崩 —
+            # 失败的 future 记成错误项, 已成功的 Agent 结果保留。
+            try:
+                r = fut.result()
+                results[r["key"]] = r
+            except Exception as exc:  # noqa: BLE001
+                key = futures[fut]
+                logger.exception("Agent %s 执行异常(整批不中断)", key)
+                results[key] = {
+                    "key": key,
+                    "name": key,
+                    "ok": False,
+                    "error": f"Agent 执行异常: {exc}",
+                    "view": "",
+                    "confidence": 0,
+                    "signal": "观望",
+                }
 
     # 把每个 Agent 结论里的 [n] 证据引用解析成真实 evidence_id,
     # 实现"点开结论可反查来源"的可审计能力(evidence 招牌落地)。
