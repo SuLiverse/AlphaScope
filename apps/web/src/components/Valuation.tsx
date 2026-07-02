@@ -75,9 +75,7 @@ export function Valuation() {
     return subscribeStockSelected(({ stock: s }) => setStock(s));
   }, []);
 
-  const load = (symbol: string) => {
-    setLoading(true);
-    setError('');
+  const buildValuationUrl = (symbol: string) => {
     const params = new URLSearchParams();
     const g = parseFloat(g1);
     if (!Number.isNaN(g)) params.set('stage1_growth', String(g / 100));
@@ -86,15 +84,38 @@ export function Valuation() {
     const b = parseFloat(betaIn);
     if (!Number.isNaN(b)) params.set('beta', String(b));
     const qs = params.toString();
-    void fetchApi<ValuationData>(`/api/valuation/${encodeURIComponent(symbol)}${qs ? `?${qs}` : ''}`)
+    return `/api/valuation/${encodeURIComponent(symbol)}${qs ? `?${qs}` : ''}`;
+  };
+
+  const load = (symbol: string) => {
+    setLoading(true);
+    setError('');
+    void fetchApi<ValuationData>(buildValuationUrl(symbol))
       .then((d) => setData(d))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => {
-    if (stock?.symbol) load(stock.symbol);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅按 symbol 变化重新估值;load 为闭包不入 deps
+    if (!stock?.symbol) return;
+    // cancelled 守卫: 快速切标的时旧请求晚返回不覆盖新数据(竞态)
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    void fetchApi<ValuationData>(buildValuationUrl(stock.symbol))
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅按 symbol 变化重新估值
   }, [stock?.symbol]);
 
   const s = data?.summary;

@@ -75,7 +75,25 @@ export function DragonTiger() {
   };
 
   useEffect(() => {
-    if (stock?.symbol) load(stock.symbol);
+    if (!stock?.symbol) return;
+    // cancelled 守卫: 快速切标的时旧请求晚返回不覆盖新数据(竞态)
+    let cancelled = false;
+    setLoading(true);
+    setError('');
+    void fetchApi<DragonTigerData>(`/api/dragon-tiger/${encodeURIComponent(stock.symbol)}`)
+      .then((d) => {
+        if (!cancelled) setData(d);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅按 symbol 变化重新加载
   }, [stock?.symbol]);
 
   const iv = data?.inst_vs_youzi;
