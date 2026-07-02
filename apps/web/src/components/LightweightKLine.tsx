@@ -72,12 +72,18 @@ export function LightweightKLine({ data, showMA = true, showMa5, showMa10, showM
   const legendRef = useRef<HTMLDivElement | null>(null);
 
   // 建图一次(挂载时)。autoSize 让图表自适应容器宽高。
+  // 注意: 本组件常以 React.lazy 挂载(Suspense), 首帧容器宽度可能为 0 / 布局未稳定。
+  // autoSize 的 ResizeObserver 首次回调与紧随其后的 setData + fitContent 存在时序竞争,
+  // 若 fitContent 在 0 宽度下拟合, 所有蜡烛会被压成一团(首帧堆叠)。
+  // 故: ① 建图时显式读容器 clientWidth/clientHeight 作初始尺寸; ② fitContent 延迟到 rAF。
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return undefined;
 
     const chart = createChart(el, {
       autoSize: true,
+      width: el.clientWidth || undefined,
+      height: el.clientHeight || undefined,
       layout: {
         background: { type: ColorType.Solid, color: 'rgba(0,0,0,0)' },
         textColor: '#a3a3a3',
@@ -170,7 +176,10 @@ export function LightweightKLine({ data, showMA = true, showMa5, showMa10, showM
     ma5Ref.current?.setData(ma5On ? m5 : []);
     ma10Ref.current?.setData(ma10On ? m10 : []);
     ma20Ref.current?.setData(ma20On ? m20 : []);
-    chart.timeScale().fitContent();
+    // 延迟到下一帧再 fitContent: 让浏览器完成布局、autoSize 的 ResizeObserver
+    // 回调把宽度修正到位, 避免在 0/错宽度下拟合导致首帧堆叠。
+    const raf = requestAnimationFrame(() => chart.timeScale().fitContent());
+    return () => cancelAnimationFrame(raf);
   }, [data, showMA, showMa5, showMa10, showMa20]);
 
   // 形态标记(可选):在对应 K 线上打箭头/圆点(时间须升序)。
