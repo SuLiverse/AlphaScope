@@ -153,6 +153,9 @@ export const ResearchMemory: React.FC = () => {
   }, [selected, loadTimeline]);
 
   const handleDeleteSymbol = async (symbol: string) => {
+    if (!window.confirm(`确认清空 ${symbol} 的全部研究记忆?所有历史快照将被删除,此操作不可撤销。`)) {
+      return;
+    }
     try {
       await fetchApi(`/api/research-memory/symbol/${encodeURIComponent(symbol)}`, { method: 'DELETE' });
       setSelected('');

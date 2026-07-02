@@ -146,6 +146,9 @@ export const DataLakeManager: React.FC = () => {
   };
 
   const clearAll = async () => {
+    if (!window.confirm('确认清空整个数据湖?所有已入湖的行情数据将被删除,此操作不可撤销。')) {
+      return;
+    }
     setBusy(true);
     try {
       await fetchApi('/api/datalake/all', { method: 'DELETE' });

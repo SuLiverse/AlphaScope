@@ -988,6 +988,9 @@ export function Backtesting() {
   }, [activeTab, expModeFilter, expRefresh]);
 
   const deleteExperiment = async (runId: string) => {
+    if (!window.confirm(`确认删除实验记录 ${runId}?此操作不可撤销。`)) {
+      return;
+    }
     try {
       await fetchApi(`/api/quant/experiments/${encodeURIComponent(runId)}`, { method: 'DELETE' });
       setExpSelected((prev) => {

@@ -184,6 +184,9 @@ export const TickFlowManager: React.FC = () => {
   };
 
   const doDelete = async (s: Source) => {
+    if (!window.confirm(`确认删除自定义数据源「${s.name || s.id}」?此操作不可撤销。`)) {
+      return;
+    }
     setBusy(true);
     try {
       await fetchApi(`/api/tickflow/sources/${encodeURIComponent(s.id)}`, { method: 'DELETE' });
