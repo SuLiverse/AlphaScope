@@ -54,14 +54,17 @@ export function NotifierSettings() {
   const [testMsg, setTestMsg] = useState<Record<string, string>>({});
   const [dispatching, setDispatching] = useState(false);
   const [dispatchMsg, setDispatchMsg] = useState('');
+  const [loadError, setLoadError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const res = await fetchApi<{ channels: ChannelInfo[] }>('/api/notifiers');
       setChannels(res?.channels || []);
-    } catch {
+    } catch (e) {
       setChannels([]);
+      setLoadError(e instanceof Error ? e.message : '加载渠道配置失败');
     } finally {
       setLoading(false);
     }
@@ -87,6 +90,16 @@ export function NotifierSettings() {
   };
 
   const testChannel = async (ch: Channel) => {
+    // 测试用的是后端已存凭证。若输入框有未保存草稿, 直接测会测旧凭证, 误导用户。
+    const draft = drafts[ch] || {};
+    const hasUnsavedDraft = Object.values(draft).some((v) => v && v.trim());
+    if (hasUnsavedDraft) {
+      setTestMsg((prev) => ({
+        ...prev,
+        [ch]: '⚠ 输入框有未保存的内容,请先点「保存」再测试(测试用的是已存凭证)',
+      }));
+      return;
+    }
     setTesting(ch);
     setTestMsg((prev) => ({ ...prev, [ch]: '' }));
     try {
@@ -99,7 +112,7 @@ export function NotifierSettings() {
         [ch]: res?.ok ? '✓ 测试消息已发送' : `✗ ${res?.message || '发送失败'}`,
       }));
     } catch (e) {
-      setTestMsg((prev) => ({ ...prev, [ch]: e instanceof Error ? e.message : '测试失败' }));
+      setTestMsg((prev) => ({ ...prev, [ch]: `✗ ${e instanceof Error ? e.message : '测试失败'}` }));
     } finally {
       setTesting(null);
     }
@@ -225,6 +238,19 @@ export function NotifierSettings() {
         >
           {dispatchMsg}
         </p>
+      )}
+
+      {loadError && (
+        <div className="flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+          <span className="text-xs text-rose-300">加载失败:{loadError}</span>
+          <button
+            type="button"
+            onClick={() => void load()}
+            className="ml-auto text-[11px] text-rose-200 underline-offset-2 hover:underline"
+          >
+            重试
+          </button>
+        </div>
       )}
 
       {loading ? (
