@@ -161,3 +161,34 @@ def test_detect_news_anomalies_flags_short_and_garbled_titles():
         assert p._detect_news_anomalies(dirty) == 0
 
     DataPipeline._instance = None
+
+
+def test_validate_price_contract_flags_missing_fields():
+    """_validate_price_contract 对缺字段报错, 完整 bar 返回空, 失败安全。"""
+    from unittest.mock import patch
+
+    from backend.pipeline import DataPipeline
+
+    DataPipeline._instance = None
+    with (
+        patch("backend.pipeline.get_registry"),
+        patch("backend.pipeline.Deduplicator"),
+        patch("backend.pipeline.SourceRanker"),
+        patch("backend.pipeline.Database"),
+    ):
+        p = DataPipeline()
+
+    # 完整 bar → 无错误
+    full = [{"date": "2025-01-01", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100}]
+    assert p._validate_price_contract(full) == []
+
+    # 缺 volume + close → 报错
+    missing = [{"date": "2025-01-01", "open": 10, "high": 11, "low": 9}]
+    errors = p._validate_price_contract(missing)
+    assert len(errors) >= 1
+
+    # validate_ohlcv import 失败 → 失败安全返回 []
+    with patch("backend.data_contract.validate_ohlcv", side_effect=RuntimeError("boom")):
+        assert p._validate_price_contract(missing) == []
+
+    DataPipeline._instance = None

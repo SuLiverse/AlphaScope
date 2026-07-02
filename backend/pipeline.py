@@ -264,6 +264,8 @@ class DataPipeline:
             # 数据质量观测: 落库前检测每条 bar 的异常(零负价/高低倒挂等)。
             # 失败安全 + 不阻断落库(尊重既有"数据进来"语义), 仅 log 标记。
             anomaly_count = self._detect_price_anomalies(items, symbol)
+            # 数据契约观测: 字段完整性(缺 date/volume 等), 与 anomaly 互补。失败安全不阻断。
+            contract_errors = self._validate_price_contract(items)
 
             with self._db.transaction() as conn:
                 for item in items:
@@ -296,10 +298,11 @@ class DataPipeline:
             latency = (time.time() - start) * 1000
             self._log_fetch("prices", symbol, "success", latency, len(items))
             logger.info(
-                "[Pipeline] 行情采集完成: %d 条 (%.0fms)%s",
+                "[Pipeline] 行情采集完成: %d 条 (%.0fms)%s%s",
                 len(items),
                 latency,
                 f", 检测到 {anomaly_count} 条异常 bar" if anomaly_count else "",
+                f", 契约校验 {len(contract_errors)} 项错误" if contract_errors else "",
             )
             return items
 
@@ -366,6 +369,29 @@ class DataPipeline:
         except Exception as e:  # noqa: BLE001
             logger.debug("[Pipeline] 新闻异常检测跳过: %s", e)
             return 0
+
+    def _validate_price_contract(self, items: list[dict]) -> list[str]:
+        """落库前做数据契约观测(字段完整性: 缺 date/volume/open 等)。
+
+        复用沉睡的 data_contract.validate_ohlcv(pandera 不可用时也做字段存在性底线
+        检查, 与 anomaly_detector 的值域检测互补)。失败安全不阻断, 仅 log 标记。
+        返回错误列表(空=通过)。
+        """
+        try:
+            from backend.data_contract import validate_ohlcv
+
+            report = validate_ohlcv(items)
+            errors = report.get("errors") or []
+            if errors:
+                logger.warning(
+                    "[Pipeline] 行情契约校验未通过(%s): %s",
+                    report.get("mode", "unknown"),
+                    "; ".join(errors),
+                )
+            return errors
+        except Exception as e:  # noqa: BLE001
+            logger.debug("[Pipeline] 行情契约校验跳过: %s", e)
+            return []
 
     # ---- 基本面管道 ----
 
