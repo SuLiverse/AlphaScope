@@ -52,6 +52,26 @@ async def list_evidence(
     return ApiResponse(success=True, data={"evidence": items, "total": len(items)})
 
 
+# 注意路由顺序: 字面 /aggregate 必须先于参数 /{evidence_id}, 否则被吞(id="aggregate")。
+@router.get("/aggregate")
+async def aggregate_evidence(
+    symbol: str, data_type: str = "news", max_sources: int = Query(3, ge=1, le=5)
+):
+    """多源证据聚合 + 交叉验证(激活沉睡的 evidence_aggregator)。
+
+    并行查多个 provider, 跨源去重 + 矛盾检测, 返回 AggregatedEvidence(is_multi_source/
+    is_high_confidence/items/source_names/conflicts)。不改主证据链路, 独立诊断/研究端点。
+    """
+    try:
+        from backend.quality.evidence_aggregator import get_evidence_aggregator
+
+        agg = get_evidence_aggregator()
+        result = agg.collect_and_validate(symbol, data_type=data_type, max_sources=max_sources)
+        return ApiResponse(success=True, data=result.to_dict())
+    except Exception as e:
+        return ApiResponse(success=False, error=str(e))
+
+
 @router.get("/{evidence_id}")
 async def get_evidence(evidence_id: str):
     """证据详情"""

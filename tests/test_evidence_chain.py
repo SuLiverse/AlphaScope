@@ -394,3 +394,29 @@ async def test_delete_evidence_success(client):
         resp = await client.delete("/api/evidence/ev1")
     assert resp.status_code == 200
     assert resp.json()["success"] is True
+
+
+def test_aggregate_endpoint_returns_structure():
+    """GET /api/evidence/aggregate 返回 AggregatedEvidence 结构(激活 evidence_aggregator)。"""
+    from fastapi.testclient import TestClient
+
+    from backend.api.main import app
+
+    client = TestClient(app)
+    r = client.get("/api/evidence/aggregate?symbol=600519&data_type=news")
+    assert r.status_code == 200
+    data = r.json()["data"]
+    for key in ("data_type", "item_count", "sources", "confidence", "is_multi_source"):
+        assert key in data
+
+
+def test_aggregate_route_not_swallowed_by_id_param():
+    """/aggregate 不能被 /{evidence_id} 吞(应返回聚合结构, 非单条证据)。"""
+    from fastapi.testclient import TestClient
+
+    from backend.api.main import app
+
+    client = TestClient(app)
+    r = client.get("/api/evidence/aggregate?symbol=600519")
+    data = r.json()["data"]
+    assert "item_count" in data  # 聚合结构, 不是单条证据详情
