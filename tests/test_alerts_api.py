@@ -140,3 +140,45 @@ def test_alerts_api_clear(client):
     assert r.status_code == 200
     assert r.json()["data"]["cleared"] >= 1
     assert alert_store.count_unacknowledged() == 0
+
+
+def test_alert_store_concurrent_writes_no_deadlock_or_lock_error():
+    """进程级单例 DB + check_same_thread=False: 后台监控线程写 + 请求线程读并发时,
+    必须经 transaction() 的 _db_lock 串行化, 不应抛 database is locked。"""
+    import threading
+
+    from backend import alert_store
+
+    _reset_alerts()
+    errors: list[str] = []
+
+    def writer(start: int):
+        try:
+            for i in range(start, start + 30):
+                alert_store.add_alert(
+                    alert_id=f"cw-{start}-{i}",
+                    symbol="s",
+                    name="",
+                    alert_type="price_change",
+                    message=f"并发写 {i}",
+                )
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"writer-{start}: {e}")
+
+    def reader():
+        try:
+            for _ in range(60):
+                alert_store.list_alerts()
+                alert_store.count_unacknowledged()
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"reader: {e}")
+
+    threads = [threading.Thread(target=writer, args=(k * 100,)) for k in range(4)]
+    threads.append(threading.Thread(target=reader))
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert errors == [], f"并发访问抛错(锁未生效?): {errors}"
+    alert_store.clear_all()

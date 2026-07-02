@@ -25,28 +25,31 @@ CREATE TABLE IF NOT EXISTS watchlist_alerts (
 """
 
 
-def _get_conn():
+def _ensure_schema() -> None:
+    """建表(幂等)。包进进程级 DB 锁, 避免与后台监控线程/请求线程并发写时撞锁。"""
     db = Database()
-    db._conn.execute(_ALERT_TABLE)
-    db._conn.execute(
-        "CREATE INDEX IF NOT EXISTS idx_watchlist_alerts_ts "
-        "ON watchlist_alerts(timestamp DESC)"
-    )
-    db._conn.commit()
-    return db._conn
+    with db.transaction() as conn:
+        conn.execute(_ALERT_TABLE)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_watchlist_alerts_ts "
+            "ON watchlist_alerts(timestamp DESC)"
+        )
+        conn.commit()
 
 
 def list_alerts(
     *, unacknowledged_only: bool = False, limit: int = 200
 ) -> list[dict[str, Any]]:
-    conn = _get_conn()
+    _ensure_schema()
+    db = Database()
     where = "WHERE acknowledged=0" if unacknowledged_only else ""
-    rows = conn.execute(
-        f"SELECT alert_id, symbol, name, alert_type, message, severity, "
-        f"timestamp, acknowledged FROM watchlist_alerts {where} "
-        f"ORDER BY timestamp DESC LIMIT ?",
-        (limit,),
-    ).fetchall()
+    with db.transaction() as conn:
+        rows = conn.execute(
+            f"SELECT alert_id, symbol, name, alert_type, message, severity, "
+            f"timestamp, acknowledged FROM watchlist_alerts {where} "
+            f"ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
     return [
         {
             "alert_id": r["alert_id"],
@@ -63,10 +66,12 @@ def list_alerts(
 
 
 def count_unacknowledged() -> int:
-    conn = _get_conn()
-    row = conn.execute(
-        "SELECT COUNT(*) AS c FROM watchlist_alerts WHERE acknowledged=0"
-    ).fetchone()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS c FROM watchlist_alerts WHERE acknowledged=0"
+        ).fetchone()
     return int(row["c"]) if row else 0
 
 
@@ -81,51 +86,61 @@ def add_alert(
     timestamp: float | None = None,
 ) -> bool:
     """写入一条告警。按 alert_id 去重(已存在返回 False)。"""
-    conn = _get_conn()
-    existing = conn.execute(
-        "SELECT alert_id FROM watchlist_alerts WHERE alert_id=?", (alert_id,)
-    ).fetchone()
-    if existing:
-        return False
-    conn.execute(
-        "INSERT INTO watchlist_alerts "
-        "(alert_id, symbol, name, alert_type, message, severity, timestamp, acknowledged) "
-        "VALUES (?,?,?,?,?,?,?,0)",
-        (
-            alert_id,
-            symbol,
-            name,
-            alert_type,
-            message,
-            severity,
-            timestamp or time.time(),
-        ),
-    )
-    conn.commit()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        existing = conn.execute(
+            "SELECT alert_id FROM watchlist_alerts WHERE alert_id=?", (alert_id,)
+        ).fetchone()
+        if existing:
+            return False
+        conn.execute(
+            "INSERT INTO watchlist_alerts "
+            "(alert_id, symbol, name, alert_type, message, severity, timestamp, acknowledged) "
+            "VALUES (?,?,?,?,?,?,?,0)",
+            (
+                alert_id,
+                symbol,
+                name,
+                alert_type,
+                message,
+                severity,
+                timestamp or time.time(),
+            ),
+        )
+        conn.commit()
     return True
 
 
 def acknowledge_alert(alert_id: str) -> bool:
-    conn = _get_conn()
-    cur = conn.execute(
-        "UPDATE watchlist_alerts SET acknowledged=1 WHERE alert_id=?", (alert_id,)
-    )
-    conn.commit()
-    return cur.rowcount > 0
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        cur = conn.execute(
+            "UPDATE watchlist_alerts SET acknowledged=1 WHERE alert_id=?", (alert_id,)
+        )
+        conn.commit()
+        return cur.rowcount > 0
 
 
 def acknowledge_all() -> int:
-    conn = _get_conn()
-    cur = conn.execute("UPDATE watchlist_alerts SET acknowledged=1 WHERE acknowledged=0")
-    conn.commit()
-    return cur.rowcount
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        cur = conn.execute(
+            "UPDATE watchlist_alerts SET acknowledged=1 WHERE acknowledged=0"
+        )
+        conn.commit()
+        return cur.rowcount
 
 
 def clear_all(*, acknowledged_only: bool = False) -> int:
-    conn = _get_conn()
-    if acknowledged_only:
-        cur = conn.execute("DELETE FROM watchlist_alerts WHERE acknowledged=1")
-    else:
-        cur = conn.execute("DELETE FROM watchlist_alerts")
-    conn.commit()
-    return cur.rowcount
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        if acknowledged_only:
+            cur = conn.execute("DELETE FROM watchlist_alerts WHERE acknowledged=1")
+        else:
+            cur = conn.execute("DELETE FROM watchlist_alerts")
+        conn.commit()
+        return cur.rowcount

@@ -24,11 +24,12 @@ CREATE TABLE IF NOT EXISTS notifier_channels (
 """
 
 
-def _get_conn():
+def _ensure_schema() -> None:
+    """建表(幂等)。包进进程级 DB 锁。"""
     db = Database()
-    db._conn.execute(_TABLE)
-    db._conn.commit()
-    return db._conn
+    with db.transaction() as conn:
+        conn.execute(_TABLE)
+        conn.commit()
 
 
 def _encrypt(plaintext: str) -> str:
@@ -56,10 +57,13 @@ def _decrypt(ciphertext: str) -> str:
 
 def list_channels() -> list[dict[str, Any]]:
     """列出渠道配置(凭证字段不回传明文,仅返回是否已配置)。"""
-    conn = _get_conn()
-    rows = conn.execute(
-        "SELECT channel, enabled, config_encrypted, updated_at FROM notifier_channels"
-    ).fetchall()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        rows = conn.execute(
+            "SELECT channel, enabled, config_encrypted, updated_at FROM notifier_channels"
+        ).fetchall()
+    # 解密在锁外做(I/O 不应占着进程级 DB 锁)
     out = []
     for r in rows:
         cfg = {}
@@ -82,11 +86,13 @@ def list_channels() -> list[dict[str, Any]]:
 
 def get_channel_config(channel: str) -> dict[str, Any]:
     """读取某渠道的完整凭证(仅后端内部用,API 不直接暴露)。"""
-    conn = _get_conn()
-    row = conn.execute(
-        "SELECT config_encrypted, enabled FROM notifier_channels WHERE channel=?",
-        (channel,),
-    ).fetchone()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        row = conn.execute(
+            "SELECT config_encrypted, enabled FROM notifier_channels WHERE channel=?",
+            (channel,),
+        ).fetchone()
     if not row:
         return {}
     try:
@@ -98,20 +104,27 @@ def get_channel_config(channel: str) -> dict[str, Any]:
 
 
 def save_channel(channel: str, enabled: bool, config: dict) -> None:
-    conn = _get_conn()
+    # 加密在锁外做
     enc = _encrypt(json.dumps(config or {}, ensure_ascii=False))
-    conn.execute(
-        "INSERT INTO notifier_channels (channel, enabled, config_encrypted, updated_at) "
-        "VALUES (?,?,?,?) ON CONFLICT(channel) DO UPDATE SET "
-        "enabled=excluded.enabled, config_encrypted=excluded.config_encrypted, "
-        "updated_at=excluded.updated_at",
-        (channel, int(bool(enabled)), enc, time.time()),
-    )
-    conn.commit()
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        conn.execute(
+            "INSERT INTO notifier_channels (channel, enabled, config_encrypted, updated_at) "
+            "VALUES (?,?,?,?) ON CONFLICT(channel) DO UPDATE SET "
+            "enabled=excluded.enabled, config_encrypted=excluded.config_encrypted, "
+            "updated_at=excluded.updated_at",
+            (channel, int(bool(enabled)), enc, time.time()),
+        )
+        conn.commit()
 
 
 def delete_channel(channel: str) -> bool:
-    conn = _get_conn()
-    cur = conn.execute("DELETE FROM notifier_channels WHERE channel=?", (channel,))
-    conn.commit()
-    return cur.rowcount > 0
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        cur = conn.execute(
+            "DELETE FROM notifier_channels WHERE channel=?", (channel,)
+        )
+        conn.commit()
+        return cur.rowcount > 0
