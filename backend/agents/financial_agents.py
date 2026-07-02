@@ -255,8 +255,22 @@ def run_all_agents(
     with ThreadPoolExecutor(max_workers=len(keys)) as ex:
         futures = {ex.submit(run_one_agent, k, brief, api_keys.get(k)): k for k in keys}
         for fut in as_completed(futures):
-            r = fut.result()
-            results[r["key"]] = r
+            # 单 Agent 配置/编程 bug 不应让整批崩 — 记错误项(观望), 已成功结果保留。
+            try:
+                r = fut.result()
+                results[r["key"]] = r
+            except Exception as exc:  # noqa: BLE001
+                key = futures[fut]
+                logger.exception("Agent %s 执行异常(整批不中断)", key)
+                results[key] = {
+                    "key": key,
+                    "name": key,
+                    "ok": False,
+                    "error": f"Agent 执行异常: {exc}",
+                    "view": "",
+                    "confidence": 0,
+                    "signal": "观望",
+                }
 
     buy = sum(1 for r in results.values() if r["signal"] == "买入")
     sell = sum(1 for r in results.values() if r["signal"] == "卖出")
@@ -476,8 +490,21 @@ def run_custom_agents(
             for cfg in active
         }
         for fut in as_completed(futures):
-            r = fut.result()
-            results[r["key"]] = r
+            try:
+                r = fut.result()
+                results[r["key"]] = r
+            except Exception as exc:  # noqa: BLE001
+                key = futures[fut]
+                logger.exception("Agent %s 执行异常(整批不中断)", key)
+                results[key] = {
+                    "key": key,
+                    "name": key,
+                    "ok": False,
+                    "error": f"Agent 执行异常: {exc}",
+                    "view": "",
+                    "confidence": 0,
+                    "signal": "观望",
+                }
     buy = sum(1 for r in results.values() if r["signal"] == "买入")
     sell = sum(1 for r in results.values() if r["signal"] == "卖出")
     hold = sum(1 for r in results.values() if r["signal"] == "观望")
