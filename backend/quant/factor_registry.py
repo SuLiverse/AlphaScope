@@ -134,6 +134,26 @@ for _d in [
         "soft",
         "",
     ),
+    # 替代因子(另类数据): 来自 FRED 宏观 / Finnhub 情绪等 provider,
+    # 原 provider 注册了但无消费链路;此处登记入因子目录, 数值由 alternative_factors 模块计算。
+    FactorDef(
+        "macro_risk_appetite",
+        "宏观风险偏好",
+        "macro",
+        1,
+        "FRED 利率/利差/就业等宏观指标合成的风险偏好(另类因子)",
+        "alternative",
+        "",
+    ),
+    FactorDef(
+        "us_sentiment",
+        "美股情绪(另类)",
+        "sentiment",
+        1,
+        "Finnhub 个股情绪/内部人交易合成的情绪得分(另类因子, 仅美股)",
+        "alternative",
+        "",
+    ),
 ]:
     _register(_d)
 

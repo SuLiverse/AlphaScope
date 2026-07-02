@@ -29,7 +29,9 @@ class FinnhubProvider(BaseProvider):
 
     def __init__(self) -> None:
         super().__init__()
-        self._api_key = os.getenv("FINNHUB_API_KEY", "")
+        # 兼容两种环境变量:datasource_config 预设写入 FINNHUB_TOKEN,
+        # 而 finnhub 官方 SDK 约定 FINNHUB_API_KEY。两者都接受,避免 UI 配置的 key 激活不了 provider。
+        self._api_key = os.getenv("FINNHUB_API_KEY", "") or os.getenv("FINNHUB_TOKEN", "")
 
     def _headers(self) -> Dict[str, str]:
         return {"X-Finnhub-Token": self._api_key}
