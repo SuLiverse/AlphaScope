@@ -164,18 +164,26 @@ class VectorStore:
 
         results = collection.query(**kwargs)
 
+        # ChromaDB 无命中或返回结构异常时 documents 可能是 [] 或缺键 — 防索引越界。
+        doc_batches = results.get("documents") or []
+        if not doc_batches:
+            return []
+        meta_batches = results.get("metadatas") or []
+        dist_batches = results.get("distances") or []
+        id_batches = results.get("ids") or []
+        first_docs = doc_batches[0] if doc_batches else []
+        first_meta = meta_batches[0] if meta_batches else []
+        first_dist = dist_batches[0] if dist_batches else []
+        first_ids = id_batches[0] if id_batches else []
+
         docs = []
-        for i in range(len(results["documents"][0])):
+        for i in range(len(first_docs)):
             docs.append(
                 {
-                    "text": results["documents"][0][i],
-                    "metadata": results["metadatas"][0][i]
-                    if results["metadatas"]
-                    else {},
-                    "distance": results["distances"][0][i]
-                    if results["distances"]
-                    else 0,
-                    "id": results["ids"][0][i] if results["ids"] else "",
+                    "text": first_docs[i],
+                    "metadata": first_meta[i] if i < len(first_meta) else {},
+                    "distance": first_dist[i] if i < len(first_dist) else 0,
+                    "id": first_ids[i] if i < len(first_ids) else "",
                 }
             )
         return docs

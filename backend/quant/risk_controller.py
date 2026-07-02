@@ -101,6 +101,13 @@ class RiskController:
         current_price: float,
     ) -> RiskCheckResult:
         """Check if position hits stop loss."""
+        if entry_price <= 0:
+            # 入场价为 0/负是数据异常(如分红除权未处理), 不能除零; 标记为数据异常不崩。
+            return RiskCheckResult(
+                allowed=False,
+                reason=f"止损检查失败: {symbol} 入场价 {entry_price} 异常(<=0), 无法计算盈亏",
+                rule="invalid_entry_price",
+            )
         pnl_pct = (current_price - entry_price) / entry_price * 100
         if pnl_pct <= self.config.stop_loss_pct:
             return RiskCheckResult(
