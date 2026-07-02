@@ -252,6 +252,58 @@ class TestPriceStore:
             count = delete_prices("600519", frequency="1d")
             assert count == 5
 
+    def test_concurrent_writes_no_deadlock_or_lock_error(self):
+        """进程级单例 DB + check_same_thread=False: 后台 ingestion 批量写 + API 读并发时,
+        必须经 transaction() 的 _db_lock 串行化, 不应抛 database is locked。用真实 Database
+        单例(不 mock)验证锁真生效; 用唯一 symbol 避免污染开发库行情数据, 末尾清理。"""
+        import threading
+
+        from backend.price_store import (
+            delete_prices,
+            get_latest_price,
+            get_prices,
+            save_price_bar,
+        )
+
+        sym = "CONC_T"  # 并发测试专用占位 symbol, 不会与真实行情冲突
+        delete_prices(sym)  # 预清理
+        errors: list[str] = []
+
+        def writer(thread_id: int):
+            try:
+                for i in range(40):
+                    save_price_bar(
+                        {
+                            "symbol": sym,
+                            "date": f"2020-01-{(i % 28) + 1:02d}",
+                            "open": 100 + thread_id,
+                            "high": 105,
+                            "low": 98,
+                            "close": 102,
+                            "volume": 1000,
+                        }
+                    )
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"writer-{thread_id}: {e}")
+
+        def reader():
+            try:
+                for _ in range(80):
+                    get_prices(sym, limit=50)
+                    get_latest_price(sym)
+            except Exception as e:  # noqa: BLE001
+                errors.append(f"reader: {e}")
+
+        threads = [threading.Thread(target=writer, args=(k,)) for k in range(4)]
+        threads.append(threading.Thread(target=reader))
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        delete_prices(sym)  # 清理, 不留测试数据
+        assert errors == [], f"并发访问抛错(锁未生效?): {errors}"
+
 
 # ============== API 测试 ==============
 
