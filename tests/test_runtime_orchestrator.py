@@ -102,6 +102,70 @@ def test_run_agents_with_mode_excludes_disabled_managed_agents():
     assert run_custom_agent.call_count == 1
 
 
+def test_run_agents_with_mode_single_agent_crash_doesnt_kill_batch():
+    """单 Agent 执行抛错(配置/编程 bug)不应让整批崩, 失败 agent 记错误项, 其余正常。"""
+    managed_agents = [
+        {
+            "id": "fundamental",
+            "name": "基本面",
+            "description": "",
+            "system_prompt": "",
+            "provider": "deepseek",
+            "model": "deepseek-chat",
+            "enabled": True,
+        },
+        {
+            "id": "technical",
+            "name": "技术面",
+            "description": "",
+            "system_prompt": "",
+            "provider": "deepseek",
+            "model": "deepseek-chat",
+            "enabled": True,
+        },
+    ]
+
+    def fake_run_custom_agent(config, *_args, **_kwargs):
+        # fundamental 模拟配置 bug 抛错, technical 正常返回
+        if config["key"] == "fundamental":
+            raise RuntimeError("模拟配置 bug: asdict/resolve 失败")
+        return {
+            "key": config["key"],
+            "signal": "买入",
+            "confidence": 70,
+            "reason": "正常",
+            "ok": True,
+        }
+
+    with (
+        patch("backend.agent_store.list_agents", return_value=managed_agents),
+        patch(
+            "backend.runtime.context_builder.build_market_brief",
+            return_value="测试简报",
+        ),
+        patch(
+            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
+        ),
+        patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
+        patch(
+            "backend.agents.financial_agents.run_custom_agent",
+            side_effect=fake_run_custom_agent,
+        ),
+    ):
+        result = orchestrator.run_agents_with_mode(
+            {"symbol": "600519", "name": "贵州茅台"},
+            mode=AnalysisMode.STANDARD,
+        )
+
+    # 整批不崩: 两个 agent 都在结果里
+    assert "fundamental" in result["agents"]
+    assert "technical" in result["agents"]
+    # 失败的 fundamental 记错误项(不崩), technical 正常
+    assert result["agents"]["fundamental"]["ok"] is False
+    assert result["agents"]["technical"]["ok"] is True
+    assert result["agents"]["technical"]["signal"] == "买入"
+
+
 def test_auto_escalation_excludes_disabled_managed_agents():
     managed_agents = [
         {
