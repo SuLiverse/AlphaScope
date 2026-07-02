@@ -107,3 +107,24 @@ def test_v2_member_prompt_files_all_load_nonempty():
             content = load_prompt_file(pf)
             assert content, f"member {m.get('id')} 的 promptFile {pf} 加载为空(文件缺失?)"
             assert len(content) > 50, f"member {m.get('id')} 的 prompt {pf} 内容过短(疑似 stub)"
+
+
+def test_v1_persona_system_prompts_nonempty_not_stub():
+    """所有 v1 expert persona 的 system_prompt 必须非空且 >100 字符(防 stub/空回退)。
+
+    上轮升级了 39+ persona 的真实交易体系提示词。此测试锁住, 防止未来回归到占位/空。
+    """
+    data = _load()
+    experts = data.get("experts") or []
+    assert experts, "v1 experts 列表不应为空"
+    short = []
+    empty = []
+    for e in experts:
+        key = e.get("key", "?")
+        prompt = (e.get("system_prompt") or "").strip()
+        if not prompt:
+            empty.append(key)
+        elif len(prompt) < 100:
+            short.append((key, len(prompt)))
+    assert not empty, f"persona system_prompt 为空: {empty}"
+    assert not short, f"persona system_prompt 过短(疑似 stub): {short}"
