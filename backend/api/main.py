@@ -191,6 +191,7 @@ if HAS_FASTAPI:
     from backend.api.factor_registry import router as factor_registry_router
     from backend.api.integrations import router as integrations_router
     from backend.api.alerts import router as alerts_router
+    from backend.api.portfolio_calc import router as portfolio_calc_router
 
     # 启动时把已保存的数据源凭证注入环境变量, 使 provider 自动注册时可用
     from backend.datasource_config import init_credentials_on_startup
@@ -213,6 +214,9 @@ if HAS_FASTAPI:
     app.include_router(factors_router)
     app.include_router(quant_router)
     app.include_router(funds_router)
+    # portfolio_calc 须在 portfolio_new 之前注册:其 /positions /optimizers 等单段路径
+    # 否则会被 portfolio_new 的 /{portfolio_id} 参数路由先吞掉。
+    app.include_router(portfolio_calc_router)
     app.include_router(portfolio_router)
     app.include_router(report_gen_router)
     app.include_router(stocks_router)

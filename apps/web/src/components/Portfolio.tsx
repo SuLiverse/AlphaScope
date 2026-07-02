@@ -195,8 +195,81 @@ export function Portfolio() {
     writeStoredPositions(positions);
   }, [positions]);
 
+  // 后端持久化:启动时从 SQLite 载入并合并(本地为缓存,后端为真实源)
+  useEffect(() => {
+    let cancelled = false;
+    void fetchApi<{ items: ResearchPosition[] }>('/api/portfolio/positions')
+      .then((data) => {
+        if (cancelled) return;
+        const remote = (data?.items || []).filter((p) => p?.symbol && Number(p.shares) > 0);
+        if (!remote.length) return;
+        setPositions((prev) => {
+          const bySymbol = new Map<string, ResearchPosition>();
+          // 远端优先(真实源),本地补缺
+          for (const p of remote) {
+            const ts = Number((p as { added_at?: number }).added_at || 0);
+            bySymbol.set(p.symbol, {
+              symbol: p.symbol,
+              name: p.name || '',
+              sector: p.sector || '',
+              shares: Number(p.shares),
+              cost: Number(p.cost),
+              addedAt: ts ? new Date(ts * 1000).toISOString() : p.addedAt || '',
+            });
+          }
+          for (const p of prev) {
+            if (!bySymbol.has(p.symbol)) bySymbol.set(p.symbol, p);
+          }
+          return Array.from(bySymbol.values()).sort(
+            (a, b) => (b.addedAt || '').localeCompare(a.addedAt || ''),
+          );
+        });
+      })
+      .catch(() => {
+        /* 后端不可用时静默,继续用本地缓存 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const [watchlistReloadKey, setWatchlistReloadKey] = useState(0);
   useEffect(() => subscribeWatchlistChanged(() => setWatchlistReloadKey((k) => k + 1)), []);
+
+  // 组合优化(接出 portfolio_optimizer);绩效报告在回测页用真实净值曲线调用
+  const [optimizeResult, setOptimizeResult] = useState<Record<string, number> | null>(null);
+  const [optimizeMeta, setOptimizeMeta] = useState<{ optimizer: string; method: string; degraded: boolean } | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
+  const [optError, setOptError] = useState('');
+
+  const runOptimize = async (method: string) => {
+    const symbols = rows.map((r) => stripSymbolSuffix(r.symbol));
+    if (symbols.length < 2) {
+      setOptError('组合优化需要至少 2 个持仓');
+      return;
+    }
+    setOptimizing(true);
+    setOptError('');
+    try {
+      const res = await fetchApi<{
+        weights: Record<string, number>;
+        optimizer: string;
+        method: string;
+        degraded: boolean;
+        error?: string;
+      }>('/api/portfolio/optimize', {
+        method: 'POST',
+        body: JSON.stringify({ symbols, method, days: 120 }),
+      });
+      setOptimizeResult(res?.weights || null);
+      setOptimizeMeta({ optimizer: res?.optimizer || '', method: res?.method || method, degraded: !!res?.degraded });
+      if (res?.error) setOptError(res.error);
+    } catch (e) {
+      setOptError(e instanceof Error ? e.message : '组合优化失败');
+    } finally {
+      setOptimizing(false);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -372,11 +445,25 @@ export function Portfolio() {
       const others = prev.filter((item) => item.symbol !== next.symbol);
       return [next, ...others];
     });
+    // 同步到后端持久化(失败静默,本地仍保留)
+    void fetchApi('/api/portfolio/positions', {
+      method: 'POST',
+      body: JSON.stringify({
+        symbol: next.symbol,
+        name: next.name,
+        sector: next.sector,
+        shares: next.shares,
+        cost: next.cost,
+      }),
+    }).catch(() => {});
     setDraft((prev) => ({ ...prev, symbol: '', name: '', sector: '', cost: '' }));
   };
 
   const removePosition = (symbol: string) => {
     setPositions((prev) => prev.filter((item) => item.symbol !== symbol));
+    void fetchApi(`/api/portfolio/positions/${encodeURIComponent(symbol)}`, {
+      method: 'DELETE',
+    }).catch(() => {});
   };
 
   const quickStocks = [
@@ -425,6 +512,82 @@ export function Portfolio() {
         </div>
         <SummaryCard label="持仓数量" value={String(rows.length)} hint={`${totals.winners} 只盈利 / ${Math.max(0, rows.length - totals.winners)} 只回撤`} tone="emerald" icon={Landmark} />
         <SummaryCard label="最大行业占用" value={`${totals.maxRiskUse.toFixed(0)}%`} hint={`单行业上限 ${SECTOR_LIMIT_PCT}%`} tone={totals.maxRiskUse > SECTOR_LIMIT_PCT ? 'rose' : 'indigo'} icon={ShieldCheck} />
+      </div>
+
+      {/* 组合优化器(接出 portfolio_optimizer: skfolio/riskfolio/pypfopt) */}
+      <div className="mb-6 rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-100">
+              <ShieldCheck className="h-4 w-4 text-indigo-400" />
+              组合权重优化(研究草案)
+            </h3>
+            <p className="mt-1 text-[11px] leading-relaxed text-neutral-500">
+              基于近 120 交易日收益,用 skfolio / riskfolio / pypfopt 计算建议权重。
+              <span className="text-neutral-600"> 仅作研究参考,不构成投资建议,不自动下单。</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => runOptimize('max_sharpe')}
+              disabled={optimizing || rows.length < 2}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/15 px-3 text-xs text-indigo-200 hover:bg-indigo-500/25 disabled:opacity-40"
+            >
+              {optimizing ? '计算中…' : '最大夏普'}
+            </button>
+            <button
+              type="button"
+              onClick={() => runOptimize('min_variance')}
+              disabled={optimizing || rows.length < 2}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs text-neutral-300 hover:bg-white/[0.08] disabled:opacity-40"
+            >
+              最小方差
+            </button>
+            <button
+              type="button"
+              onClick={() => runOptimize('equal_weight')}
+              disabled={optimizing || rows.length < 2}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-xs text-neutral-300 hover:bg-white/[0.08] disabled:opacity-40"
+            >
+              等权基准
+            </button>
+          </div>
+        </div>
+        {optError && <p className="mt-3 text-xs text-rose-400">{optError}</p>}
+        {optimizeResult && optimizeMeta && (
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="rounded-md bg-white/5 px-2 py-1 font-mono text-neutral-300">
+                引擎: {optimizeMeta.optimizer || '—'}
+              </span>
+              <span className="rounded-md bg-white/5 px-2 py-1 font-mono text-neutral-400">
+                方法: {optimizeMeta.method}
+              </span>
+              {optimizeMeta.degraded && (
+                <span className="rounded-md bg-amber-500/10 px-2 py-1 font-mono text-amber-300">
+                  降级(数据不足或优化库缺失,已回退等权)
+                </span>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              {Object.entries(optimizeResult).map(([sym, w]) => (
+                <div key={sym} className="flex items-center gap-3">
+                  <span className="w-28 shrink-0 font-mono text-[11px] text-neutral-400">{sym}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/5">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-sky-400"
+                      style={{ width: `${Math.max(2, Math.min(100, Number(w) * 100))}%` }}
+                    />
+                  </div>
+                  <span className="w-14 shrink-0 text-right font-mono text-[11px] text-neutral-300">
+                    {(Number(w) * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="mb-6 rounded-2xl border border-white/5 bg-white/[0.04] p-5 shadow-lg">

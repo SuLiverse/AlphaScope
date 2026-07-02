@@ -586,6 +586,37 @@ export function Backtesting() {
   const [result, setResult] = useState<BacktestResultData | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
 
+  // QuantStats 完整绩效报告(接出 performance_report)
+  const [qsMetrics, setQsMetrics] = useState<Record<string, number | string> | null>(null);
+  const [qsAvailable, setQsAvailable] = useState(true);
+  const [qsLoading, setQsLoading] = useState(false);
+  const [qsError, setQsError] = useState('');
+
+  const computeQuantStats = async () => {
+    const curve = result?.equity_curve
+      ?.map((p) => Number(p.equity ?? p.value ?? 0))
+      .filter((v) => Number.isFinite(v) && v > 0) ?? [];
+    if (curve.length < 3) {
+      setQsError('净值曲线点数不足(需 ≥3 个点)');
+      return;
+    }
+    setQsLoading(true);
+    setQsError('');
+    try {
+      const res = await fetchApi<{ available: boolean; metrics: Record<string, number | string>; error?: string }>(
+        '/api/portfolio/performance',
+        { method: 'POST', body: JSON.stringify({ equity_curve: curve }) },
+      );
+      setQsAvailable(res?.available !== false);
+      setQsMetrics(res?.metrics || null);
+      if (res?.error) setQsError(res.error);
+    } catch (e) {
+      setQsError(e instanceof Error ? e.message : '绩效计算失败');
+    } finally {
+      setQsLoading(false);
+    }
+  };
+
   // Walk-forward (样本外走查) state — reuses the strategy/symbol/capital above.
   const [wfScheme, setWfScheme] = useState<'anchored' | 'rolling'>('anchored');
   const [wfSplits, setWfSplits] = useState(5);
@@ -1381,6 +1412,51 @@ export function Backtesting() {
                 <>
                   <div className="mb-6">
                     <AssumptionsCard assumptions={result.assumptions} />
+                  </div>
+
+                  {/* QuantStats 完整绩效报告(接出 performance_report) */}
+                  <div className="mb-6 rounded-2xl border border-white/5 bg-white/[0.03] p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-neutral-100">
+                          <Activity className="h-4 w-4 text-indigo-400" />
+                          卖方级绩效报告(QuantStats)
+                        </h3>
+                        <p className="mt-1 text-[11px] text-neutral-500">
+                          基于本次回测净值曲线,计算夏普/Sortino/卡玛/最大回撤/胜率等数十项专业指标。
+                          <span className="text-neutral-600"> 绩效基于历史数据,不代表未来收益。</span>
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={computeQuantStats}
+                        disabled={qsLoading || !result.equity_curve?.length}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/15 px-3 text-xs text-indigo-200 hover:bg-indigo-500/25 disabled:opacity-40"
+                      >
+                        {qsLoading ? '计算中…' : qsMetrics ? '刷新绩效' : '生成绩效报告'}
+                      </button>
+                    </div>
+                    {!qsAvailable && (
+                      <p className="mt-3 text-xs text-amber-400">
+                        quantstats 未安装,无法生成完整报告。可执行 <code className="font-mono">pip install quantstats</code> 启用。
+                      </p>
+                    )}
+                    {qsError && <p className="mt-3 text-xs text-rose-400">{qsError}</p>}
+                    {qsMetrics && (
+                      <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                        {Object.entries(qsMetrics)
+                          .filter(([, v]) => v !== null && v !== undefined && v !== '' && !(typeof v === 'string' && v.trim() === ''))
+                          .slice(0, 32)
+                          .map(([k, v]) => (
+                            <div key={k} className="rounded-lg border border-white/5 bg-black/30 px-3 py-2">
+                              <p className="text-[10px] font-mono uppercase tracking-wide text-neutral-500">{k}</p>
+                              <p className="mt-0.5 font-mono text-xs text-neutral-200">
+                                {typeof v === 'number' ? v.toFixed(4).replace(/\.?0+$/, '') : String(v)}
+                              </p>
+                            </div>
+                          ))}
+                      </div>
+                    )}
                   </div>
                   <div>
                     <TradeTable trades={result.trades} />
