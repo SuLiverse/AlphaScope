@@ -26,12 +26,13 @@ const ExpertPanel = lazy(() => import('./components/ExpertPanel').then((module) 
 const MorningBrief = lazy(() => import('./components/MorningBrief').then((module) => ({ default: module.MorningBrief })));
 const MonitoringCenter = lazy(() => import('./components/MonitoringCenter').then((module) => ({ default: module.MonitoringCenter })));
 const ResearchMemory = lazy(() => import('./components/ResearchMemory').then((module) => ({ default: module.ResearchMemory })));
+const ReportArchive = lazy(() => import('./components/ReportArchive').then((module) => ({ default: module.ReportArchive })));
 const TickFlowManager = lazy(() => import('./components/TickFlowManager').then((module) => ({ default: module.TickFlowManager })));
 const DataLakeManager = lazy(() => import('./components/DataLakeManager').then((module) => ({ default: module.DataLakeManager })));
 const FactorRegistry = lazy(() => import('./components/FactorRegistry').then((module) => ({ default: module.FactorRegistry })));
 const IntegrationCenter = lazy(() => import('./components/IntegrationCenter').then((module) => ({ default: module.IntegrationCenter })));
 
-const VISIBLE_TABS: TabID[] = ['dashboard', 'workbench', 'agents', 'experts', 'market', 'tasks', 'strategy_lab', 'fund_dca', 'news', 'chart', 'detailed', 'saved', 'valuation', 'dragon_tiger', 'investors', 'brief', 'monitor', 'research_memory', 'tickflow', 'datalake', 'factor_registry', 'integration_center', 'settings'];
+const VISIBLE_TABS: TabID[] = ['dashboard', 'workbench', 'agents', 'experts', 'market', 'tasks', 'strategy_lab', 'fund_dca', 'news', 'chart', 'detailed', 'saved', 'valuation', 'dragon_tiger', 'investors', 'brief', 'monitor', 'research_memory', 'report_archive', 'tickflow', 'datalake', 'factor_registry', 'integration_center', 'settings'];
 
 function ModuleLoading() {
   return (
@@ -191,6 +192,9 @@ export default function App() {
                   )}
                   {currentTab === 'research_memory' && (
                     <ResearchMemory key="research_memory" />
+                  )}
+                  {currentTab === 'report_archive' && (
+                    <ReportArchive key="report_archive" />
                   )}
                   {currentTab === 'tickflow' && (
                     <TickFlowManager key="tickflow" />

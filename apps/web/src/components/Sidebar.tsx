@@ -24,7 +24,8 @@ import { // Using as Logo
   Webhook,
   Database,
   Sigma,
-  Boxes
+  Boxes,
+  Archive
 } from 'lucide-react';
 import type { TabID } from '../types';
 import { cn } from '../lib/utils';
@@ -57,6 +58,7 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         { id: 'chart', label: 'K线/多模态解析', icon: ImageIcon },
         { id: 'detailed', label: '研究报告生成', icon: FileText },
         { id: 'research_memory', label: '研究记忆', icon: History },
+        { id: 'report_archive', label: '研究存档中心', icon: Archive },
         { id: 'saved', label: '投研逻辑证据链', icon: Bookmark },
       ]
     },

@@ -116,3 +116,17 @@ async def delete_report(path: str):
     if not deleted:
         return ApiResponse(success=False, error="报告不存在或路径不允许")
     return ApiResponse(success=True, data={"deleted": path})
+
+
+@router.post("/backfill")
+async def backfill_posteriors():
+    """回填后验标签:为所有归档报告补齐 3/5/10/20 日收益、命中标签、10 日最大回撤。
+
+    可选依赖 archive_tagger(import-guard);缺 akshare 时跳过,不抛。
+    """
+    try:
+        from backend.archive_tagger import tag_all_reports
+    except Exception as e:  # noqa: BLE001
+        return ApiResponse(success=False, error=f"后验模块不可用: {str(e)[:120]}")
+    result = tag_all_reports()
+    return ApiResponse(success=True, data=result)

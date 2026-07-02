@@ -1,4 +1,4 @@
-export type TabID = 'workbench' | 'dashboard' | 'news' | 'detailed' | 'agents' | 'saved' | 'experts' | 'tasks' | 'strategy_lab' | 'market' | 'fund_dca' | 'chart' | 'valuation' | 'dragon_tiger' | 'investors' | 'brief' | 'monitor' | 'research_memory' | 'tickflow' | 'datalake' | 'factor_registry' | 'integration_center' | 'settings';
+export type TabID = 'workbench' | 'dashboard' | 'news' | 'detailed' | 'agents' | 'saved' | 'experts' | 'tasks' | 'strategy_lab' | 'market' | 'fund_dca' | 'chart' | 'valuation' | 'dragon_tiger' | 'investors' | 'brief' | 'monitor' | 'research_memory' | 'report_archive' | 'tickflow' | 'datalake' | 'factor_registry' | 'integration_center' | 'settings';
 
 export interface ChatMessage {
   id: string;
