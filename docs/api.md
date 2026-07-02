@@ -1,6 +1,6 @@
 # API 文档
 
-研策中枢 AlphaScope FastAPI 后端提供 27 个 REST 端点。
+研策中枢 AlphaScope FastAPI 后端提供 100+ REST 端点(见 `http://localhost:8000/docs` 自动文档)。
 
 启动方式：
 ```bash
@@ -143,6 +143,29 @@ data: {"type": "agents", "data": {...}}
 
 data: {"type": "done"}
 ```
+
+### 集成中心 / 插件市场
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/integrations` | 已注册 adapter 列表(vectorBT/OpenBB/Qlib/TradingAgents) |
+| GET | `/api/integrations/boundary` | 交易边界(No-Live-Order)概览 |
+| GET | `/api/integrations/marketplace` | 插件市场目录(可选 category/installed_only 过滤,给安装指引) |
+| GET | `/api/integrations/{name}` | 单 adapter 详情 |
+| GET | `/api/integrations/{name}/health` | adapter 健康检查 |
+| POST | `/api/integrations/{name}/run` | 运行 adapter 分析(研究语义) |
+
+### 诊断 / MLOps / MCP
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/api/diagnostics/summary` | 诊断汇总 |
+| GET | `/api/diagnostics/tool-calls` | 工具调用日志 |
+| GET | `/api/diagnostics/model-calls` | 模型调用日志 |
+| GET | `/api/diagnostics/cost-summary` | LLM 成本汇总 |
+| GET | `/api/diagnostics/mcp` | MCP server 能力概览 + Claude Desktop 接入配置 |
+| GET | `/api/diagnostics/mlops` | MLOps 库就绪概览(mlflow/optuna/evidently 等) |
+| GET | `/api/monitor/snapshot` | 系统监控快照(数据源/回测/实验/成本/工具/追踪六路健康聚合) |
 
 ## Pydantic Schema
 
