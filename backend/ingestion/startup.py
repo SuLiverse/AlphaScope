@@ -37,10 +37,12 @@ def _upgrade_schema():
         from backend.storage.schema_upgrade import upgrade_schema, get_table_count
 
         db = Database()
-        conn = db.get_connection()
-        before = get_table_count(conn)
-        new_tables = upgrade_schema(conn)
-        after = get_table_count(conn)
+        # Database 暴露连接的属性是 conn(或经 transaction() 加锁)。
+        # 这里 executescript 是写操作, 走进程级 DB 锁避免并发写撞锁。
+        with db.transaction() as conn:
+            before = get_table_count(conn)
+            new_tables = upgrade_schema(conn)
+            after = get_table_count(conn)
         if new_tables:
             logger.info(
                 f"[Startup] Schema 升级: {before} → {after} 表 (+{len(new_tables)})"
