@@ -65,6 +65,8 @@ export function ReportArchive() {
   const [items, setItems] = useState<ArchiveItem[]>([]);
   const [stats, setStats] = useState<ArchiveStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [deleteMsg, setDeleteMsg] = useState('');
   const [query, setQuery] = useState('');
   const [decisionFilter, setDecisionFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
@@ -76,6 +78,7 @@ export function ReportArchive() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError('');
     try {
       const params = new URLSearchParams();
       if (query.trim()) params.set('stock', query.trim());
@@ -88,9 +91,10 @@ export function ReportArchive() {
       ]);
       setItems(listRes?.reports || []);
       setStats(statsRes || null);
-    } catch {
+    } catch (e) {
       setItems([]);
       setStats(null);
+      setLoadError(e instanceof Error ? e.message : '加载归档报告失败');
     } finally {
       setLoading(false);
     }
@@ -121,9 +125,10 @@ export function ReportArchive() {
     try {
       await fetchApi(`/api/archive/report/${encodeURIComponent(item.path)}`, { method: 'DELETE' });
       if (selected?.path === item.path) setSelected(null);
+      setDeleteMsg('');
       await load();
-    } catch {
-      /* 静默 */
+    } catch (e) {
+      setDeleteMsg(`删除失败:${e instanceof Error ? e.message : '未知错误'}`);
     }
   };
 
@@ -272,15 +277,34 @@ export function ReportArchive() {
 
       {/* 报告列表 */}
       <div className="space-y-2">
+        {loadError && (
+          <div className="mb-3 flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/5 px-3 py-2">
+            <span className="text-xs text-rose-300">加载失败:{loadError}</span>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="ml-auto text-[11px] text-rose-200 underline-offset-2 hover:underline"
+            >
+              重试
+            </button>
+          </div>
+        )}
+        {deleteMsg && (
+          <p className="mb-3 text-xs text-rose-400">{deleteMsg}</p>
+        )}
         {loading ? (
           <p className="py-12 text-center text-sm text-neutral-500">加载中…</p>
         ) : items.length === 0 ? (
           <div className="rounded-2xl border border-white/5 bg-white/[0.02] py-16 text-center">
             <FileText className="mx-auto mb-3 h-10 w-10 text-neutral-700" />
-            <p className="text-sm text-neutral-500">暂无归档报告</p>
-            <p className="mt-1 text-xs text-neutral-600">
-              生成研究报告或圆桌分析后,结果会自动归档到此
+            <p className="text-sm text-neutral-500">
+              {loadError ? '加载失败,请重试' : '暂无归档报告'}
             </p>
+            {!loadError && (
+              <p className="mt-1 text-xs text-neutral-600">
+                生成研究报告或圆桌分析后,结果会自动归档到此
+              </p>
+            )}
           </div>
         ) : (
           items.map((item) => {
