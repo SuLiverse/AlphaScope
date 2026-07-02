@@ -173,3 +173,15 @@ async def test_get_summary(client):
     assert resp.status_code == 200
     assert resp.json()["success"] is True
     assert "tool_calls" in resp.json()["data"]
+
+
+@pytest.mark.anyio
+async def test_limit_caps_reject_oversize(client):
+    """limit 超上限应返回 422(防资源耗尽), 正常 limit 返回 200。"""
+    # tool-calls 上限 le=500
+    resp = await client.get("/api/diagnostics/tool-calls?limit=99999")
+    assert resp.status_code == 422
+    resp = await client.get("/api/diagnostics/tool-calls?limit=0")
+    assert resp.status_code == 422  # ge=1
+    resp = await client.get("/api/diagnostics/tool-calls?limit=50")
+    assert resp.status_code == 200
