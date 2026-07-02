@@ -563,8 +563,8 @@ def run_custom_agents(
             from backend.agent_memory import save_agent_run_memory
 
             save_agent_run_memory(stock_data, results)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 — 记忆写入失败不阻断分析, 但需可见
+            logger.warning("自动写入 Agent 记忆失败(不阻断分析): %s", exc)
 
     chairman_summary = None
     chairman_settings = (global_ai_settings or {}).get("chairman") or {}
