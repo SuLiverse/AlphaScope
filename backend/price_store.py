@@ -12,8 +12,18 @@ logger = logging.getLogger(__name__)
 from backend.storage.db import Database
 
 
+_schema_ensured = False
+
+
 def _ensure_schema() -> None:
-    """建表/补列(幂等)。包进进程级 DB 锁, 避免与后台 ingestion 线程并发写时撞锁。"""
+    """建表/补列(幂等)。包进进程级 DB 锁, 避免与后台 ingestion 线程并发写时撞锁。
+
+    首次补齐 fetched_at 列后置 _schema_ensured=True, 后续高频读路径直接跳过 —
+    ALTER TABLE 即便 try/except 吞错也占 DB 锁 + DDL 开销, price_store 是最高频读路径。
+    """
+    global _schema_ensured
+    if _schema_ensured:
+        return
     db = Database()
     with db.transaction() as conn:
         # 补齐 fetched_at 列
@@ -22,6 +32,7 @@ def _ensure_schema() -> None:
         except Exception:
             pass
         conn.commit()
+    _schema_ensured = True
 
 
 # ============== Symbol 标准化 ==============
