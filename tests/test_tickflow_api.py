@@ -18,6 +18,8 @@ def test_source_body_accepts_http_and_https():
     assert SourceBody(url="http://example.com/api").url == "http://example.com/api"
     assert SourceBody(url="https://x.com/api").url == "https://x.com/api"
     assert SourceBody(url="").url == ""  # 空允许(后续步骤可填)
+    # PreviewBody 同款校验
+    assert PreviewBody(url="https://x.com/api").url == "https://x.com/api"
 
 
 def test_source_body_rejects_non_http_url():
