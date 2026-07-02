@@ -10,11 +10,11 @@ teams:
     require_citations: true
     require_risk_review: true
     agents:
-      - macro_analyst
-      - fundamental_analyst
-      - technical_analyst
-      - sentiment_analyst
-      - risk_manager
+      - buyside_research
+      - fundamental
+      - technical
+      - sentiment
+      - risk
     enable_critic: true
     enable_chairman: true
 
@@ -26,8 +26,8 @@ teams:
     require_citations: false
     require_risk_review: false
     agents:
-      - fundamental_analyst
-      - technical_analyst
+      - fundamental
+      - technical
     enable_critic: false
     enable_chairman: false
 
@@ -39,8 +39,8 @@ teams:
     require_citations: true
     require_risk_review: true
     agents:
-      - risk_manager
-      - technical_analyst
-      - sentiment_analyst
+      - risk
+      - technical
+      - sentiment
     enable_critic: true
     enable_chairman: false
