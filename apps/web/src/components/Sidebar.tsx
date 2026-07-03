@@ -25,6 +25,7 @@ import { // Using as Logo
   Database,
   Sigma,
   Boxes,
+  Layers,
   Archive
 } from 'lucide-react';
 import type { TabID } from '../types';
@@ -60,6 +61,7 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         { id: 'research_memory', label: '研究记忆', icon: History },
         { id: 'report_archive', label: '研究存档中心', icon: Archive },
         { id: 'saved', label: '投研逻辑证据链', icon: Bookmark },
+        { id: 'evidence_aggregator', label: '多源证据聚合', icon: Layers },
       ]
     },
     {
