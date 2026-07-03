@@ -158,6 +158,17 @@ export function EvidenceAggregator() {
       {/* 结果区 */}
       {result && (
         <div className="space-y-4">
+          {result.item_count === 0 ? (
+            <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6 text-center">
+              <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-amber-400" />
+              <p className="text-sm text-amber-200">本次聚合未采集到数据({result.sources.length} 个源尝试)</p>
+              <p className="mt-1 text-xs text-amber-200/70">
+                通常因数据源未就绪或缺凭证。请在「设置 → 数据源」配置 akshare/finnhub 等凭证,
+                或换一个有数据的标的/类型。默认置信度 60% 是空数据基线,不代表真实证据强度。
+              </p>
+            </div>
+          ) : (
+            <>
           {/* 概览卡墙 */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <OverviewCard label="采集条数" value={`${result.item_count}`} hint="跨源去重后总数" />
@@ -255,6 +266,8 @@ export function EvidenceAggregator() {
             )}
             <span className="ml-auto text-neutral-600">仅研究语义,不构成投资建议</span>
           </div>
+            </>
+          )}
         </div>
       )}
 
