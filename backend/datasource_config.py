@@ -5,9 +5,10 @@
 - 维护各数据源的启停/优先级 (落盘到 config/data_sources.yaml, 热重载 registry)
 - 提供预置付费数据源目录 (Tushare / Choice / iFinD / 聚宽 等, 含官网与说明)
 
-设计原则: 不改动各 Provider 的取 key 方式 (它们读 os.environ),
-保存凭证时把明文 key 注入对应 token_env 环境变量, 再 reload registry,
-即可让 "填 key → 立即生效" 无需改动任何 provider 代码。
+设计原则: Provider 优先从本模块 get_active_key() 取 key (查 credential 表),
+回退 os.environ (.env 自填); 保存凭证时不再注入 os.environ (审计 C6:
+解密 key 落进程环境变量可被 /proc/self/environ、子进程、崩溃转储获取),
+改为 provider 实例化时直接从表取, 再 reload registry。
 """
 
 from __future__ import annotations
@@ -68,7 +69,7 @@ PRESET_DATASOURCES: list[dict[str, Any]] = [
         "label": "Choice（东方财富）",
         "types": ["prices", "fundamentals", "reports", "announcements", "fund_flow"],
         "cost_tier": "paid",
-        "token_env": "CHOICE_TOKEN",
+        "token_env": "CHOICE_API_KEY",
         "signup_url": "https://choice.eastmoney.com/",
         "doc_url": "https://choice.eastmoney.com/openapi",
         "description": "东财全量金融数据 API, 行情/财务/资金/研报, 机构级覆盖。",
@@ -79,7 +80,7 @@ PRESET_DATASOURCES: list[dict[str, Any]] = [
         "label": "同花顺 iFinD",
         "types": ["prices", "fundamentals", "reports", "announcements"],
         "cost_tier": "paid",
-        "token_env": "IFIND_TOKEN",
+        "token_env": "IFIND_API_KEY",
         "signup_url": "https://dict.10jqka.com.cn/",
         "doc_url": "https://platform.10jqka.com.cn/",
         "description": "同花顺机构版数据, 研报/财务/行情, 需申请授权码。",
@@ -108,7 +109,7 @@ PRESET_DATASOURCES: list[dict[str, Any]] = [
             "macro",
         ],
         "cost_tier": "paid",
-        "token_env": "WIND_TOKEN",
+        "token_env": "WIND_API_KEY",
         "signup_url": "https://www.wind.com.cn/",
         "doc_url": "https://www.wind.com.cn/newedeber/datahub.html",
         "description": "机构全量数据, 需企业授权, 个人暂不可直接申请。",
@@ -119,7 +120,7 @@ PRESET_DATASOURCES: list[dict[str, Any]] = [
         "label": "Finnhub（美股/全球）",
         "types": ["news", "sentiment", "insider", "esg", "calendar"],
         "cost_tier": "freemium",
-        "token_env": "FINNHUB_TOKEN",
+        "token_env": "FINNHUB_API_KEY",
         "signup_url": "https://finnhub.io/register",
         "doc_url": "https://finnhub.io/docs/api",
         "description": "美股/全球新闻、情绪、内部人交易、ESG, 免费额度可用。",
@@ -233,10 +234,25 @@ def get_credential(name: str) -> Optional[dict[str, Any]]:
     }
 
 
+def get_active_key(name: str, fallback_env: str = "") -> str:
+    """取某数据源的活跃 API Key: 优先从 credential 表取明文, 回退 os.environ (.env 自填)。
+
+    Provider 实例化时调本函数而非 os.getenv, 避免依赖 datasource_config 注入 os.environ
+    (审计 C6)。``name`` 为 preset name (如 "tushare"); ``fallback_env`` 为 provider 历史读取
+    的 env 名 (如 "TUSHARE_TOKEN"), 用于 .env 自填兼容。
+    """
+    cred = get_credential(name)
+    if cred and cred.get("api_key"):
+        return cred["api_key"]
+    if fallback_env:
+        return os.environ.get(fallback_env, "")
+    return ""
+
+
 def save_credential(
     name: str, api_key: str, token_env: Optional[str] = None
 ) -> dict[str, Any]:
-    """保存数据源 API Key (加密落盘) 并立即注入环境变量 + 热重载 registry。"""
+    """保存数据源 API Key (加密落盘) + 热重载 registry (不再注入 os.environ, 审计 C6)。"""
     _ensure_table()
     preset = _PRESET_BY_NAME.get(name)
     env = (
@@ -263,9 +279,7 @@ def save_credential(
                 (name, env, encrypted, "{}", now, now),
             )
         conn.commit()
-    # 立即注入环境变量, 让 provider 重新实例化时能读到
-    if api_key:
-        os.environ[env] = api_key
+    # 不再注入 os.environ (审计 C6): provider 从 get_active_key() 直接读 credential 表。
     # 热重载 registry, 让带 key 的 provider 立即注册生效
     _reload_registry()
     logger.info("数据源 %s 凭证已保存并热重载 (env=%s)", name, env)
@@ -441,18 +455,13 @@ def _reload_registry() -> None:
 
 
 def init_credentials_on_startup() -> None:
-    """启动时把已保存的数据源 key 注入环境变量, 使 provider 自动注册时可用。"""
+    """启动时确保 credential 表就绪 + registry 热重载。
+
+    v1.9.45 起不再注入 os.environ (审计 C6): provider 从 get_active_key() 直接读表,
+    无需把解密 key 落进程环境变量。
+    """
     try:
         _ensure_table()
-        creds = _list_credentials_map()
-        for name, cred in creds.items():
-            env = cred.get("token_env")
-            if not env:
-                continue
-            # 需要明文, 重新解密
-            full = get_credential(name)
-            if full and full.get("api_key"):
-                os.environ[env] = full["api_key"]
-                logger.info("已注入数据源凭证环境变量: %s (%s)", name, env)
+        _reload_registry()
     except Exception as e:
-        logger.warning("启动注入数据源凭证失败: %s", e)
+        logger.warning("启动初始化数据源凭证失败: %s", e)

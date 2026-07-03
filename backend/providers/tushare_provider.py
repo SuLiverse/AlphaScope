@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 from .base import BaseProvider
@@ -24,7 +23,9 @@ class TushareProvider(BaseProvider):
 
     def __init__(self) -> None:
         super().__init__()
-        self._token = os.environ.get("TUSHARE_TOKEN", "")
+        from backend.datasource_config import get_active_key
+
+        self._token = get_active_key("tushare", "TUSHARE_TOKEN")
         self._pro = None
 
     def _get_pro(self):

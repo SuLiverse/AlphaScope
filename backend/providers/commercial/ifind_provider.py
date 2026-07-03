@@ -9,7 +9,6 @@ iFinD 是同花顺的机构版金融数据终端, 覆盖 A 股、公告、研报
 from __future__ import annotations
 
 import logging
-import os
 
 from ..base import BaseProvider
 
@@ -25,7 +24,9 @@ class IFinDProvider(BaseProvider):
 
     def __init__(self) -> None:
         super().__init__()
-        self._api_key = os.environ.get("IFIND_API_KEY", "")
+        from backend.datasource_config import get_active_key
+
+        self._api_key = get_active_key("ifind", "IFIND_API_KEY")
 
     def _check_available(self) -> bool:
         if not self._api_key:

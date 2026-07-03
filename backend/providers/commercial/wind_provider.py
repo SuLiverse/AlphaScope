@@ -10,7 +10,6 @@ API: 支持 Python/MATLAB/R/C++/C#/VBA
 from __future__ import annotations
 
 import logging
-import os
 
 from ..base import BaseProvider
 
@@ -33,7 +32,9 @@ class WindProvider(BaseProvider):
 
     def __init__(self) -> None:
         super().__init__()
-        self._api_key = os.environ.get("WIND_API_KEY", "")
+        from backend.datasource_config import get_active_key
+
+        self._api_key = get_active_key("wind", "WIND_API_KEY")
         self._client = None
 
     def _check_available(self) -> bool:
