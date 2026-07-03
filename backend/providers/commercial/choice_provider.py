@@ -7,7 +7,6 @@ Choice 是东方财富的机构版数据终端, 覆盖行情、公告、研报�
 from __future__ import annotations
 
 import logging
-import os
 
 from ..base import BaseProvider
 
@@ -23,7 +22,9 @@ class ChoiceProvider(BaseProvider):
 
     def __init__(self) -> None:
         super().__init__()
-        self._api_key = os.environ.get("CHOICE_API_KEY", "")
+        from backend.datasource_config import get_active_key
+
+        self._api_key = get_active_key("choice", "CHOICE_API_KEY")
 
     def _check_available(self) -> bool:
         if not self._api_key:
