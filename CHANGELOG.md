@@ -1,5 +1,38 @@
 # Changelog
 
+## v1.9.45 - 2026-07-03
+
+> **6 个 CRITICAL 安全项全量修复**: 把 AUDIT-2026-07-01 遗留的 6 个严重安全漏洞(C1-C6)一次性修完, 每项独立提交 + 测试锁住 + 零回归。至此 AUDIT 51 项全部清零。
+
+### C5 — datalake SQL 任意文件读拦截
+- `is_select_only` 黑名单此前不含 DuckDB 文件读取表函数, 用户可 `read_csv_auto('C:/...')` 读服务器任意文件。
+- 新增 `_FORBIDDEN_FUNC_RE` 正则精确匹配 `read_csv_auto`/`read_csv`/`read_json_auto`/`read_json`/`read_parquet`/`read_blob(_auto)`/`read_text(_auto)` 函数调用(词边界+括号, 避免误判列名); `set` 关键字改 `\bset\b` 词边界(防 tab 绕过)。代码内部受控 `read_parquet` 不经 `is_select_only`, 无副作用。
+
+### C4 — tickflow SSRF 防护
+- `fetch_json` 此前仅校验 http/https 前缀, 无内网/元数据 IP 过滤, 可扫内网/取云凭证。
+- 新建 `backend/security/url_guard.py`: `validate_public_http_url` 统一 SSRF 校验(ipaddress 分类 + getaddrinfo 逐 IP 校验防 DNS rebinding + `ALPHASCOPE_ALLOW_LOCAL_FETCH` opt-in)。`fetch_json` 入口校验 + 重定向后复校验最终 URL(防 302→内网); news.py 的等价实现收敛为 thin wrapper(消除重复)。
+
+### C2 — CORS 收紧
+- `.env` 设 `ALPHASCOPE_ALLOW_ALL_CORS=1` 致 `origins=["*"]`+`credentials=True`, 任意域可发认证跨域请求。
+- `allow_credentials` 改配置驱动: 默认 `False`(桌面同源不需要), 仅显式配 `ALPHASCOPE_CORS_ORIGINS` 或 opt-in 全开放时 `True`; 本地 `.env` 删除该行; `.env.example` 补 CORS/token 文档。
+
+### C1 — 认证缺口加固
+- `SAFE_METHODS` 此前让所有 GET 绕过认证, 暴露 `/api/conversations`/`/api/datasources/credentials`/`/api/audit` 等敏感读端点; 报告下载/SSE 浏览器导航无法带 header 会 401。
+- 新增 `SENSITIVE_READ_PREFIXES`: token 已设时这些路径即使 GET 也要求 token; `_has_valid_local_token` 回退读 query param `local_token`(浏览器导航/SSE 兼容); 前端 `analysisAdapter` 改用 `LOCAL_API_TOKEN` 塞 `?local_token=`。保持"未设=放行"默认(本地桌面绑 127.0.0.1, 打包态 launcher 已强制生成 token)。
+
+### C3 — 主密钥安全轮换 + 迁移脚本
+- release 目录 `.env` 硬编码固定 master key(加密所有 API 密钥的根密钥), 目录外流即全失守。
+- 新建 `scripts/rotate_master_key.py`: 备份→旧 key 解密三表密文→生成新随机 key→重加密回写→更新 `.env`(可回滚, dry-run 支持)。已对 release 目录执行迁移(1 条 model_providers 密文旧 key 解密成功→新随机 key 重加密→验证 OK); 删除含旧 key 的备份; `.gitignore` 加 `.env.bak`/`*.db.bak`; `.env.example` 补 `AI_FINANCE_MASTER_KEY` 文档。
+
+### C6 — provider 从 credential 表取 key(消除 os.environ 注入)
+- `datasource_config` 此前把解密 API key 注入 `os.environ`(save + init), 可被 `/proc/self/environ`/子进程/崩溃转储获取。
+- 新增 `get_active_key(name, fallback_env)`: 优先查 credential 表, 回退 `os.environ`(.env 自填兼容); 5 个 preset provider(tushare/finnhub/choice/ifind/wind)改从表取; 移除两处注入; 统一 preset `token_env` 为 `_API_KEY`(消除"注入名≠读取名致商业源激活不了"的既有 bug)。保留 `os.environ` 回退不破坏 .env 自填用法。
+
+### 验证
+- 离线套件 **1776 passed, 5 skipped, 1 deselected**(较 v1.9.44 +48 测试, 0 回归)。
+- `ruff check` / `tsc --noEmit` 通过。
+- 至此 AUDIT-2026-07-01 的 51 项(C1-C7 + H/M/L)**全部修复或此前已修**。
+
 ## v1.9.44 - 2026-07-03
 
 > **沉睡模块收尾 + 边界修复 + 测试加固**:持续流第五批。激活最后一个沉睡模块 evidence_aggregator(只读端点);修 anomaly 港股/美股涨跌停误报;补 risk_controller 全套除零测试 + expert 配置回归测试。
