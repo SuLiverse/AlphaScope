@@ -319,3 +319,18 @@ class TestFetchJsonGuard:
         # 不触网:非法 URL 直接被拒
         res = hj.fetch_json("ftp://x")
         assert res["ok"] is False
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://127.0.0.1:8000/x",
+            "http://localhost:8000/x",
+            "http://10.0.0.1/x",
+            "http://169.254.169.254/latest/meta-data/",
+        ],
+    )
+    def test_rejects_ssrf_targets(self, url):
+        # 不触网:内网/环回/元数据目标在入口校验即被拒(审计 C4)
+        res = hj.fetch_json(url)
+        assert res["ok"] is False
+        assert "not allowed" in res["error"] or "Localhost" in res["error"]

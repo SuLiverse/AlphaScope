@@ -292,14 +292,17 @@ def fetch_json(
     """抓一次远端 JSON。**失败安全**:任何错误都返回 {ok:False, error:...}, 绝不抛出。
 
     优先用 requests, 缺失回退 stdlib urllib。仅本函数触网, 供 refresh_source 调用、可注入替身。
+
+    SSRF 防护: 入口与重定向后均用 ``url_guard.validate_public_http_url`` 校验目标主机非内网
+    (防 127.0.0.1/10.x/169.254.169.254 等)。本机调试可设 ``ALPHASCOPE_ALLOW_LOCAL_FETCH=1``。
     """
-    if not url or not str(url).lower().startswith(("http://", "https://")):
-        return {
-            "ok": False,
-            "status": 0,
-            "payload": None,
-            "error": "URL 非法(需 http/https)",
-        }
+    from backend.security.url_guard import validate_public_http_url
+
+    # 入口校验: 拒非 http(s) 与内网目标
+    try:
+        safe_url = validate_public_http_url(url)
+    except ValueError as e:
+        return {"ok": False, "status": 0, "payload": None, "error": f"URL 非法: {e}"}
     headers = headers or {}
     method = (method or "GET").upper()
     try:
@@ -308,11 +311,21 @@ def fetch_json(
 
             resp = requests.request(
                 method,
-                url,
+                safe_url,
                 headers=headers,
                 json=body if (body is not None and method == "POST") else None,
                 timeout=timeout,
             )
+            # 重定向后复校验最终 URL(防 302→内网绕过)
+            try:
+                validate_public_http_url(str(resp.url or safe_url))
+            except ValueError as e:
+                return {
+                    "ok": False,
+                    "status": resp.status_code,
+                    "payload": None,
+                    "error": f"重定向到不安全目标: {e}",
+                }
             status = resp.status_code
             if status >= 400:
                 return {
@@ -332,8 +345,18 @@ def fetch_json(
         if body is not None and method == "POST":
             data = json.dumps(body).encode("utf-8")
             req_headers.setdefault("Content-Type", "application/json")
-        req = urllib.request.Request(url, data=data, headers=req_headers, method=method)
-        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - 用户自配 URL
+        req = urllib.request.Request(safe_url, data=data, headers=req_headers, method=method)
+        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - 入口已 SSRF 校验
+            # 重定向后复校验最终 URL
+            try:
+                validate_public_http_url(r.geturl())
+            except ValueError as e:
+                return {
+                    "ok": False,
+                    "status": getattr(r, "status", 200),
+                    "payload": None,
+                    "error": f"重定向到不安全目标: {e}",
+                }
             raw = r.read().decode("utf-8", errors="replace")
             return {
                 "ok": True,
