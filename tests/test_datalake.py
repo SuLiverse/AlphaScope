@@ -107,6 +107,36 @@ class TestIsSelectOnly:
     def test_rejects_empty(self):
         assert dl.is_select_only("") is False
 
+    def test_rejects_file_read_functions(self):
+        """DuckDB 文件读取表函数可读服务器任意文件, 必须拦截(审计 C5 PoC)。"""
+        assert dl.is_select_only(
+            "SELECT * FROM read_csv_auto('C:/Windows/System32/drivers/etc/hosts')"
+        ) is False
+        assert dl.is_select_only("SELECT * FROM read_json_auto('/etc/passwd')") is False
+        assert dl.is_select_only("SELECT * FROM read_parquet('/secret/data.parquet')") is False
+        # read_csv / read_text 同族也要拦
+        assert dl.is_select_only("SELECT * FROM read_csv('/etc/passwd')") is False
+        assert dl.is_select_only("SELECT * FROM read_text('/etc/passwd')") is False
+        # 大小写混合
+        assert dl.is_select_only("select * from READ_CSV_AUTO('x')") is False
+        # 空白绕过:函数名与括号间有空格仍命中
+        assert dl.is_select_only("SELECT * FROM read_csv_auto ('x')") is False
+
+    def test_file_read_func_not_false_positive(self):
+        """文件读函数名作为列名/别名不应误判(词边界 + 括号要求)。"""
+        # 无括号不算函数调用
+        assert dl.is_select_only("SELECT read_parquet FROM prices") is True
+        # 嵌在标识符里(read_parquet 作为列名一部分)
+        assert dl.is_select_only("SELECT my_read_parquet_col FROM prices") is True
+
+    def test_set_word_boundary(self):
+        """set 关键字词边界精确匹配:独立 set 被拒, 含 set 子串的标识符不误判。"""
+        assert dl.is_select_only("SELECT set FROM prices") is False
+        # tab/换行绕过旧 "set " 子串匹配
+        assert dl.is_select_only("SELECT 1\nset\nx") is False
+        # 含 set 子串的标识符不应误判
+        assert dl.is_select_only("SELECT offset, dataset, asset FROM prices") is True
+
 
 def test_degraded_when_unavailable(monkeypatch):
     """duckdb 不可用时所有 duckdb-gated 入口优雅降级, 绝不抛出。"""
