@@ -161,7 +161,7 @@ export function EvidenceAggregator() {
           {result.item_count === 0 ? (
             <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6 text-center">
               <AlertTriangle className="mx-auto mb-2 h-8 w-8 text-amber-400" />
-              <p className="text-sm text-amber-200">本次聚合未采集到数据({result.sources.length} 个源尝试)</p>
+              <p className="text-sm text-amber-200">本次聚合未采集到数据(无成功返回的源)</p>
               <p className="mt-1 text-xs text-amber-200/70">
                 通常因数据源未就绪或缺凭证。请在「设置 → 数据源」配置 akshare/finnhub 等凭证,
                 或换一个有数据的标的/类型。默认置信度 60% 是空数据基线,不代表真实证据强度。
