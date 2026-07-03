@@ -1,4 +1,4 @@
-import { fetchApi, API_BASE_URL, API_KEY } from './api';
+import { fetchApi, API_BASE_URL, LOCAL_API_TOKEN } from './api';
 import { AgentOpinion, AnalysisResult, DebatePoint, DebateResult, ProviderEvidence, ProviderTrace, SourceAppendixItem } from '../types';
 import { mockAnalysisResult } from './mockAnalysisData';
 import { getEnabledAgentRuntimeConfigs } from './agentConfigs';
@@ -486,8 +486,9 @@ export async function startAsyncAnalysis(
 export function getReportExportUrl(taskId: string): string {
   const base = API_BASE_URL.replace(/\/+$/, '');
   const url = new URL(`${base}/api/export/report/${taskId}.md`);
-  if (API_KEY) {
-    url.searchParams.set('token', API_KEY);
+  // 浏览器导航无法加自定义 header, 用 query param 传 local token(后端 _has_valid_local_token 兼容读取)
+  if (LOCAL_API_TOKEN) {
+    url.searchParams.set('local_token', LOCAL_API_TOKEN);
   }
   return url.toString();
 }
@@ -543,8 +544,9 @@ export function getTaskEventsUrl(taskId?: string): string {
   if (taskId) {
     url.searchParams.set('task_id', taskId);
   }
-  if (API_KEY) {
-    url.searchParams.set('token', API_KEY);
+  // EventSource(SSE)无法加自定义 header, 用 query param 传 local token
+  if (LOCAL_API_TOKEN) {
+    url.searchParams.set('local_token', LOCAL_API_TOKEN);
   }
   return url.toString();
 }
