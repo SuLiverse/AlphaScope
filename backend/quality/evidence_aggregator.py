@@ -37,6 +37,20 @@ class AggregatedEvidence:
         return self.confirmed_by >= 2
 
     def to_dict(self) -> Dict[str, Any]:
+        # 暴露精简 items(前 20 条, 取通用字段), 供前端多源聚合可视化按源着色展示。
+        sample_items = []
+        for it in (self.items or [])[:20]:
+            if not isinstance(it, dict):
+                continue
+            sample_items.append(
+                {
+                    "title": str(it.get("title") or it.get("name") or "")[:120],
+                    "source": str(it.get("source") or it.get("source_name") or "")[:40],
+                    "published_at": str(it.get("published_at") or it.get("date") or "")[:25],
+                    "sentiment": it.get("sentiment"),
+                    "url": str(it.get("source_url") or it.get("url") or "")[:200],
+                }
+            )
         return {
             "data_type": self.data_type,
             "item_count": len(self.items),
@@ -46,6 +60,7 @@ class AggregatedEvidence:
             "contradictions": self.contradictions,
             "is_high_confidence": self.is_high_confidence,
             "is_multi_source": self.is_multi_source,
+            "sample_items": sample_items,
         }
 
 

@@ -31,8 +31,9 @@ const TickFlowManager = lazy(() => import('./components/TickFlowManager').then((
 const DataLakeManager = lazy(() => import('./components/DataLakeManager').then((module) => ({ default: module.DataLakeManager })));
 const FactorRegistry = lazy(() => import('./components/FactorRegistry').then((module) => ({ default: module.FactorRegistry })));
 const IntegrationCenter = lazy(() => import('./components/IntegrationCenter').then((module) => ({ default: module.IntegrationCenter })));
+const EvidenceAggregator = lazy(() => import('./components/EvidenceAggregator').then((module) => ({ default: module.EvidenceAggregator })));
 
-const VISIBLE_TABS: TabID[] = ['dashboard', 'workbench', 'agents', 'experts', 'market', 'tasks', 'strategy_lab', 'fund_dca', 'news', 'chart', 'detailed', 'saved', 'valuation', 'dragon_tiger', 'investors', 'brief', 'monitor', 'research_memory', 'report_archive', 'tickflow', 'datalake', 'factor_registry', 'integration_center', 'settings'];
+const VISIBLE_TABS: TabID[] = ['dashboard', 'workbench', 'agents', 'experts', 'market', 'tasks', 'strategy_lab', 'fund_dca', 'news', 'chart', 'detailed', 'saved', 'valuation', 'dragon_tiger', 'investors', 'brief', 'monitor', 'research_memory', 'report_archive', 'tickflow', 'datalake', 'factor_registry', 'integration_center', 'evidence_aggregator', 'settings'];
 
 function ModuleLoading() {
   return (
@@ -207,6 +208,9 @@ export default function App() {
                   )}
                   {currentTab === 'integration_center' && (
                     <IntegrationCenter key="integration_center" />
+                  )}
+                  {currentTab === 'evidence_aggregator' && (
+                    <EvidenceAggregator key="evidence_aggregator" />
                   )}
                   {currentTab === 'settings' && (
                     <Settings key="settings" initialTab={settingsInitialTab} />
