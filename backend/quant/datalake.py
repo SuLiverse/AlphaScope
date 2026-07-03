@@ -21,6 +21,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -32,7 +33,7 @@ _ALL_COLUMNS = ("symbol", "date") + _NUMERIC_COLUMNS
 _OPERATORS = {">", "<", ">=", "<=", "=", "==", "!=", "<>"}
 _OP_ALIASES = {"==": "=", "!=": "<>"}
 
-# 禁止出现在只读查询里的关键字。
+# 禁止出现在只读查询里的关键字(子串匹配;词边界敏感的关键字见 _FORBIDDEN_KW_RE)。
 _FORBIDDEN_SQL = (
     "insert",
     "update",
@@ -49,7 +50,17 @@ _FORBIDDEN_SQL = (
     "install",
     "load",
     "call",
-    "set ",
+)
+
+# 需要词边界精确匹配的关键字:裸 "set " 带空格会被 tab/换行绕过, 也易误判列名/别名。
+_FORBIDDEN_KW_RE = re.compile(r"\b(set)\b", re.IGNORECASE)
+
+# DuckDB 文件读取表函数 —— 防止用户 SQL 用 read_csv_auto('C:/...') 等读取服务器任意文件
+# (代码内部受控的 read_parquet 调用在 query() 建视图, 不经过 is_select_only, 不受影响)。
+_FORBIDDEN_FUNC_RE = re.compile(
+    r"\b(read_csv_auto|read_csv|read_json_auto|read_json|read_parquet"
+    r"|read_blob_auto|read_blob|read_text_auto|read_text)\s*\(",
+    re.IGNORECASE,
 )
 
 
@@ -123,7 +134,11 @@ def build_screen_sql(filters: List[Dict[str, Any]]) -> Tuple[str, List[Any]]:
 
 
 def is_select_only(sql: str) -> bool:
-    """只读守卫:仅允许单条 SELECT/WITH 查询, 拒绝任何 DDL/DML 与多语句。纯函数。"""
+    """只读守卫:仅允许单条 SELECT/WITH 查询, 拒绝任何 DDL/DML 与多语句。
+
+    额外拦截 DuckDB 文件读取表函数(read_csv_auto/read_parquet 等), 防止用户 SQL 读取服务器任意文件。
+    纯函数。
+    """
     s = str(sql or "").strip().rstrip(";").strip()
     if not s:
         return False
@@ -132,7 +147,13 @@ def is_select_only(sql: str) -> bool:
         return False
     if ";" in s:  # 去掉尾分号后仍有 → 多语句
         return False
-    return not any(kw in low for kw in _FORBIDDEN_SQL)
+    if any(kw in low for kw in _FORBIDDEN_SQL):
+        return False
+    if _FORBIDDEN_KW_RE.search(s):
+        return False
+    if _FORBIDDEN_FUNC_RE.search(s):
+        return False
+    return True
 
 
 # ----------------------------- 目录 / duckdb 网关 -----------------------------
