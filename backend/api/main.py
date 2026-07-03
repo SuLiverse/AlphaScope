@@ -134,17 +134,40 @@ if HAS_FASTAPI:
     )
 
     LOCAL_TOKEN_HEADER = "X-AlphaScope-Local-Token"
+    # 浏览器导航/SSE 无法加自定义 header, 兼容用 query param 传 token(报告下载、任务事件流)。
+    LOCAL_TOKEN_QUERY = "local_token"
     SAFE_METHODS = {"GET", "HEAD", "OPTIONS"}
+    # 敏感读端点:即使 GET 也要求 token, 不享 SAFE_METHODS 豁免(含对话/密钥/审计/研究记忆)。
+    SENSITIVE_READ_PREFIXES = (
+        "/api/conversations",
+        "/api/datasources/credentials",
+        "/api/audit",
+        "/api/settings/providers",
+        "/api/research/memory",
+    )
 
     def _local_api_token() -> str:
         return os.environ.get("ALPHASCOPE_LOCAL_API_TOKEN", "").strip()
 
+    def _is_sensitive_read_path(path: str) -> bool:
+        p = (path or "").rstrip("/")
+        return any(p == pre or p.startswith(pre + "/") for pre in SENSITIVE_READ_PREFIXES)
+
     def _is_local_token_required(request: Request) -> bool:
-        return bool(_local_api_token()) and request.method.upper() not in SAFE_METHODS
+        if not _local_api_token():
+            return False
+        # 写方法(POST/PUT/DELETE...)始终要求 token
+        if request.method.upper() not in SAFE_METHODS:
+            return True
+        # 敏感读端点(GET)也要 token, 不享 SAFE_METHODS 豁免
+        return _is_sensitive_read_path(request.url.path)
 
     def _has_valid_local_token(request: Request) -> bool:
         expected = _local_api_token()
-        provided = request.headers.get(LOCAL_TOKEN_HEADER, "")
+        # 优先 header; 浏览器导航/SSE 场景回退 query param
+        provided = request.headers.get(LOCAL_TOKEN_HEADER, "") or request.query_params.get(
+            LOCAL_TOKEN_QUERY, ""
+        )
         return bool(provided) and hmac.compare_digest(provided, expected)
 
     @app.middleware("http")
