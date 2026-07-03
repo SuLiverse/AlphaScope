@@ -66,17 +66,23 @@ def _split_csv_env(name: str) -> list[str]:
 
 def _cors_middleware_options() -> dict[str, Any]:
     if os.environ.get("ALPHASCOPE_ALLOW_ALL_CORS", "").strip() == "1":
+        # 显式 opt-in 全开放(不推荐, 仅开发用); 保持 credentials=True 以兼容既有行为
         return {
             "allow_origins": ["*"],
             "allow_origin_regex": None,
+            "allow_credentials": True,
         }
 
+    origins = _split_csv_env("ALPHASCOPE_CORS_ORIGINS")
+    # 默认(桌面同源)不带凭证: 同源不触发 CORS, 跨域 localhost 亦无需 credentials。
+    # 仅当显式配置 ALPHASCOPE_CORS_ORIGINS(部署场景)时才允许带凭证。
     return {
-        "allow_origins": _split_csv_env("ALPHASCOPE_CORS_ORIGINS"),
+        "allow_origins": origins,
         "allow_origin_regex": os.environ.get(
             "ALPHASCOPE_CORS_ORIGIN_REGEX",
             r"^https?://(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$",
         ),
+        "allow_credentials": bool(origins),
     }
 
 
@@ -123,7 +129,6 @@ if HAS_FASTAPI:
     app.add_middleware(
         CORSMiddleware,
         **_cors_middleware_options(),
-        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
