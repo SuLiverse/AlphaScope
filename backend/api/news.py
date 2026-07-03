@@ -5,9 +5,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import html
-import ipaddress
 import re
-import socket
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
@@ -376,47 +374,14 @@ def _domain_from_url(url: str) -> str:
     return (urlsplit(url).hostname or "external-link").lower()
 
 
-def _blocked_ip(address: str) -> bool:
-    ip = ipaddress.ip_address(address)
-    return any(
-        (
-            ip.is_loopback,
-            ip.is_private,
-            ip.is_link_local,
-            ip.is_multicast,
-            ip.is_reserved,
-            ip.is_unspecified,
-        )
-    )
-
-
 def _validate_public_http_url(url: str) -> str:
-    cleaned = (url or "").strip()
-    parsed = urlsplit(cleaned)
-    if parsed.scheme not in {"http", "https"}:
-        raise ValueError("Only http/https news URLs are supported")
-    host = (parsed.hostname or "").strip().lower().rstrip(".")
-    if not host:
-        raise ValueError("URL host is required")
-    if host == "localhost" or host.endswith(".localhost"):
-        raise ValueError("Localhost URLs are not allowed for news parsing")
+    """news 路径强制拒绝本地(allow_local=False, 不受 ALPHASCOPE_ALLOW_LOCAL_FETCH 影响)。
 
-    try:
-        ip = ipaddress.ip_address(host)
-        if _blocked_ip(str(ip)):
-            raise ValueError("Private or local network URLs are not allowed")
-    except ValueError as exc:
-        if "not allowed" in str(exc):
-            raise
-        try:
-            addrinfo = socket.getaddrinfo(host, parsed.port, type=socket.SOCK_STREAM)
-        except socket.gaierror as dns_exc:
-            raise ValueError("URL host cannot be resolved") from dns_exc
-        for info in addrinfo:
-            address = info[4][0]
-            if _blocked_ip(address):
-                raise ValueError("Private or local network URLs are not allowed")
-    return cleaned
+    SSRF 校验逻辑统一收敛到 ``backend.security.url_guard``。
+    """
+    from backend.security.url_guard import validate_public_http_url
+
+    return validate_public_http_url(url, allow_local=False)
 
 
 def _clean_html_text(value: str) -> str:

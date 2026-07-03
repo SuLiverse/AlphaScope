@@ -52,7 +52,7 @@ def client():
 @pytest.mark.anyio
 async def test_parse_news_url_extracts_article_fields(client, monkeypatch):
     monkeypatch.setattr(
-        "backend.api.news.socket.getaddrinfo",
+        "backend.security.url_guard.socket.getaddrinfo",
         lambda host, port, type: [
             (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
         ],

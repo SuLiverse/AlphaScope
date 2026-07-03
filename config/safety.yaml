@@ -55,7 +55,14 @@ security:
   # 内网访问控制
   network:
     allow_local_llm: false   # 是否允许连接本地 LLM
-    blocked_hosts:           # 默认屏蔽的主机
+    allow_local_fetch: false # 是否允许 TickFlow/HTTP JSON 源抓取本机(ALPHASCOPE_ALLOW_LOCAL_FETCH env 覆盖)
+    # SSRF 实际拦截由 backend/security/url_guard.py 的 ipaddress 分类完成
+    # (loopback/private/link-local/multicast/reserved/unspecified), 以下为示意清单。
+    blocked_hosts:
       - "localhost"
       - "127.0.0.1"
       - "0.0.0.0"
+      - "10.0.0.0/8"
+      - "172.16.0.0/12"
+      - "192.168.0.0/16"
+      - "169.254.169.254"     # 云元数据端点
