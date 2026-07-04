@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.9.48 - 2026-07-05
+
+> **三市场行情接手收尾**: 接手 Claude Code 停在半路的 AkShare 多市场行情批次, 把 v1.9.47 后的符号归一化继续落到 provider 实际取数层。纯增量, 不改变既有 A 股主链路。
+
+### 行情分流
+- **AkShare 美股日线分支**: `get_prices` 支持 `market=US` 或美股字母代码(AAPL/TSLA/BRK.B/`105.AAPL`)自动走 `stock_us_daily`, 兼容 date 在列或索引两种返回形态, 输出统一 OHLCV/涨跌幅/振幅 schema。
+- **港股行为锁定**: 补测试锁住 `stock_hk_daily` 分支和 3/4 位港股代码补零到 5 位的行为, 防止回退到 A 股路径。
+- **A 股路径隔离**: 明确断言 600519/SH600519 等 A 股代码不会误入港/美分支, 主路仍走 `stock_zh_a_hist` 及既有兜底链。
+
+### 契约与版本
+- `AkShareProvider.markets` 同步声明 `CN/HK/US/ALL`, 让 provider registry / capability 面板与真实能力一致。
+- 版本同步到 `1.9.48`: `pyproject.toml`、`apps/web/package.json`、`apps/web/package-lock.json`、README release badge。
+
+### 验证
+- `pytest tests/test_akshare_multimarket.py -q`: **13 passed**。
+- `ruff check backend/providers/akshare_provider.py tests/test_akshare_multimarket.py` / `ruff format --check ...` 通过。
+
 ## v1.9.47 - 2026-07-04
 
 > **CI 测试层修复(验收轮之二)**: v1.9.46 打通格式门禁后, CI 测试步骤 81 个提交以来首次真正执行, 在 Linux/精简依赖环境抓出 15 个失败 — 其中两处是真实产品 bug(引擎缺失降级路径崩溃、归档路径跨平台契约断裂), 全部修复。

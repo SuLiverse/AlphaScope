@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-100%2B%20APIs-009688)](docs/api.md)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.9.39-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
+[![Release](https://img.shields.io/badge/release-v1.9.48-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
 
 > **把 AI 选股从「黑箱结论」变成「可复核的研究流程」。**
 >
