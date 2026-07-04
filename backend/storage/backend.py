@@ -30,9 +30,7 @@ class StorageBackend(ABC):
         ...
 
     @abstractmethod
-    def list_conversations(
-        self, stock_symbol: Optional[str] = None, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    def list_conversations(self, stock_symbol: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
         """列出对话"""
         ...
 
@@ -42,9 +40,7 @@ class StorageBackend(ABC):
         ...
 
     @abstractmethod
-    def save_message(
-        self, conv_id: str, role: str, content: str, metadata: Optional[Dict] = None
-    ) -> int:
+    def save_message(self, conv_id: str, role: str, content: str, metadata: Optional[Dict] = None) -> int:
         """保存消息"""
         ...
 
@@ -117,17 +113,13 @@ class SQLiteBackend(StorageBackend):
     def get_conversation(self, conv_id: str) -> Optional[Dict[str, Any]]:
         return self._store.get_conversation(conv_id)
 
-    def list_conversations(
-        self, stock_symbol: Optional[str] = None, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    def list_conversations(self, stock_symbol: Optional[str] = None, limit: int = 20) -> List[Dict[str, Any]]:
         return self._store.list_conversations(stock_symbol=stock_symbol, limit=limit)
 
     def delete_conversation(self, conv_id: str) -> None:
         self._store.delete_conversation(conv_id)
 
-    def save_message(
-        self, conv_id: str, role: str, content: str, metadata: Optional[Dict] = None
-    ) -> int:
+    def save_message(self, conv_id: str, role: str, content: str, metadata: Optional[Dict] = None) -> int:
         return self._store.add_message(conv_id, role, content, metadata=metadata)
 
     def get_messages(self, conv_id: str) -> List[Dict[str, Any]]:

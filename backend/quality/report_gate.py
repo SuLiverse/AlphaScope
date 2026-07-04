@@ -24,9 +24,7 @@ from dataclasses import asdict, dataclass
 @dataclass
 class Issue:
     severity: str  # critical / warning / info
-    category: (
-        str  # fluff / placeholder / evidence / contradiction / compliance / structure
-    )
+    category: str  # fluff / placeholder / evidence / contradiction / compliance / structure
     issue: str  # 人读问题描述
     evidence: str = ""  # 触发的具体内容
     suggested_fix: str = ""

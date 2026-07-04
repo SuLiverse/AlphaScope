@@ -84,9 +84,7 @@ def _decision_to_signal(decision: str) -> str:
     return ""
 
 
-def _compute_hit(
-    signal: str, return_pct: float, hold_threshold: float = HOLD_HIT_THRESHOLD_PCT
-) -> int:
+def _compute_hit(signal: str, return_pct: float, hold_threshold: float = HOLD_HIT_THRESHOLD_PCT) -> int:
     """根据信号方向与窗口收益判定是否命中。返回 1/0。"""
     if signal == "买入":
         return 1 if return_pct > 0 else 0
@@ -152,9 +150,7 @@ def tag_all_reports() -> dict:
         if "max_drawdown_10d" not in item:
             series = get_price_range(symbol, date_str, DRAWDOWN_WINDOW_DAYS)
             if series:
-                rel = [
-                    (close - report_close) / report_close * 100 for _, close in series
-                ]
+                rel = [(close - report_close) / report_close * 100 for _, close in series]
                 # 取最坏的相对跌幅,若全程未跌则记 0.0(便于统计零值)
                 dd = min(min(rel), 0.0)
                 item["max_drawdown_10d"] = round(dd, 2)

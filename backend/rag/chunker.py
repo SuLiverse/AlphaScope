@@ -54,9 +54,7 @@ class TextChunker:
                 current_text += para + "\n"
             else:
                 if current_text.strip():
-                    chunks.append(
-                        self._make_chunk(current_text.strip(), len(chunks), metadata)
-                    )
+                    chunks.append(self._make_chunk(current_text.strip(), len(chunks), metadata))
                 # 处理段落本身超长的情况
                 if len(para) > self.chunk_size:
                     sub_chunks = self._split_long_text(para, metadata, len(chunks))
@@ -87,23 +85,15 @@ class TextChunker:
                 current += sent + "。"
             else:
                 if current.strip():
-                    chunks.append(
-                        self._make_chunk(
-                            current.strip(), start_idx + len(chunks), metadata
-                        )
-                    )
+                    chunks.append(self._make_chunk(current.strip(), start_idx + len(chunks), metadata))
                 current = sent + "。"
         if current.strip():
-            chunks.append(
-                self._make_chunk(current.strip(), start_idx + len(chunks), metadata)
-            )
+            chunks.append(self._make_chunk(current.strip(), start_idx + len(chunks), metadata))
         return chunks
 
     def _make_chunk(self, text: str, index: int, metadata: dict) -> dict:
         """生成 chunk 条目"""
-        chunk_id = hashlib.md5(
-            f"{metadata.get('source', '')}_{index}_{text[:100]}".encode()
-        ).hexdigest()[:16]
+        chunk_id = hashlib.md5(f"{metadata.get('source', '')}_{index}_{text[:100]}".encode()).hexdigest()[:16]
         return {
             "text": text,
             "chunk_id": chunk_id,

@@ -68,9 +68,7 @@ class TestKeyVault:
         if not _HAS_AES:
             pytest.skip("cryptography 库未安装")
 
-        with patch.dict(
-            os.environ, {"AI_FINANCE_MASTER_KEY": "test-master-key-123"}, clear=False
-        ):
+        with patch.dict(os.environ, {"AI_FINANCE_MASTER_KEY": "test-master-key-123"}, clear=False):
             encrypted = encrypt_key("sk-real-api-key-1234567890")
             assert encrypted.startswith("aes:")
             decrypted = decrypt_key(encrypted)

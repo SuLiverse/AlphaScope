@@ -65,11 +65,7 @@ def value_stock(
     dcf = compute_dcf(features, assumptions)
     lbo = quick_lbo(features)
     three = project_three_stmt(features, assumptions)
-    comps = (
-        build_comps_table(_comps_target(features), peers)
-        if peers
-        else {"note": "无同行数据，跳过 Comps"}
-    )
+    comps = build_comps_table(_comps_target(features), peers) if peers else {"note": "无同行数据，跳过 Comps"}
 
     summary = {
         "dcf_intrinsic_per_share": dcf.get("intrinsic_per_share"),

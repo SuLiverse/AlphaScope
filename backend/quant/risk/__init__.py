@@ -63,10 +63,7 @@ class RiskGateDecision:
         return {
             "vetoed": self.vetoed,
             "max_severity": self.max_severity,
-            "findings": [
-                {"rule": f.rule, "severity": f.severity, "message": f.message}
-                for f in self.findings
-            ],
+            "findings": [{"rule": f.rule, "severity": f.severity, "message": f.message} for f in self.findings],
             "veto_reasons": list(self.veto_reasons),
         }
 
@@ -80,9 +77,7 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
-def check_blacklist(
-    stock_data: Dict[str, Any], cfg: Dict[str, Any]
-) -> Optional[RiskFinding]:
+def check_blacklist(stock_data: Dict[str, Any], cfg: Dict[str, Any]) -> Optional[RiskFinding]:
     """ST / 退市 / 暂停上市 → critical 否决。"""
     if not cfg.get("enabled", True):
         return None
@@ -100,9 +95,7 @@ def check_blacklist(
     return None
 
 
-def check_position(
-    stock_data: Dict[str, Any], summary: Dict[str, Any], cfg: Dict[str, Any]
-) -> Optional[RiskFinding]:
+def check_position(stock_data: Dict[str, Any], summary: Dict[str, Any], cfg: Dict[str, Any]) -> Optional[RiskFinding]:
     """单标的建议仓位超限 → warn(提示而非否决,因研报不直接下单)。"""
     if not cfg.get("enabled", True):
         return None
@@ -120,9 +113,7 @@ def check_position(
     return None
 
 
-def check_concentration(
-    summary: Dict[str, Any], cfg: Dict[str, Any]
-) -> List[RiskFinding]:
+def check_concentration(summary: Dict[str, Any], cfg: Dict[str, Any]) -> List[RiskFinding]:
     """总仓位/集中度超限 → warn。"""
     findings: List[RiskFinding] = []
     if not cfg.get("enabled", True):
@@ -150,9 +141,7 @@ def check_concentration(
     return findings
 
 
-def check_confidence_floor(
-    summary: Dict[str, Any], cfg: Dict[str, Any]
-) -> Optional[RiskFinding]:
+def check_confidence_floor(summary: Dict[str, Any], cfg: Dict[str, Any]) -> Optional[RiskFinding]:
     """AI 结论平均置信度过低 → warn 或 critical(否决, 结论不可信)。"""
     if not cfg.get("enabled", True):
         return None

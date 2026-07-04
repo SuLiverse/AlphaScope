@@ -53,9 +53,7 @@ class LicenseSafety(str, Enum):
 
     SAFE = "safe"  # MIT/Apache/BSD, 可代码级融合
     COPILEFT_RISK = "copyleft_risk"  # GPL/AGPL, 仅外部进程/格式兼容, 禁止拷码
-    NONCOMMERCIAL = (
-        "noncommercial"  # 非商业限制 (RQAlpha/ArcticDB/TradingAgents-CN 部分)
-    )
+    NONCOMMERCIAL = "noncommercial"  # 非商业限制 (RQAlpha/ArcticDB/TradingAgents-CN 部分)
     PROPRIETARY = "proprietary"  # 商业/BSL, 仅研究或外部调用
     UNKNOWN = "unknown"
 
@@ -81,9 +79,7 @@ class IntegrationMetadata(BaseModel):
     capabilities: list[CapabilitySpec] = Field(default_factory=list)
 
     # 许可证防火墙
-    license_name: Optional[str] = Field(
-        default=None, description="如 MIT / AGPL-3.0 / BSL"
-    )
+    license_name: Optional[str] = Field(default=None, description="如 MIT / AGPL-3.0 / BSL")
     license_safety: LicenseSafety = Field(default=LicenseSafety.UNKNOWN)
     code_copy_allowed: bool = Field(
         default=False,
@@ -128,20 +124,12 @@ class BacktestAssumptions(BaseModel):
     commission_rate: Optional[float] = Field(default=None, description="佣金率")
     stamp_duty_rate: Optional[float] = Field(default=None, description="印花税率(卖方)")
     slippage_rate: Optional[float] = Field(default=None, description="滑点率")
-    execution_price: Optional[str] = Field(
-        default=None, description="成交价口径, 如 'T+1 开盘价' / '收盘价'"
-    )
+    execution_price: Optional[str] = Field(default=None, description="成交价口径, 如 'T+1 开盘价' / '收盘价'")
     settlement_rule: Optional[str] = Field(default=None, description="如 'T+1' / 'T+0'")
-    price_limit_filter: Optional[bool] = Field(
-        default=None, description="是否过滤涨跌停"
-    )
+    price_limit_filter: Optional[bool] = Field(default=None, description="是否过滤涨跌停")
     suspension_handling: Optional[str] = Field(default=None, description="停牌处理")
-    adj_method: Optional[str] = Field(
-        default=None, description="复权方式: 前/后/不复权"
-    )
-    future_function_check: bool = Field(
-        default=True, description="是否做了防未来函数检查"
-    )
+    adj_method: Optional[str] = Field(default=None, description="复权方式: 前/后/不复权")
+    future_function_check: bool = Field(default=True, description="是否做了防未来函数检查")
     data_source: Optional[str] = Field(default=None)
     note: Optional[str] = Field(default=None, description="自由说明")
 
@@ -183,9 +171,7 @@ class NormalizedBacktestResult(BaseModel):
     evidence_links: list[str] = Field(default_factory=list)
     reproducibility_hash: Optional[str] = None
     # 研究语义自证
-    research_only: bool = Field(
-        default=True, description="恒 True: 回测结果不构成投资建议"
-    )
+    research_only: bool = Field(default=True, description="恒 True: 回测结果不构成投资建议")
 
 
 class NormalizedAgentOpinion(BaseModel):

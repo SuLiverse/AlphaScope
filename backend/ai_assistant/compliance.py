@@ -20,9 +20,7 @@ AI 分析基于历史数据和模型推断，可能存在偏差。请结合自�
 """
 
 # 评级专属免责: 评级徽章/评分输出处强制附带, 明确「确定性度量 ≠ 投资建议」。
-RATING_DISCLAIMER = (
-    "评级由多 Agent 投票与置信度确定性计算得出，仅为研究辅助，不构成投资建议。"
-)
+RATING_DISCLAIMER = "评级由多 Agent 投票与置信度确定性计算得出，仅为研究辅助，不构成投资建议。"
 
 # 风险级别免责声明
 _RISK_DISCLAIMERS = {
@@ -119,13 +117,7 @@ _RECOMMEND_WORDS = [
 ]
 
 # 合并所有禁用词
-FORBIDDEN_WORDS = (
-    _PROMISE_WORDS
-    + _INSIDER_WORDS
-    + _MANIPULATION_WORDS
-    + _POSITION_WORDS
-    + _RECOMMEND_WORDS
-)
+FORBIDDEN_WORDS = _PROMISE_WORDS + _INSIDER_WORDS + _MANIPULATION_WORDS + _POSITION_WORDS + _RECOMMEND_WORDS
 
 # 禁用词正则模式
 _FORBIDDEN_PATTERNS = [
@@ -175,9 +167,7 @@ def needs_disclaimer(mode: str) -> bool:
     return mode in _DISCLAIMER_MODES
 
 
-def wrap_with_disclaimer(
-    content: str, mode: str, risk_level: str = "medium", market: str = "CN"
-) -> str:
+def wrap_with_disclaimer(content: str, mode: str, risk_level: str = "medium", market: str = "CN") -> str:
     """追加免责声明（幂等，不重复追加）"""
     if not needs_disclaimer(mode):
         return content

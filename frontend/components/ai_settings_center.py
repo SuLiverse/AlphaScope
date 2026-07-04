@@ -142,13 +142,9 @@ def _render_global_settings() -> dict:
             type="password",
             key="ai_global_api_key",
         )
-        if st.button(
-            "获取统一模型列表", use_container_width=True, key="ai_global_fetch_models"
-        ):
+        if st.button("获取统一模型列表", use_container_width=True, key="ai_global_fetch_models"):
             try:
-                models = fetch_model_list(
-                    settings.get("base_url", ""), settings.get("api_key", "")
-                )
+                models = fetch_model_list(settings.get("base_url", ""), settings.get("api_key", ""))
                 settings["custom_models"] = models
                 if models:
                     settings["model"] = models[0]
@@ -178,9 +174,7 @@ def _render_agent_settings(symbol: str) -> list:
     with a1:
         st.metric("启用 Agent", sum(1 for c in configs if c.get("enabled", True)))
     with a2:
-        if st.button(
-            "新增 Agent", use_container_width=True, key=f"settings_agent_add_{symbol}"
-        ):
+        if st.button("新增 Agent", use_container_width=True, key=f"settings_agent_add_{symbol}"):
             configs.append(_new_agent_template(len(configs) + 1))
             st.session_state[f"agent_config_{symbol}"] = configs
             st.rerun()
@@ -321,12 +315,8 @@ def _render_expert_settings(symbol: str) -> dict:
         )
     a1, a2 = st.columns([1, 1])
     with a1:
-        if st.button(
-            "新增专家", use_container_width=True, key=f"settings_expert_add_{symbol}"
-        ):
-            data.setdefault("members", []).append(
-                _new_expert_template(len(data.get("members", [])) + 1)
-            )
+        if st.button("新增专家", use_container_width=True, key=f"settings_expert_add_{symbol}"):
+            data.setdefault("members", []).append(_new_expert_template(len(data.get("members", [])) + 1))
             st.session_state[f"expert_team_config_{symbol}"] = data
             st.rerun()
     with a2:
@@ -335,9 +325,7 @@ def _render_expert_settings(symbol: str) -> dict:
             use_container_width=True,
             key=f"settings_expert_reset_{symbol}",
         ):
-            st.session_state[f"expert_team_config_{symbol}"] = team_to_editable_dict(
-                load_default_team()
-            )
+            st.session_state[f"expert_team_config_{symbol}"] = team_to_editable_dict(load_default_team())
             st.rerun()
 
     for i, member in enumerate(list(data.get("members", []))):

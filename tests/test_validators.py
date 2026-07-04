@@ -248,10 +248,7 @@ def test_extract_json_uses_balanced_object_block():
 
 def test_normalize_openai_base_url_preserves_version_paths():
     assert normalize_openai_base_url("api.example.com") == "https://api.example.com/v1"
-    assert (
-        normalize_openai_base_url("https://api.example.com/v2")
-        == "https://api.example.com/v2"
-    )
+    assert normalize_openai_base_url("https://api.example.com/v2") == "https://api.example.com/v2"
 
 
 def test_validate_custom_base_url_rejects_local_addresses():
@@ -304,10 +301,7 @@ def test_validate_custom_base_url_allows_unresolved_hostname_with_opt_in(monkeyp
     monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
     monkeypatch.setattr(socket, "getaddrinfo", fail_resolution)
 
-    assert (
-        validate_custom_base_url("https://unresolved.example.invalid/v1")
-        == "https://unresolved.example.invalid/v1"
-    )
+    assert validate_custom_base_url("https://unresolved.example.invalid/v1") == "https://unresolved.example.invalid/v1"
 
 
 def test_validate_custom_base_url_allows_resolved_local_addresses_with_opt_in(
@@ -321,16 +315,10 @@ def test_validate_custom_base_url_allows_resolved_local_addresses_with_opt_in(
     monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
     monkeypatch.setattr(socket, "getaddrinfo", fail_if_resolved)
 
-    assert (
-        validate_custom_base_url("https://127.0.0.1.nip.io/v1")
-        == "https://127.0.0.1.nip.io/v1"
-    )
+    assert validate_custom_base_url("https://127.0.0.1.nip.io/v1") == "https://127.0.0.1.nip.io/v1"
 
 
 def test_validate_custom_base_url_allows_local_addresses_with_opt_in(monkeypatch):
     monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
 
-    assert (
-        validate_custom_base_url("http://localhost:8000/v1")
-        == "http://localhost:8000/v1"
-    )
+    assert validate_custom_base_url("http://localhost:8000/v1") == "http://localhost:8000/v1"

@@ -156,9 +156,7 @@ try:
 except Exception:
     _HAS_TA = False
 
-_ta_required = pytest.mark.skipif(
-    not _HAS_TA, reason="tradingagents 未安装, 跳过执行路径用例"
-)
+_ta_required = pytest.mark.skipif(not _HAS_TA, reason="tradingagents 未安装, 跳过执行路径用例")
 
 
 @_ta_required

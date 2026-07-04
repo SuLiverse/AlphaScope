@@ -295,9 +295,7 @@ def _validate_price_levels(
             }
         else:
             # 压力位应接近真实数据中的某个高点
-            nearest_high = (
-                max(all_highs, key=lambda x: abs(x - level)) if all_highs else 0
-            )
+            nearest_high = max(all_highs, key=lambda x: abs(x - level)) if all_highs else 0
             # 修正: 取最接近的高点而非绝对值最大的
             if all_highs:
                 nearest_high = min(all_highs, key=lambda x: abs(x - level))
@@ -345,9 +343,7 @@ def _compare_vision_with_real_data(
     if vision_trend and real_trend and real_trend != "unknown":
         comparison.trend_consistent = vision_trend == real_trend
         if not comparison.trend_consistent:
-            comparison.conflicts.append(
-                f"趋势冲突: 视觉判断为 {kline.trend}，但真实行情数据显示 {real_trend}"
-            )
+            comparison.conflicts.append(f"趋势冲突: 视觉判断为 {kline.trend}，但真实行情数据显示 {real_trend}")
 
     # 3. 真实价格统计
     valid_closes = [d["close"] for d in ohlcv if d["close"] > 0]
@@ -362,9 +358,7 @@ def _compare_vision_with_real_data(
 
     # 4. 支撑位验证
     if kline.support_levels:
-        comparison.support_validation = _validate_price_levels(
-            kline.support_levels, ohlcv, "support"
-        )
+        comparison.support_validation = _validate_price_levels(kline.support_levels, ohlcv, "support")
         # 检查是否有支撑位完全偏离真实数据
         for level_str, info in comparison.support_validation.items():
             if not info.get("in_data_range", True):
@@ -376,9 +370,7 @@ def _compare_vision_with_real_data(
 
     # 5. 压力位验证
     if kline.resistance_levels:
-        comparison.resistance_validation = _validate_price_levels(
-            kline.resistance_levels, ohlcv, "resistance"
-        )
+        comparison.resistance_validation = _validate_price_levels(kline.resistance_levels, ohlcv, "resistance")
         for level_str, info in comparison.resistance_validation.items():
             if not info.get("in_data_range", True):
                 comparison.conflicts.append(
@@ -478,9 +470,7 @@ def analyze_image(
                     len(real_comparison.conflicts),
                 )
             else:
-                logger.info(
-                    "未能获取到 %s 的真实行情数据，跳过交叉验证", detection.ticker
-                )
+                logger.info("未能获取到 %s 的真实行情数据，跳过交叉验证", detection.ticker)
                 real_comparison = RealDataComparison(data_available=False)
         except Exception as e:
             logger.warning("交叉验证过程出错: %s", e)
@@ -523,9 +513,7 @@ def analyze_image(
             summary_parts.append(kline.summary)
         if real_comparison and real_comparison.data_available:
             if real_comparison.conflicts:
-                summary_parts.append(
-                    f"[交叉验证] 发现 {len(real_comparison.conflicts)} 处冲突:"
-                )
+                summary_parts.append(f"[交叉验证] 发现 {len(real_comparison.conflicts)} 处冲突:")
                 for conflict in real_comparison.conflicts:
                     summary_parts.append(f"  - {conflict}")
             else:

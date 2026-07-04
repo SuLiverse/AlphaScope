@@ -172,9 +172,7 @@ def create_server() -> "FastMCP | None":
                 }
                 for m in reg.all_metadata()
             ]
-            return json.dumps(
-                {"integrations": items, "count": len(items)}, ensure_ascii=False
-            )
+            return json.dumps({"integrations": items, "count": len(items)}, ensure_ascii=False)
         except Exception as e:
             return f'{{"error": "集成中心查询失败: {str(e)[:100]}"}}'
 
@@ -253,9 +251,7 @@ def assert_no_forbidden_tools() -> None:
     names = list_tool_names()
     violations = [n for n in names if n in FORBIDDEN_TOOL_NAMES]
     if violations:
-        raise AssertionError(
-            f"MCP server 注册了禁止的工具: {violations} (AlphaScope 不暴露实盘下单能力)"
-        )
+        raise AssertionError(f"MCP server 注册了禁止的工具: {violations} (AlphaScope 不暴露实盘下单能力)")
 
 
 def describe() -> dict[str, Any]:

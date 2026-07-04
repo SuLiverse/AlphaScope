@@ -107,9 +107,7 @@ def save_agent(
     # 注意: _db_lock 不可重入, 写入事务内不得调用 get_agent(它会再次获取同一把锁)。
     # 写完提交后在锁外再读回结果。
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id FROM agent_configs WHERE id=?", (agent_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM agent_configs WHERE id=?", (agent_id,)).fetchone()
         if existing:
             conn.execute(
                 "UPDATE agent_configs SET name=?, description=?, system_prompt=?, provider=?, model=?, "
@@ -155,9 +153,7 @@ def delete_agent(agent_id: str) -> bool:
     _ensure_tables()
     db = Database()
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id FROM agent_configs WHERE id=?", (agent_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM agent_configs WHERE id=?", (agent_id,)).fetchone()
         if not existing:
             return False
         conn.execute("DELETE FROM agent_configs WHERE id=?", (agent_id,))
@@ -205,10 +201,7 @@ def get_team(team_id: str) -> Optional[dict[str, Any]]:
             "SELECT agent_id, role, sort_order FROM agent_team_members WHERE team_id=? ORDER BY sort_order",
             (team_id,),
         ).fetchall()
-    team["members"] = [
-        {"agent_id": m["agent_id"], "role": m["role"], "sort_order": m["sort_order"]}
-        for m in members
-    ]
+    team["members"] = [{"agent_id": m["agent_id"], "role": m["role"], "sort_order": m["sort_order"]} for m in members]
     return team
 
 
@@ -223,9 +216,7 @@ def save_team(
     db = Database()
     # _db_lock 不可重入: 写入事务内不调 get_team。提交后在锁外读回。
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id FROM agent_teams WHERE id=?", (team_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM agent_teams WHERE id=?", (team_id,)).fetchone()
         if existing:
             conn.execute(
                 "UPDATE agent_teams SET name=?, description=?, updated_at=? WHERE id=?",
@@ -253,9 +244,7 @@ def delete_team(team_id: str) -> bool:
     _ensure_tables()
     db = Database()
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id FROM agent_teams WHERE id=?", (team_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM agent_teams WHERE id=?", (team_id,)).fetchone()
         if not existing:
             return False
         conn.execute("DELETE FROM agent_teams WHERE id=?", (team_id,))

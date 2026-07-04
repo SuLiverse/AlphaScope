@@ -32,12 +32,8 @@ def e2e(stock_name, symbol):
     # 2. 资金流向
     df_stock = fetch_individual_fund_flow(symbol, days=30)
     df_market = fetch_market_fund_flow(days=30)
-    s_stock = (
-        summarize_fund_flow(df_stock, recent_days=5) if df_stock is not None else {}
-    )
-    s_market = (
-        summarize_fund_flow(df_market, recent_days=5) if df_market is not None else {}
-    )
+    s_stock = summarize_fund_flow(df_stock, recent_days=5) if df_stock is not None else {}
+    s_market = summarize_fund_flow(df_market, recent_days=5) if df_market is not None else {}
 
     payload = {
         "name": stock_name,
@@ -64,12 +60,8 @@ def e2e(stock_name, symbol):
         "related_news_brief": build_news_brief_for_llm(related, max_items=8),
         "market_news_brief": build_news_brief_for_llm(em[:6], max_items=6),
         "research_brief": build_research_brief_for_llm(reports, max_items=8),
-        "stock_fund_brief": build_fund_flow_brief_for_llm(s_stock, kind=stock_name)
-        if s_stock
-        else "",
-        "market_fund_brief": build_fund_flow_brief_for_llm(s_market, kind="大盘")
-        if s_market
-        else "",
+        "stock_fund_brief": build_fund_flow_brief_for_llm(s_stock, kind=stock_name) if s_stock else "",
+        "market_fund_brief": build_fund_flow_brief_for_llm(s_market, kind="大盘") if s_market else "",
     }
 
     t1 = time.time()

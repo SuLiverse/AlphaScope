@@ -44,9 +44,7 @@ def test_describe_structure():
 
 
 def test_build_trace_context_basic():
-    ctx = wo.build_trace_context(
-        "job-123", user_prompt="分析茅台", data_sources=["akshare", "openbb"]
-    )
+    ctx = wo.build_trace_context("job-123", user_prompt="分析茅台", data_sources=["akshare", "openbb"])
     assert ctx["job_id"] == "job-123"
     assert ctx["data_sources"] == "akshare,openbb"
     assert ctx["service"] == "alphascope"
@@ -67,9 +65,7 @@ def test_build_trace_context_empty_safe():
 # 3. OpenTelemetry 路径 (skipif)
 # ============================================================
 
-otel_required = pytest.mark.skipif(
-    not wo.is_available("opentelemetry"), reason="opentelemetry 未装"
-)
+otel_required = pytest.mark.skipif(not wo.is_available("opentelemetry"), reason="opentelemetry 未装")
 
 
 @otel_required
@@ -94,9 +90,7 @@ def test_trace_span_creates_span():
 # 4. Prefect 路径 (skipif)
 # ============================================================
 
-prefect_required = pytest.mark.skipif(
-    not wo.is_available("prefect"), reason="prefect 未装"
-)
+prefect_required = pytest.mark.skipif(not wo.is_available("prefect"), reason="prefect 未装")
 
 
 @prefect_required

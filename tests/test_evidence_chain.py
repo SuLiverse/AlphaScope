@@ -352,9 +352,7 @@ async def test_create_evidence(client):
 @pytest.mark.anyio
 async def test_search_evidence(client):
     with patch("backend.evidence_store.search_evidence", return_value=[]):
-        resp = await client.post(
-            "/api/evidence/search", json={"query": "test", "limit": 10}
-        )
+        resp = await client.post("/api/evidence/search", json={"query": "test", "limit": 10})
     assert resp.status_code == 200
     assert resp.json()["success"] is True
 

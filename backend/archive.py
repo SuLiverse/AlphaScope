@@ -64,9 +64,7 @@ def _load_index() -> list:
     except FileNotFoundError:
         return []
     except Exception as e:
-        backup = INDEX_FILE.with_suffix(
-            f".corrupt-{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
-        )
+        backup = INDEX_FILE.with_suffix(f".corrupt-{datetime.now().strftime('%Y%m%d%H%M%S')}.json")
         try:
             INDEX_FILE.replace(backup)
         except Exception:
@@ -115,10 +113,7 @@ def save_report(
 
     # 去重：同 symbol + report_type 在 dedupe_minutes 内不重复保存
     for item in idx:
-        if (
-            item.get("symbol") == safe_symbol
-            and item.get("type", "agent") == report_type
-        ):
+        if item.get("symbol") == safe_symbol and item.get("type", "agent") == report_type:
             try:
                 ts = datetime.fromisoformat(item["timestamp"])
                 if (now - ts).total_seconds() < dedupe_minutes * 60:
@@ -155,17 +150,11 @@ def save_report(
         }
     # 模型组合签名（基于实际生效的模型）
     combo_signature = (
-        "|".join(
-            f"{k}:{v['vendor']}/{v['model']}" for k, v in sorted(agent_models.items())
-        )
-        if agent_models
-        else ""
+        "|".join(f"{k}:{v['vendor']}/{v['model']}" for k, v in sorted(agent_models.items())) if agent_models else ""
     )
     # 主厂商组合签名（基于配置的主模型，便于按"理想配置"统计）
     primary_combo_signature = (
-        "|".join(f"{k}:{v['primary_vendor']}" for k, v in sorted(agent_models.items()))
-        if agent_models
-        else ""
+        "|".join(f"{k}:{v['primary_vendor']}" for k, v in sorted(agent_models.items())) if agent_models else ""
     )
 
     # 更新索引
@@ -192,9 +181,7 @@ def save_report(
         "combo_signature": combo_signature,
         "primary_combo_signature": primary_combo_signature,
         # 兜底统计：fallback_used 表示主厂商失败切到 DeepSeek，failed 表示连兜底都失败
-        "fallback_count": sum(
-            1 for v in agent_models.values() if v.get("fallback_used")
-        ),
+        "fallback_count": sum(1 for v in agent_models.values() if v.get("fallback_used")),
         "failed_count": sum(1 for v in agent_models.values() if not v["ok"]),
         # v0.9: critic 总览(每个 agent 的具体 review 已经在 agent_models[k]['review'] 里)
         "critic": _summarize_critic((llm_result or {}).get("critic"), agent_models),
@@ -312,9 +299,7 @@ def save_roundtable(
         "valid_count": summary.get("valid_count", 0),
         "total_count": summary.get("total_count", 0),
         "expert_snapshot": expert_snapshot,
-        "fallback_count": sum(
-            1 for s in expert_snapshot.values() if s.get("fallback_used")
-        ),
+        "fallback_count": sum(1 for s in expert_snapshot.values() if s.get("fallback_used")),
         "failed_count": sum(1 for s in expert_snapshot.values() if not s.get("ok")),
         "chairman_excerpt": excerpt,
         # 兼容字段(便于在 Tab7 共用列表渲染时不报错)
@@ -344,14 +329,11 @@ def _summarize_critic(critic_block, agent_models: dict):
     scores = [
         v["review"]["quality_score"]
         for v in agent_models.values()
-        if isinstance(v.get("review"), dict)
-        and isinstance(v["review"].get("quality_score"), int)
+        if isinstance(v.get("review"), dict) and isinstance(v["review"].get("quality_score"), int)
     ]
     avg_q = round(sum(scores) / len(scores), 1) if scores else None
     overconfident = sum(
-        1
-        for v in agent_models.values()
-        if isinstance(v.get("review"), dict) and v["review"].get("overconfident")
+        1 for v in agent_models.values() if isinstance(v.get("review"), dict) and v["review"].get("overconfident")
     )
     div = critic_block.get("divergence") or {}
     return {
@@ -403,9 +385,7 @@ def list_reports(
     idx = _load_index()
     out = []
     for item in idx:
-        if stock_filter and stock_filter not in (
-            item.get("stock_name", "") + item.get("symbol", "")
-        ):
+        if stock_filter and stock_filter not in (item.get("stock_name", "") + item.get("symbol", "")):
             continue
         if decision_filter and decision_filter not in item.get("decision", ""):
             continue
@@ -657,6 +637,4 @@ if __name__ == "__main__":
     print("Stats:", get_stats())
     print("Recent reports:")
     for r in list_reports(limit=5):
-        print(
-            f"  [{r['date']} {r['time']}] {r['stock_name']}({r['symbol']}) → {r['decision']} @{r['avg_confidence']}%"
-        )
+        print(f"  [{r['date']} {r['time']}] {r['stock_name']}({r['symbol']}) → {r['decision']} @{r['avg_confidence']}%")

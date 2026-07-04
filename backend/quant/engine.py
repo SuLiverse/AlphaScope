@@ -232,9 +232,7 @@ class BacktestEngine:
                     bench_closes.append(c)
             if len(bench_closes) >= 2 and bench_closes[0] > 0:
                 base = bench_closes[0]
-                benchmark_curve = [
-                    self.initial_capital * (c / base) for c in bench_closes
-                ]
+                benchmark_curve = [self.initial_capital * (c / base) for c in bench_closes]
         performance = build_performance_summary(
             equity_curve=portfolio.equity_history,
             trades=[self._trade_to_dict(t) for t in portfolio.trades],
@@ -268,12 +266,8 @@ class BacktestEngine:
         date: str,
     ) -> bool:
         """Attempt to fill a deferred order on ``bar``. Returns True if filled."""
-        ref_price = (
-            bar.get("open") if self.execution_price == "open" else bar.get("close")
-        )
-        ref_price = (
-            bar.get("open", bar.get("close")) if ref_price is None else ref_price
-        )
+        ref_price = bar.get("open") if self.execution_price == "open" else bar.get("close")
+        ref_price = bar.get("open", bar.get("close")) if ref_price is None else ref_price
         if not ref_price or ref_price <= 0:
             return False
 
@@ -300,18 +294,12 @@ class BacktestEngine:
             if not check.allowed:
                 risk_controller.record_violation(check.rule, check.reason, date)
                 return False
-            fill_price, turnover, commission = self.cost_model.buy_cost(
-                signal.shares, ref_price
-            )
-            ok = portfolio.execute_buy(
-                symbol, signal.shares, fill_price, date, commission=commission
-            )
+            fill_price, turnover, commission = self.cost_model.buy_cost(signal.shares, ref_price)
+            ok = portfolio.execute_buy(symbol, signal.shares, fill_price, date, commission=commission)
             if ok:
                 self.t1.record_buy(symbol, bar_index)
             else:
-                risk_controller.record_violation(
-                    "insufficient_cash", f"{date} 现金不足", date
-                )
+                risk_controller.record_violation("insufficient_cash", f"{date} 现金不足", date)
             return ok
 
         if side == "sell":
@@ -334,9 +322,7 @@ class BacktestEngine:
                 risk_controller.record_violation(check.rule, check.reason, date)
                 return False
             shares = portfolio.positions[symbol].shares
-            fill_price, turnover, commission, stamp = self.cost_model.sell_proceeds(
-                shares, ref_price
-            )
+            fill_price, turnover, commission, stamp = self.cost_model.sell_proceeds(shares, ref_price)
             ok = portfolio.execute_sell(
                 symbol,
                 shares,

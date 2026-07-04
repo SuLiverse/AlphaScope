@@ -216,25 +216,17 @@ def _new_agent_template(idx: int) -> dict:
 def _render_agent_config_editor(symbol: str) -> list:
     configs = _ensure_agent_config_state(symbol)
     with st.expander("Agent 人设与数量管理", expanded=False):
-        st.caption(
-            "当前为会话内临时配置：可新增、复制、删除 Agent，并自定义人设、模型和卡片样式。"
-        )
+        st.caption("当前为会话内临时配置：可新增、复制、删除 Agent，并自定义人设、模型和卡片样式。")
         e1, e2, e3 = st.columns([1, 1, 1])
         with e1:
-            st.metric(
-                "启用 Agent 数", sum(1 for a in configs if a.get("enabled", True))
-            )
+            st.metric("启用 Agent 数", sum(1 for a in configs if a.get("enabled", True)))
         with e2:
-            if st.button(
-                "新增 Agent", use_container_width=True, key=f"agent_add_{symbol}"
-            ):
+            if st.button("新增 Agent", use_container_width=True, key=f"agent_add_{symbol}"):
                 configs.append(_new_agent_template(len(configs) + 1))
                 st.session_state[f"agent_config_{symbol}"] = configs
                 st.rerun()
         with e3:
-            if st.button(
-                "恢复默认 Agent", use_container_width=True, key=f"agent_reset_{symbol}"
-            ):
+            if st.button("恢复默认 Agent", use_container_width=True, key=f"agent_reset_{symbol}"):
                 st.session_state[f"agent_config_{symbol}"] = get_default_agent_configs()
                 st.rerun()
 
@@ -552,9 +544,7 @@ def _to_tx_symbol(symbol: str) -> str:
 def _fetch_hist_tx(symbol: str, start: str, end: str):
     """腾讯接口兜底：返回与东财对齐的 12 列 DataFrame，缺失字段用合理默认值填充。"""
     tx_symbol = _to_tx_symbol(symbol)
-    df = ak.stock_zh_a_hist_tx(
-        symbol=tx_symbol, start_date=start, end_date=end, adjust="qfq"
-    )
+    df = ak.stock_zh_a_hist_tx(symbol=tx_symbol, start_date=start, end_date=end, adjust="qfq")
     if df is None or df.empty:
         return None
     # Tencent 列：date / open / close / high / low / amount
@@ -756,9 +746,7 @@ def cached_stock_news_em(symbol: str, limit: int = 20):
 def cached_topic_news_em(keywords_tuple, limit_each: int = 8, total_limit: int = 30):
     if not NEWS_AVAILABLE:
         return []
-    return fetch_topic_news_em(
-        list(keywords_tuple or ()), limit_each=limit_each, total_limit=total_limit
-    )
+    return fetch_topic_news_em(list(keywords_tuple or ()), limit_each=limit_each, total_limit=total_limit)
 
 
 @st.cache_data(ttl=3600)
@@ -811,9 +799,7 @@ def calc_rsi(df, period=14):
 # ============== 标题 ==============
 col_t1, col_t2 = st.columns([3, 1])
 with col_t1:
-    st.markdown(
-        '<div class="gradient-title">📊 金融 Agent 工作台</div>', unsafe_allow_html=True
-    )
+    st.markdown('<div class="gradient-title">📊 金融 Agent 工作台</div>', unsafe_allow_html=True)
     st.markdown(
         '<div class="subtitle">Multi-Agent · Real-time Data · A-Share Market</div>',
         unsafe_allow_html=True,
@@ -921,16 +907,12 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### 🤖 AI 咨询")
     if st.button(
-        "🤖 打开 AI 咨询"
-        if not st.session_state.get("show_ai_chat", False)
-        else "✕ 关闭 AI 咨询",
+        "🤖 打开 AI 咨询" if not st.session_state.get("show_ai_chat", False) else "✕ 关闭 AI 咨询",
         use_container_width=True,
         key="sidebar_ai_chat_toggle",
         help="启用后,看板顶部出现可折叠的对话面板,任意 Tab 浏览中都能与 AI 多轮对话",
     ):
-        st.session_state["show_ai_chat"] = not st.session_state.get(
-            "show_ai_chat", False
-        )
+        st.session_state["show_ai_chat"] = not st.session_state.get("show_ai_chat", False)
         st.rerun()
     st.caption("也可以在主界面指标卡下方打开 AI 咨询。")
 
@@ -963,9 +945,7 @@ period_low = df["low"].min()
 period_change = (last["close"] / df.iloc[0]["close"] - 1) * 100
 total_amount = df["amount"].sum() / 1e8  # 亿元
 
-stock_name = info.get("股票简称") or (
-    custom if use_custom else selected_label.split(" ")[0]
-)
+stock_name = info.get("股票简称") or (custom if use_custom else selected_label.split(" ")[0])
 
 # ============== 指标卡片 ==============
 st.markdown(f"### {stock_name} · {symbol}")
@@ -1038,19 +1018,13 @@ c5.markdown(
 quick_col1, quick_col2, quick_col3 = st.columns([1.3, 1.3, 5])
 with quick_col1:
     if st.button(
-        "🤖 打开 AI 咨询"
-        if not st.session_state.get("show_ai_chat", False)
-        else "✕ 关闭 AI 咨询",
-        type="primary"
-        if not st.session_state.get("show_ai_chat", False)
-        else "secondary",
+        "🤖 打开 AI 咨询" if not st.session_state.get("show_ai_chat", False) else "✕ 关闭 AI 咨询",
+        type="primary" if not st.session_state.get("show_ai_chat", False) else "secondary",
         use_container_width=True,
         key="main_ai_chat_toggle",
         help="在当前股票上下文中进行多轮 AI 咨询",
     ):
-        st.session_state["show_ai_chat"] = not st.session_state.get(
-            "show_ai_chat", False
-        )
+        st.session_state["show_ai_chat"] = not st.session_state.get("show_ai_chat", False)
         st.rerun()
 with quick_col2:
     if not st.session_state.get("dismiss_sidebar_hint", False):
@@ -1141,9 +1115,7 @@ if st.session_state.get("show_ai_chat", False):
                 st.error(f"AI 咨询面板渲染失败: {_e}")
         st.markdown('<hr class="fancy">', unsafe_allow_html=True)
     else:
-        st.error(
-            f"AI 咨询组件未加载: {AI_CHAT_PANEL_ERROR if 'AI_CHAT_PANEL_ERROR' in dir() else '未知错误'}"
-        )
+        st.error(f"AI 咨询组件未加载: {AI_CHAT_PANEL_ERROR if 'AI_CHAT_PANEL_ERROR' in dir() else '未知错误'}")
         if st.button("✕ 关闭 AI 咨询", key="close_broken_ai_chat", type="secondary"):
             st.session_state["show_ai_chat"] = False
             st.rerun()
@@ -1313,9 +1285,7 @@ with tab1:
         current_row += 1
 
     # 成交量
-    vol_colors = [
-        "#ef5350" if c >= o else "#26a69a" for c, o in zip(df["close"], df["open"])
-    ]
+    vol_colors = ["#ef5350" if c >= o else "#26a69a" for c, o in zip(df["close"], df["open"])]
     fig.add_trace(
         go.Bar(
             x=df["date"],
@@ -1379,11 +1349,7 @@ with tab2:
                 else _ensure_agent_config_state(symbol)
             )
             active_agent_count = sum(1 for a in agent_configs if a.get("enabled", True))
-            global_ai_settings = (
-                ai_settings_center.get_global_ai_settings()
-                if AI_SETTINGS_AVAILABLE
-                else {}
-            )
+            global_ai_settings = ai_settings_center.get_global_ai_settings() if AI_SETTINGS_AVAILABLE else {}
             st.caption(
                 f"{active_agent_count} 位 Agent 使用 AI 设置中心的人设与模型并行推理，避免单一模型偏见，约 20-60 秒。要修改 Agent/Key/模型，请打开「AI 设置中心」Tab。"
             )
@@ -1413,9 +1379,7 @@ with tab2:
 
             col_run, col_info = st.columns([1, 4])
             with col_run:
-                run_btn = st.button(
-                    "🚀 启动深度分析", type="primary", use_container_width=True
-                )
+                run_btn = st.button("🚀 启动深度分析", type="primary", use_container_width=True)
 
             cache_key = f"llm_result_{symbol}_{days}"
 
@@ -1433,11 +1397,7 @@ with tab2:
                             "流通股",
                             "上市时间",
                         ]
-                        items = [
-                            f"{k}: {info.get(k, 'N/A')}"
-                            for k in keys_of_interest
-                            if k in info
-                        ]
+                        items = [f"{k}: {info.get(k, 'N/A')}" for k in keys_of_interest if k in info]
                         fundamentals_text = "; ".join(items) if items else "暂无"
 
                     # 拉取真实新闻 & 研报
@@ -1457,9 +1417,7 @@ with tab2:
                             industry = cached_industry_name(symbol)
                             concepts = cached_stock_concepts(symbol, stock_name) or []
                             # v0.10.2: 优先取东财个股专属新闻,确保即使大盘快讯没匹配也至少有内容
-                            stock_specific = (
-                                cached_stock_news_em(symbol, limit=10) or []
-                            )
+                            stock_specific = cached_stock_news_em(symbol, limit=10) or []
                             keyword_matched = get_stock_related_news(
                                 stock_name,
                                 all_news,
@@ -1479,36 +1437,20 @@ with tab2:
                                         continue
                                     seen_t2.add(key)
                                     related.append(n)
-                            related_brief = build_news_brief_for_llm(
-                                related[:10], max_items=10
-                            )
-                            market_brief_text = build_news_brief_for_llm(
-                                em_news[:6], max_items=6
-                            )
+                            related_brief = build_news_brief_for_llm(related[:10], max_items=10)
+                            market_brief_text = build_news_brief_for_llm(em_news[:6], max_items=6)
                             reports = cached_research_report(symbol, limit=15)
-                            research_brief = build_research_brief_for_llm(
-                                reports, max_items=8
-                            )
+                            research_brief = build_research_brief_for_llm(reports, max_items=8)
                             # v0.10: 个股公告 + 行业新闻进入 Agent 简报
                             cninfo_ann = cached_announcements_cninfo(symbol, days=30)
                             em_today = cached_announcements_em_today() or []
-                            em_for_stock = [
-                                a for a in em_today if a.get("code") == symbol
-                            ]
+                            em_for_stock = [a for a in em_today if a.get("code") == symbol]
                             ann_list = merge_announcements(cninfo_ann, em_for_stock)
-                            announcements_brief = build_announcements_brief_for_llm(
-                                ann_list, max_items=8
-                            )
+                            announcements_brief = build_announcements_brief_for_llm(ann_list, max_items=8)
                             if industry:
-                                excluded_titles = {
-                                    n.get("title", "").strip() for n in (related or [])
-                                }
-                                extra_ind_kws = extract_business_terms(
-                                    (main_biz or {}).get("scope") or "", max_terms=8
-                                )
-                                extra_ind_kws += get_concept_keywords(
-                                    concepts, limit=10
-                                )
+                                excluded_titles = {n.get("title", "").strip() for n in (related or [])}
+                                extra_ind_kws = extract_business_terms((main_biz or {}).get("scope") or "", max_terms=8)
+                                extra_ind_kws += get_concept_keywords(concepts, limit=10)
                                 pool_ind_news = get_industry_news(
                                     industry,
                                     all_news,
@@ -1522,23 +1464,13 @@ with tab2:
                                     concepts=concepts,
                                     limit=8,
                                 )
-                                topic_ind_news = cached_topic_news_em(
-                                    tuple(topic_kws), limit_each=6, total_limit=12
-                                )
+                                topic_ind_news = cached_topic_news_em(tuple(topic_kws), limit_each=6, total_limit=12)
                                 topic_ind_news = [
-                                    n
-                                    for n in topic_ind_news
-                                    if n.get("title", "").strip() not in excluded_titles
+                                    n for n in topic_ind_news if n.get("title", "").strip() not in excluded_titles
                                 ]
-                                ind_news = merge_news_items(
-                                    pool_ind_news, topic_ind_news, limit=8
-                                )
-                                industry_news_brief = build_news_brief_for_llm(
-                                    ind_news, max_items=8
-                                )
-                            concept_excluded = {
-                                n.get("title", "").strip() for n in (related or [])
-                            }
+                                ind_news = merge_news_items(pool_ind_news, topic_ind_news, limit=8)
+                                industry_news_brief = build_news_brief_for_llm(ind_news, max_items=8)
+                            concept_excluded = {n.get("title", "").strip() for n in (related or [])}
                             pool_concept_news = get_concept_news(
                                 concepts,
                                 all_news,
@@ -1546,17 +1478,11 @@ with tab2:
                                 exclude_titles=concept_excluded,
                             )
                             concept_kws = get_concept_keywords(concepts, limit=8)
-                            topic_concept_news = cached_topic_news_em(
-                                tuple(concept_kws), limit_each=5, total_limit=10
-                            )
+                            topic_concept_news = cached_topic_news_em(tuple(concept_kws), limit_each=5, total_limit=10)
                             topic_concept_news = [
-                                n
-                                for n in topic_concept_news
-                                if n.get("title", "").strip() not in concept_excluded
+                                n for n in topic_concept_news if n.get("title", "").strip() not in concept_excluded
                             ]
-                            concept_news = merge_news_items(
-                                pool_concept_news, topic_concept_news, limit=8
-                            )
+                            concept_news = merge_news_items(pool_concept_news, topic_concept_news, limit=8)
                             concepts_brief = build_concepts_brief_for_llm(
                                 concepts, concept_news, max_concepts=10, max_news=8
                             )
@@ -1570,21 +1496,13 @@ with tab2:
                         try:
                             df_stock_fund = cached_individual_fund_flow(symbol, days=30)
                             if df_stock_fund is not None and len(df_stock_fund) > 0:
-                                s_stock = summarize_fund_flow(
-                                    df_stock_fund, recent_days=5
-                                )
-                                stock_fund_brief = build_fund_flow_brief_for_llm(
-                                    s_stock, kind=stock_name
-                                )
+                                s_stock = summarize_fund_flow(df_stock_fund, recent_days=5)
+                                stock_fund_brief = build_fund_flow_brief_for_llm(s_stock, kind=stock_name)
 
                             df_market_fund = cached_market_fund_flow(days=30)
                             if df_market_fund is not None and len(df_market_fund) > 0:
-                                s_market = summarize_fund_flow(
-                                    df_market_fund, recent_days=5
-                                )
-                                market_fund_brief = build_fund_flow_brief_for_llm(
-                                    s_market, kind="大盘"
-                                )
+                                s_market = summarize_fund_flow(df_market_fund, recent_days=5)
+                                market_fund_brief = build_fund_flow_brief_for_llm(s_market, kind="大盘")
                         except Exception as e:
                             st.warning(f"资金流向拉取失败（不影响 LLM 推理）: {e}")
 
@@ -1670,9 +1588,7 @@ with tab2:
                     )
 
                 cls_map = {"买入": "buy", "卖出": "sell", "观望": "hold"}
-                agent_keys_order = llm_result.get("agent_order") or list(
-                    llm_result.get("agents", {}).keys()
-                )
+                agent_keys_order = llm_result.get("agent_order") or list(llm_result.get("agents", {}).keys())
                 # 用 3 列网格更协调
                 cols = st.columns(2)
                 for idx, key in enumerate(agent_keys_order):
@@ -1812,15 +1728,13 @@ with tab2:
                         scores = [
                             r.get("review", {}).get("quality_score")
                             for r in llm_result.get("agents", {}).values()
-                            if isinstance(r.get("review"), dict)
-                            and isinstance(r["review"].get("quality_score"), int)
+                            if isinstance(r.get("review"), dict) and isinstance(r["review"].get("quality_score"), int)
                         ]
                         avg_q = round(sum(scores) / len(scores), 1) if scores else None
                         oc = sum(
                             1
                             for r in llm_result.get("agents", {}).values()
-                            if isinstance(r.get("review"), dict)
-                            and r["review"].get("overconfident")
+                            if isinstance(r.get("review"), dict) and r["review"].get("overconfident")
                         )
                         div = critic_block.get("divergence") or {}
                         level = div.get("level") or "无"
@@ -1833,9 +1747,7 @@ with tab2:
 
                         critic_vendor = critic_block.get("vendor", "?")
                         critic_model = critic_block.get("model", "?")
-                        critic_fb = (
-                            " ⚠️ 已兜底" if critic_block.get("fallback_used") else ""
-                        )
+                        critic_fb = " ⚠️ 已兜底" if critic_block.get("fallback_used") else ""
 
                         avg_q_text = f"{avg_q:.1f}" if avg_q is not None else "—"
                         st.html(f"""
@@ -1872,20 +1784,14 @@ with tab2:
                             """)
                         st.html("</div>")
                     elif critic_block.get("error"):
-                        st.caption(
-                            f"🧐 审稿员未能完成本次审稿: {critic_block.get('error')}"
-                        )
+                        st.caption(f"🧐 审稿员未能完成本次审稿: {critic_block.get('error')}")
 
                 # 主席总结
                 st.markdown("#### 🎩 投资委员会主席总结")
                 # 显示主席模型徽章
                 try:
-                    chair_vendor, chair_model = AGENT_MODEL_CONFIG.get(
-                        "chairman", ("?", "?")
-                    )
-                    chair_vendor_label = VENDORS.get(chair_vendor, {}).get(
-                        "label", chair_vendor
-                    )
+                    chair_vendor, chair_model = AGENT_MODEL_CONFIG.get("chairman", ("?", "?"))
+                    chair_vendor_label = VENDORS.get(chair_vendor, {}).get("label", chair_vendor)
                     chair_vendor_cls = chair_vendor_label.lower().replace(" ", "")
                     st.html(f"""
                     <div style='margin-bottom:8px;'>
@@ -1902,9 +1808,7 @@ with tab2:
                     if st.button("📝 生成主席总结", key="gen_chairman"):
                         with st.spinner("主席正在思考..."):
                             try:
-                                chairman_text = summarize_with_chairman(
-                                    llm_result, stock_name
-                                )
+                                chairman_text = summarize_with_chairman(llm_result, stock_name)
                                 st.session_state[chairman_key] = chairman_text
                                 st.rerun()
                             except Exception as e:
@@ -1936,12 +1840,7 @@ with tab2:
                         # 模型阵容表
                         try:
                             lineup_rows_md = get_custom_agent_model_table(agent_configs)
-                            model_lineup_md = "\n".join(
-                                [
-                                    f"| {n} | {v} | `{m}` |"
-                                    for _k, n, v, m in lineup_rows_md
-                                ]
-                            )
+                            model_lineup_md = "\n".join([f"| {n} | {v} | `{m}` |" for _k, n, v, m in lineup_rows_md])
                         except Exception:
                             model_lineup_md = ""
 
@@ -2001,10 +1900,7 @@ with tab2:
                                 "",
                             ]
 
-                        if (
-                            payload.get("announcements_brief")
-                            and payload["announcements_brief"] != "无近期公告"
-                        ):
+                        if payload.get("announcements_brief") and payload["announcements_brief"] != "无近期公告":
                             report_lines += [
                                 "## 📋 个股近 30 天公告",
                                 "",
@@ -2053,11 +1949,7 @@ with tab2:
                                 r = llm_result["agents"][k]
                                 vendor_md = r.get("vendor", "?")
                                 model_md = r.get("model", "?")
-                                ok_md = (
-                                    ""
-                                    if r.get("ok", True)
-                                    else " ⚠️ *主模型失败已切兜底*"
-                                )
+                                ok_md = "" if r.get("ok", True) else " ⚠️ *主模型失败已切兜底*"
                                 report_lines += [
                                     f"### {r['name']}",
                                     "",
@@ -2082,20 +1974,14 @@ with tab2:
                                                 tags.append(f"`{etype}`")
                                             if date:
                                                 tags.append(f"`{date}`")
-                                            tag_suffix = (
-                                                (" " + " ".join(tags)) if tags else ""
-                                            )
-                                            report_lines.append(
-                                                f"  - {claim}{tag_suffix}"
-                                            )
+                                            tag_suffix = (" " + " ".join(tags)) if tags else ""
+                                            report_lines.append(f"  - {claim}{tag_suffix}")
                                         else:
                                             text = str(ev).strip()
                                             if text:
                                                 report_lines.append(f"  - {text}")
                                 if r.get("invalid_if"):
-                                    report_lines.append(
-                                        f"- **失效条件**：{r['invalid_if']}"
-                                    )
+                                    report_lines.append(f"- **失效条件**：{r['invalid_if']}")
                                 risks = r.get("risks") or []
                                 if risks:
                                     report_lines.append("- **主要风险**：")
@@ -2105,12 +1991,8 @@ with tab2:
 
                         # 主席模型署名
                         try:
-                            chair_v, chair_m = AGENT_MODEL_CONFIG.get(
-                                "chairman", ("?", "?")
-                            )
-                            chair_v_label = VENDORS.get(chair_v, {}).get(
-                                "label", chair_v
-                            )
+                            chair_v, chair_m = AGENT_MODEL_CONFIG.get("chairman", ("?", "?"))
+                            chair_v_label = VENDORS.get(chair_v, {}).get("label", chair_v)
                         except Exception:
                             chair_v_label, chair_m = "?", "?"
 
@@ -2132,34 +2014,22 @@ with tab2:
                                 "",
                                 f"> 审稿模型：**{critic_md.get('vendor', '?')}** / "
                                 f"`{critic_md.get('model', '?')}`"
-                                + (
-                                    "（已兜底）"
-                                    if critic_md.get("fallback_used")
-                                    else ""
-                                ),
+                                + ("（已兜底）" if critic_md.get("fallback_used") else ""),
                                 "",
                                 f"- **分歧度**：{div_md.get('level', '无')}",
                             ]
                             if div_md.get("main_axis"):
-                                report_lines.append(
-                                    f"- **主要分歧轴**：{div_md['main_axis']}"
-                                )
+                                report_lines.append(f"- **主要分歧轴**：{div_md['main_axis']}")
                             if div_md.get("summary"):
-                                report_lines.append(
-                                    f"- **分歧解读**：{div_md['summary']}"
-                                )
+                                report_lines.append(f"- **分歧解读**：{div_md['summary']}")
                             report_lines.append("")
 
                             for k in agent_keys_order:
-                                review = (
-                                    llm_result.get("agents", {}).get(k) or {}
-                                ).get("review")
+                                review = (llm_result.get("agents", {}).get(k) or {}).get("review")
                                 if not review:
                                     continue
                                 ag_name = llm_result["agents"][k].get("name", k)
-                                report_lines.append(
-                                    f"### {ag_name} · 审稿评分 {review.get('quality_score', '?')}"
-                                )
+                                report_lines.append(f"### {ag_name} · 审稿评分 {review.get('quality_score', '?')}")
                                 if review.get("comment"):
                                     report_lines.append(f"> {review['comment']}")
                                 if review.get("supported"):
@@ -2229,28 +2099,20 @@ with tab2:
                             key="download_report",
                         )
             else:
-                st.caption(
-                    "点击「启动深度分析」开始调用当前 AI 设置中心里的 Agent 团队。"
-                )
+                st.caption("点击「启动深度分析」开始调用当前 AI 设置中心里的 Agent 团队。")
 
         # ========== 规则化 Agent 模式 ==========
         else:
             st.markdown("#### 🤖 多 Agent 协作分析（规则化）")
-            st.caption(
-                "基于实时计算指标的快速推断。开启侧边栏「使用 LLM 深度分析」可获得真实 LLM 推理。"
-            )
+            st.caption("基于实时计算指标的快速推断。开启侧边栏「使用 LLM 深度分析」可获得真实 LLM 推理。")
 
             # 技术派
             if ma5 > ma20 and macd_val > 0:
                 tech_signal, tech_conf, tech_class = "买入", 75, "buy"
-                tech_reason = (
-                    f"MA5({ma5:.2f}) 上穿 MA20({ma20:.2f})，MACD 红柱为正，短期动能向上"
-                )
+                tech_reason = f"MA5({ma5:.2f}) 上穿 MA20({ma20:.2f})，MACD 红柱为正，短期动能向上"
             elif ma5 < ma20 and macd_val < 0:
                 tech_signal, tech_conf, tech_class = "卖出", 70, "sell"
-                tech_reason = (
-                    f"MA5({ma5:.2f}) 下穿 MA20({ma20:.2f})，MACD 绿柱扩大，短期承压"
-                )
+                tech_reason = f"MA5({ma5:.2f}) 下穿 MA20({ma20:.2f})，MACD 绿柱扩大，短期承压"
             else:
                 tech_signal, tech_conf, tech_class = "观望", 55, "hold"
                 tech_reason = "均线纠缠，MACD 信号不明确，建议等待方向选择"
@@ -2381,16 +2243,12 @@ with tab3:
     if AI_SETTINGS_AVAILABLE:
         ai_settings_center.render_ai_settings_center(symbol)
     else:
-        st.error(
-            f"AI 设置中心未加载: {AI_SETTINGS_ERROR if 'AI_SETTINGS_ERROR' in dir() else '未知错误'}"
-        )
+        st.error(f"AI 设置中心未加载: {AI_SETTINGS_ERROR if 'AI_SETTINGS_ERROR' in dir() else '未知错误'}")
 
 with tab4:
     st.markdown("#### 📰 实时资讯 & 机构研报")
     if not NEWS_AVAILABLE:
-        st.error(
-            f"新闻模块加载失败: {NEWS_ERROR if 'NEWS_ERROR' in dir() else '未知错误'}"
-        )
+        st.error(f"新闻模块加载失败: {NEWS_ERROR if 'NEWS_ERROR' in dir() else '未知错误'}")
     else:
         # 顶部操作栏 + v0.7 视图切换
         col_refresh, col_view, col_info = st.columns([1, 2, 4])
@@ -2408,9 +2266,7 @@ with tab4:
                 index=1,
             )
         with col_info:
-            st.caption(
-                "时间轴模式合并三源最近 10 条按时间倒序;分类模式展示原有子 Tab。"
-            )
+            st.caption("时间轴模式合并三源最近 10 条按时间倒序;分类模式展示原有子 Tab。")
 
         # ---------- v0.7 时间轴模式 ----------
         if "时间轴" in view_mode:
@@ -2526,16 +2382,12 @@ with tab4:
                             related.append(n)
 
                 if not related:
-                    st.info(
-                        f"近期未发现与「{stock_name}」直接相关的资讯，建议查看大盘快讯或研报。"
-                    )
+                    st.info(f"近期未发现与「{stock_name}」直接相关的资讯，建议查看大盘快讯或研报。")
                 else:
                     # v0.10.3: 把召回逻辑透明化 —— 显示个股相关用了哪些关键词,以及 N 条来自东财个股 API、N 条来自大盘快讯关键词命中
                     from news_data import _expand_stock_keywords
 
-                    stock_kws = _expand_stock_keywords(
-                        stock_name, symbol, products=main_biz.get("products")
-                    )
+                    stock_kws = _expand_stock_keywords(stock_name, symbol, products=main_biz.get("products"))
                     n_specific = len(stock_specific or [])
                     n_total = len(related)
                     n_kw = max(0, n_total - n_specific)
@@ -2580,21 +2432,15 @@ with tab4:
                 with st.spinner("正在加载公告..."):
                     cninfo_ann = cached_announcements_cninfo(symbol, days=30)
                     em_ann_today = cached_announcements_em_today() or []
-                    em_ann_for_stock = [
-                        a for a in em_ann_today if a.get("code") == symbol
-                    ]
+                    em_ann_for_stock = [a for a in em_ann_today if a.get("code") == symbol]
                     ann_list = merge_announcements(cninfo_ann, em_ann_for_stock)
 
                 if not ann_list:
-                    st.info(
-                        f"近 30 天内未发现 {stock_name}({symbol}) 的公告。可能是接口暂时不可用,稍后刷新重试。"
-                    )
+                    st.info(f"近 30 天内未发现 {stock_name}({symbol}) 的公告。可能是接口暂时不可用,稍后刷新重试。")
                 else:
                     cat_counts = {}
                     for a in ann_list:
-                        cat_counts[a.get("category", "其他")] = (
-                            cat_counts.get(a.get("category", "其他"), 0) + 1
-                        )
+                        cat_counts[a.get("category", "其他")] = cat_counts.get(a.get("category", "其他"), 0) + 1
                     summary_chips = " · ".join(
                         f"<span style='color:{ANN_COLORS.get(c, '#6b7280')};'>{c} {n}</span>"
                         for c, n in sorted(cat_counts.items(), key=lambda x: -x[1])
@@ -2657,26 +2503,16 @@ with tab4:
                     )
                     with st.spinner("正在筛选并搜索概念相关新闻..."):
                         excluded = {n.get("title", "").strip() for n in (related or [])}
-                        pool_concept_news = get_concept_news(
-                            concepts, all_news, limit=30, exclude_titles=excluded
-                        )
-                        topic_concept_news = cached_topic_news_em(
-                            tuple(concept_kws[:8]), limit_each=6, total_limit=24
-                        )
+                        pool_concept_news = get_concept_news(concepts, all_news, limit=30, exclude_titles=excluded)
+                        topic_concept_news = cached_topic_news_em(tuple(concept_kws[:8]), limit_each=6, total_limit=24)
                         topic_concept_news = [
-                            n
-                            for n in topic_concept_news
-                            if n.get("title", "").strip() not in excluded
+                            n for n in topic_concept_news if n.get("title", "").strip() not in excluded
                         ]
-                        concept_news = merge_news_items(
-                            pool_concept_news, topic_concept_news, limit=30
-                        )
+                        concept_news = merge_news_items(pool_concept_news, topic_concept_news, limit=30)
                     if concept_kws:
                         st.caption("匹配词: " + " · ".join(concept_kws))
                     if not concept_news:
-                        st.caption(
-                            "近期未在快讯池或东财主题搜索中发现这些概念的直接相关新闻。"
-                        )
+                        st.caption("近期未在快讯池或东财主题搜索中发现这些概念的直接相关新闻。")
                     else:
                         st.caption(
                             f"快讯池命中 {len(pool_concept_news)} 条 + 主题搜索补充 {len(topic_concept_news)} 条"
@@ -2726,13 +2562,9 @@ with tab4:
             with sub_industry:
                 # v0.14: 如果行业名为空,尝试从概念板块中提取
                 if not industry:
-                    concepts_for_industry = (
-                        cached_stock_concepts(symbol, stock_name) or []
-                    )
+                    concepts_for_industry = cached_stock_concepts(symbol, stock_name) or []
                     if concepts_for_industry:
-                        industry = fetch_industry_name(
-                            symbol, concepts=concepts_for_industry
-                        )
+                        industry = fetch_industry_name(symbol, concepts=concepts_for_industry)
                 if not industry:
                     st.info("未能识别该股票的行业,无法生成行业新闻。")
                 else:
@@ -2759,21 +2591,11 @@ with tab4:
                             concepts=concepts,
                             limit=8,
                         )
-                        topic_ind_news = cached_topic_news_em(
-                            tuple(topic_kws), limit_each=6, total_limit=24
-                        )
-                        topic_ind_news = [
-                            n
-                            for n in topic_ind_news
-                            if n.get("title", "").strip() not in excluded
-                        ]
-                        ind_news = merge_news_items(
-                            pool_ind_news, topic_ind_news, limit=30
-                        )
+                        topic_ind_news = cached_topic_news_em(tuple(topic_kws), limit_each=6, total_limit=24)
+                        topic_ind_news = [n for n in topic_ind_news if n.get("title", "").strip() not in excluded]
+                        ind_news = merge_news_items(pool_ind_news, topic_ind_news, limit=30)
                     if not ind_news:
-                        st.caption(
-                            f"近期未发现「{industry}」行业的快讯或主题搜索新闻。"
-                        )
+                        st.caption(f"近期未发现「{industry}」行业的快讯或主题搜索新闻。")
                     else:
                         # 关键词诊断:让用户看到行业新闻匹配用了哪些词
                         kw_chips = " · ".join(topic_kws or [industry] + list(extra_kws))
@@ -2901,10 +2723,7 @@ with tab4:
                             "减持": "#26a69a",
                             "卖出": "#00897b",
                         }
-                        pie_colors = [
-                            rating_colors_map.get(k, "#bdbdbd")
-                            for k in rating_dist.keys()
-                        ]
+                        pie_colors = [rating_colors_map.get(k, "#bdbdbd") for k in rating_dist.keys()]
                         fig_rating = go.Figure(
                             data=[
                                 go.Pie(
@@ -2932,9 +2751,7 @@ with tab4:
                         rdf = pd.DataFrame(reports)
                         if "pdf" in rdf.columns:
                             rdf["报告"] = rdf.apply(
-                                lambda r: (
-                                    f"📄 {r['title']}" if r.get("pdf") else r["title"]
-                                ),
+                                lambda r: f"📄 {r['title']}" if r.get("pdf") else r["title"],
                                 axis=1,
                             )
                         show_cols = ["date", "institution", "rating", "title"]
@@ -2945,9 +2762,7 @@ with tab4:
                             "title": "报告",
                         }
                         show_df = (
-                            rdf[show_cols].rename(columns=rename)
-                            if all(c in rdf.columns for c in show_cols)
-                            else rdf
+                            rdf[show_cols].rename(columns=rename) if all(c in rdf.columns for c in show_cols) else rdf
                         )
 
                         def color_rating(v):
@@ -3008,22 +2823,16 @@ with tab4:
 with tab5:
     st.markdown("#### 💰 资金流向（主力 / 超大单 / 大单 / 中单 / 小单）")
     if not FUND_AVAILABLE:
-        st.error(
-            f"资金流向模块加载失败: {FUND_ERROR if 'FUND_ERROR' in dir() else '未知错误'}"
-        )
+        st.error(f"资金流向模块加载失败: {FUND_ERROR if 'FUND_ERROR' in dir() else '未知错误'}")
     else:
         # 顶部刷新栏
         col_r, col_i = st.columns([1, 5])
         with col_r:
-            if st.button(
-                "🔄 刷新资金数据", use_container_width=True, key="refresh_fund"
-            ):
+            if st.button("🔄 刷新资金数据", use_container_width=True, key="refresh_fund"):
                 st.cache_data.clear()
                 st.rerun()
         with col_i:
-            st.caption(
-                "数据缓存 5 分钟。资金面是 A 股最关键的同步指标，主力连续流出常领先股价。"
-            )
+            st.caption("数据缓存 5 分钟。资金面是 A 股最关键的同步指标，主力连续流出常领先股价。")
 
         sub_f1, sub_f2 = st.tabs([f"🎯 {stock_name} 个股资金", "🌐 大盘资金"])
 
@@ -3090,10 +2899,7 @@ with tab5:
                 with col_chart1:
                     st.markdown("##### 主力资金 30 日流向（亿元）")
                     fig_main = go.Figure()
-                    colors = [
-                        "#ef5350" if v >= 0 else "#26a69a"
-                        for v in df_ff_show["主力_亿"]
-                    ]
+                    colors = ["#ef5350" if v >= 0 else "#26a69a" for v in df_ff_show["主力_亿"]]
                     fig_main.add_trace(
                         go.Bar(
                             x=df_ff_show["日期"],
@@ -3130,9 +2936,7 @@ with tab5:
                             zerolinecolor="#cbd5e1",
                             zerolinewidth=1,
                         ),
-                        yaxis2=dict(
-                            title="收盘价", overlaying="y", side="right", showgrid=False
-                        ),
+                        yaxis2=dict(title="收盘价", overlaying="y", side="right", showgrid=False),
                     )
                     st.plotly_chart(fig_main, use_container_width=True)
 
@@ -3261,9 +3065,7 @@ with tab5:
                     fig_pie4 = go.Figure(
                         data=[
                             go.Pie(
-                                labels=[
-                                    f"{c}({v:+.2f}亿)" for c, v in zip(cats4, vals4)
-                                ],
+                                labels=[f"{c}({v:+.2f}亿)" for c, v in zip(cats4, vals4)],
                                 values=abs_vals if sum(abs_vals) > 0 else [1, 1, 1, 1],
                                 hole=0.5,
                                 marker=dict(
@@ -3276,9 +3078,7 @@ with tab5:
                         ]
                     )
                     fig_pie4.update_layout(
-                        title=dict(
-                            text="近 5 日 4 类资金净流向占比", x=0.5, font=dict(size=12)
-                        ),
+                        title=dict(text="近 5 日 4 类资金净流向占比", x=0.5, font=dict(size=12)),
                         height=320,
                         margin=dict(l=10, r=10, t=40, b=10),
                         showlegend=False,
@@ -3344,9 +3144,7 @@ with tab5:
                             xanchor="right",
                             x=1,
                         ),
-                        yaxis=dict(
-                            gridcolor="#f1f5f9", zeroline=True, zerolinecolor="#cbd5e1"
-                        ),
+                        yaxis=dict(gridcolor="#f1f5f9", zeroline=True, zerolinecolor="#cbd5e1"),
                         xaxis=dict(showgrid=False),
                     )
                     st.plotly_chart(fig_5d, use_container_width=True)
@@ -3374,16 +3172,11 @@ with tab5:
                             f"{small_5d_yi:+.2f} 亿,警惕主力借利好出货 / 散户接盘。"
                         )
                     else:
-                        judge_detail = (
-                            f"超大单近 5 日净流出 {super_5d_yi:+.2f} 亿,主力撤退中。"
-                        )
+                        judge_detail = f"超大单近 5 日净流出 {super_5d_yi:+.2f} 亿,主力撤退中。"
                 else:
                     judge_label = "🟨 主力观望"
                     judge_color = "#ff9800"
-                    judge_detail = (
-                        f"超大单近 5 日净额 {super_5d_yi:+.2f} 亿(±5000万 内),"
-                        f"主力暂未明确选择方向。"
-                    )
+                    judge_detail = f"超大单近 5 日净额 {super_5d_yi:+.2f} 亿(±5000万 内),主力暂未明确选择方向。"
 
                 st.html(f"""
                 <div style='background:#f8f9fb; border-left:5px solid {judge_color};
@@ -3448,9 +3241,7 @@ with tab5:
 
                 st.markdown("##### 大盘主力资金 30 日趋势 vs 上证指数")
                 fig_mf = go.Figure()
-                colors2 = [
-                    "#ef5350" if v >= 0 else "#26a69a" for v in df_mf_show["主力_亿"]
-                ]
+                colors2 = ["#ef5350" if v >= 0 else "#26a69a" for v in df_mf_show["主力_亿"]]
                 fig_mf.add_trace(
                     go.Bar(
                         x=df_mf_show["日期"],
@@ -3485,9 +3276,7 @@ with tab5:
                         zeroline=True,
                         zerolinecolor="#cbd5e1",
                     ),
-                    yaxis2=dict(
-                        title="上证指数", overlaying="y", side="right", showgrid=False
-                    ),
+                    yaxis2=dict(title="上证指数", overlaying="y", side="right", showgrid=False),
                 )
                 st.plotly_chart(fig_mf, use_container_width=True)
 
@@ -3583,15 +3372,11 @@ with tab7:
 # ============== Tab 7: 研究存档 ==============
 with tab8:
     st.markdown("#### 📚 研究存档")
-    st.caption(
-        "每次 LLM 深度分析的报告会自动归档到此处，支持检索、后验标签和模型组合统计。"
-    )
+    st.caption("每次 LLM 深度分析的报告会自动归档到此处，支持检索、后验标签和模型组合统计。")
 
     if TAGGER_AVAILABLE:
         with st.expander("🏷️ 历史归档自动标签", expanded=False):
-            st.caption(
-                "为未打标签的报告计算 3/5/10 日后验涨跌幅，用于后续验证模型信号。"
-            )
+            st.caption("为未打标签的报告计算 3/5/10 日后验涨跌幅，用于后续验证模型信号。")
             if st.button(
                 "刷新行情标签",
                 use_container_width=True,
@@ -3726,24 +3511,16 @@ with tab8:
                     date_counter[r.get("date", "")] += 1
 
                 today = datetime.now().date()
-                dates = [
-                    (today - timedelta(days=i)).strftime("%Y-%m-%d")
-                    for i in range(13, -1, -1)
-                ]
+                dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(13, -1, -1)]
                 counts = [date_counter.get(d, 0) for d in dates]
-                date_labels = [
-                    (today - timedelta(days=i)).strftime("%m-%d")
-                    for i in range(13, -1, -1)
-                ]
+                date_labels = [(today - timedelta(days=i)).strftime("%m-%d") for i in range(13, -1, -1)]
 
                 act_fig = go.Figure()
                 act_fig.add_trace(
                     go.Bar(
                         x=date_labels,
                         y=counts,
-                        marker=dict(
-                            color=["#3b82f6" if c > 0 else "#e5e7eb" for c in counts]
-                        ),
+                        marker=dict(color=["#3b82f6" if c > 0 else "#e5e7eb" for c in counts]),
                         text=[c if c > 0 else "" for c in counts],
                         textposition="outside",
                     )
@@ -3793,9 +3570,7 @@ with tab8:
                 )
 
                 combo_df = pd.DataFrame(combo_stats)
-                combo_df["combo_display"] = combo_df["combo"].apply(
-                    lambda x: x[:50] + "..." if len(x) > 50 else x
-                )
+                combo_df["combo_display"] = combo_df["combo"].apply(lambda x: x[:50] + "..." if len(x) > 50 else x)
                 st.dataframe(
                     combo_df[
                         [
@@ -3808,16 +3583,12 @@ with tab8:
                         ]
                     ],
                     column_config={
-                        "combo_display": st.column_config.TextColumn(
-                            "组合签名", help="完整签名可在 tooltip 中查看"
-                        ),
+                        "combo_display": st.column_config.TextColumn("组合签名", help="完整签名可在 tooltip 中查看"),
                         "count": "出现次数",
                         "buy": "买入",
                         "sell": "卖出",
                         "hold": "观望",
-                        "avg_confidence": st.column_config.NumberColumn(
-                            "平均置信度", format="%.1f%%"
-                        ),
+                        "avg_confidence": st.column_config.NumberColumn("平均置信度", format="%.1f%%"),
                     },
                     hide_index=True,
                     use_container_width=True,
@@ -3825,10 +3596,7 @@ with tab8:
 
                 viz_c1, viz_c2 = st.columns(2)
                 with viz_c1:
-                    bar_labels = [
-                        c["combo"][:40] + "..." if len(c["combo"]) > 40 else c["combo"]
-                        for c in combo_stats
-                    ]
+                    bar_labels = [c["combo"][:40] + "..." if len(c["combo"]) > 40 else c["combo"] for c in combo_stats]
                     bar_fig = go.Figure(
                         go.Bar(
                             x=bar_labels,
@@ -3865,9 +3633,7 @@ with tab8:
                         ]
                     )
                     sig_fig.update_layout(
-                        title=dict(
-                            text="信号分布（全组合汇总）", x=0.5, font=dict(size=13)
-                        ),
+                        title=dict(text="信号分布（全组合汇总）", x=0.5, font=dict(size=13)),
                         height=300,
                         margin=dict(l=20, r=20, t=40, b=20),
                         showlegend=False,
@@ -3904,9 +3670,7 @@ with tab8:
 
                 perf_df = pd.DataFrame(combo_perf)
                 perf_df["combo_display"] = perf_df["combo"].apply(
-                    lambda x: (
-                        x[:50] + "..." if isinstance(x, str) and len(x) > 50 else x
-                    )
+                    lambda x: x[:50] + "..." if isinstance(x, str) and len(x) > 50 else x
                 )
                 show_cols = [
                     "combo_display",
@@ -3926,30 +3690,14 @@ with tab8:
                     column_config={
                         "combo_display": st.column_config.TextColumn("组合签名"),
                         "count": st.column_config.NumberColumn("总样本"),
-                        "samples_with_label": st.column_config.NumberColumn(
-                            "已回填(5日)"
-                        ),
-                        "avg_5d_return": st.column_config.NumberColumn(
-                            "5日均收益", format="%.2f%%"
-                        ),
-                        "avg_10d_return": st.column_config.NumberColumn(
-                            "10日均收益", format="%.2f%%"
-                        ),
-                        "avg_20d_return": st.column_config.NumberColumn(
-                            "20日均收益", format="%.2f%%"
-                        ),
-                        "avg_drawdown_10d": st.column_config.NumberColumn(
-                            "10日均回撤", format="%.2f%%"
-                        ),
-                        "hit_rate_5d": st.column_config.NumberColumn(
-                            "5日命中率", format="%.0f%%"
-                        ),
-                        "buy_hit_rate_5d": st.column_config.NumberColumn(
-                            "买入5日命中率", format="%.0f%%"
-                        ),
-                        "hold_hit_rate_5d": st.column_config.NumberColumn(
-                            "观望5日命中率", format="%.0f%%"
-                        ),
+                        "samples_with_label": st.column_config.NumberColumn("已回填(5日)"),
+                        "avg_5d_return": st.column_config.NumberColumn("5日均收益", format="%.2f%%"),
+                        "avg_10d_return": st.column_config.NumberColumn("10日均收益", format="%.2f%%"),
+                        "avg_20d_return": st.column_config.NumberColumn("20日均收益", format="%.2f%%"),
+                        "avg_drawdown_10d": st.column_config.NumberColumn("10日均回撤", format="%.2f%%"),
+                        "hit_rate_5d": st.column_config.NumberColumn("5日命中率", format="%.0f%%"),
+                        "buy_hit_rate_5d": st.column_config.NumberColumn("买入5日命中率", format="%.0f%%"),
+                        "hold_hit_rate_5d": st.column_config.NumberColumn("观望5日命中率", format="%.0f%%"),
                     },
                     hide_index=True,
                     use_container_width=True,
@@ -3961,31 +3709,19 @@ with tab8:
                         "「🏷️ 历史归档自动标签」中点击「刷新行情标签」重新计算。"
                     )
                 else:
-                    top_perf = [
-                        c for c in combo_perf if c.get("avg_5d_return") is not None
-                    ][:5]
+                    top_perf = [c for c in combo_perf if c.get("avg_5d_return") is not None][:5]
                     if top_perf:
                         ret_fig = go.Figure(
                             go.Bar(
                                 x=[c["avg_5d_return"] for c in top_perf][::-1],
-                                y=[
-                                    (c["combo"][:40] + "...")
-                                    if len(c["combo"]) > 40
-                                    else c["combo"]
-                                    for c in top_perf
-                                ][::-1],
-                                orientation="h",
-                                marker=dict(
-                                    color=[
-                                        "#ef5350"
-                                        if c["avg_5d_return"] > 0
-                                        else "#26a69a"
-                                        for c in top_perf
-                                    ][::-1]
-                                ),
-                                text=[f"{c['avg_5d_return']:+.2f}%" for c in top_perf][
+                                y=[(c["combo"][:40] + "...") if len(c["combo"]) > 40 else c["combo"] for c in top_perf][
                                     ::-1
                                 ],
+                                orientation="h",
+                                marker=dict(
+                                    color=["#ef5350" if c["avg_5d_return"] > 0 else "#26a69a" for c in top_perf][::-1]
+                                ),
+                                text=[f"{c['avg_5d_return']:+.2f}%" for c in top_perf][::-1],
                                 textposition="outside",
                             )
                         )
@@ -4008,9 +3744,7 @@ with tab8:
         # 检索栏(v0.7 增加类型过滤)
         fc0, fc1, fc2, fc3, fc4 = st.columns([1.5, 2, 2, 2, 2])
         with fc0:
-            f_type = st.selectbox(
-                "类型", ["全部", "Agent 报告", "圆桌纪要"], key="arc_type"
-            )
+            f_type = st.selectbox("类型", ["全部", "Agent 报告", "圆桌纪要"], key="arc_type")
         with fc1:
             f_stock = st.text_input(
                 "🔍 股票名称/代码",
@@ -4045,9 +3779,7 @@ with tab8:
         st.markdown(f"**命中 {len(reports)} 条报告**")
 
         if not reports:
-            st.caption(
-                "暂无符合条件的存档报告。请先在「Agent 协作分析」Tab 启动深度分析，报告会自动归档。"
-            )
+            st.caption("暂无符合条件的存档报告。请先在「Agent 协作分析」Tab 启动深度分析，报告会自动归档。")
         else:
             # 列表 + 详情切换
             view_key = "arc_view_path"
@@ -4079,15 +3811,11 @@ with tab8:
                     ]:
                         dval = r.get(dkey)
                         if dval is not None:
-                            dcolor = (
-                                "#ef5350"
-                                if dval > 0
-                                else "#26a69a"
-                                if dval < 0
-                                else "#6b7280"
-                            )
+                            dcolor = "#ef5350" if dval > 0 else "#26a69a" if dval < 0 else "#6b7280"
                             demoji = "🔴" if dval > 0 else "🟢" if dval < 0 else "⚪"
-                            ret_html += f"<span style='color:{dcolor}; margin-left:10px;'>{demoji} {dlabel} {dval:+.2f}%</span>"
+                            ret_html += (
+                                f"<span style='color:{dcolor}; margin-left:10px;'>{demoji} {dlabel} {dval:+.2f}%</span>"
+                            )
 
                     # v0.8: 10 日窗口最大回撤(总是非正,因此恒绿;为 0 时灰显)
                     dd_val = r.get("max_drawdown_10d")
@@ -4110,13 +3838,7 @@ with tab8:
                         )
 
                     day_chg = r.get("day_change", 0) or 0
-                    chg_color = (
-                        "#ef5350"
-                        if day_chg > 0
-                        else "#26a69a"
-                        if day_chg < 0
-                        else "#6b7280"
-                    )
+                    chg_color = "#ef5350" if day_chg > 0 else "#26a69a" if day_chg < 0 else "#6b7280"
 
                     # v0.9: 审稿质量徽标(归档元数据里有 critic 摘要才显示)
                     critic_meta = r.get("critic") or {}
@@ -4184,12 +3906,8 @@ with tab8:
                         </div>
                         """)
                     with col_btn:
-                        st.markdown(
-                            "<div style='height:14px;'></div>", unsafe_allow_html=True
-                        )
-                        if st.button(
-                            "查看", key=f"view_{r['path']}", use_container_width=True
-                        ):
+                        st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+                        if st.button("查看", key=f"view_{r['path']}", use_container_width=True):
                             st.session_state[view_key] = r["path"]
                             st.rerun()
                         if st.button(
@@ -4223,9 +3941,7 @@ with tab8:
 # ============== Tab 9: 专家团圆桌（v0.7 新增）==============
 with tab9:
     if not EXPERT_PANEL_AVAILABLE:
-        st.error(
-            f"专家团圆桌组件未加载: {EXPERT_PANEL_ERROR if 'EXPERT_PANEL_ERROR' in dir() else '未知错误'}"
-        )
+        st.error(f"专家团圆桌组件未加载: {EXPERT_PANEL_ERROR if 'EXPERT_PANEL_ERROR' in dir() else '未知错误'}")
     else:
         try:
             # 复用 llm_agents.build_market_brief() 拼接简报
@@ -4248,9 +3964,7 @@ with tab9:
                     df_fund_t8 = cached_individual_fund_flow(symbol, days=30)
                     if df_fund_t8 is not None and len(df_fund_t8) > 0:
                         s_t8 = summarize_fund_flow(df_fund_t8, recent_days=5)
-                        stock_fund_brief_t8 = build_fund_flow_brief_for_llm(
-                            s_t8, kind=stock_name
-                        )
+                        stock_fund_brief_t8 = build_fund_flow_brief_for_llm(s_t8, kind=stock_name)
                 except Exception:
                     pass
 
@@ -4290,16 +4004,10 @@ with tab9:
                                 continue
                             seen_t9.add(key)
                             related_t8.append(n)
-                    related_brief_t8 = build_news_brief_for_llm(
-                        related_t8[:10], max_items=10
-                    )
+                    related_brief_t8 = build_news_brief_for_llm(related_t8[:10], max_items=10)
                     if industry_t8:
-                        excluded_t8 = {
-                            n.get("title", "").strip() for n in (related_t8 or [])
-                        }
-                        extra_t8 = extract_business_terms(
-                            (main_biz_t8 or {}).get("scope") or "", max_terms=8
-                        )
+                        excluded_t8 = {n.get("title", "").strip() for n in (related_t8 or [])}
+                        extra_t8 = extract_business_terms((main_biz_t8 or {}).get("scope") or "", max_terms=8)
                         extra_t8 += get_concept_keywords(concepts_t8, limit=10)
                         pool_ind_t8 = get_industry_news(
                             industry_t8,
@@ -4314,52 +4022,28 @@ with tab9:
                             concepts=concepts_t8,
                             limit=8,
                         )
-                        topic_ind_t8 = cached_topic_news_em(
-                            tuple(topic_kws_t8), limit_each=6, total_limit=12
-                        )
-                        topic_ind_t8 = [
-                            n
-                            for n in topic_ind_t8
-                            if n.get("title", "").strip() not in excluded_t8
-                        ]
+                        topic_ind_t8 = cached_topic_news_em(tuple(topic_kws_t8), limit_each=6, total_limit=12)
+                        topic_ind_t8 = [n for n in topic_ind_t8 if n.get("title", "").strip() not in excluded_t8]
                         ind_t8 = merge_news_items(pool_ind_t8, topic_ind_t8, limit=8)
-                        industry_news_brief_t8 = build_news_brief_for_llm(
-                            ind_t8, max_items=6
-                        )
-                    concept_excluded_t8 = {
-                        n.get("title", "").strip() for n in (related_t8 or [])
-                    }
-                    pool_concept_t8 = get_concept_news(
-                        concepts_t8, all_t8, limit=6, exclude_titles=concept_excluded_t8
-                    )
+                        industry_news_brief_t8 = build_news_brief_for_llm(ind_t8, max_items=6)
+                    concept_excluded_t8 = {n.get("title", "").strip() for n in (related_t8 or [])}
+                    pool_concept_t8 = get_concept_news(concepts_t8, all_t8, limit=6, exclude_titles=concept_excluded_t8)
                     concept_kws_t8 = get_concept_keywords(concepts_t8, limit=8)
-                    topic_concept_t8 = cached_topic_news_em(
-                        tuple(concept_kws_t8), limit_each=5, total_limit=10
-                    )
+                    topic_concept_t8 = cached_topic_news_em(tuple(concept_kws_t8), limit_each=5, total_limit=10)
                     topic_concept_t8 = [
-                        n
-                        for n in topic_concept_t8
-                        if n.get("title", "").strip() not in concept_excluded_t8
+                        n for n in topic_concept_t8 if n.get("title", "").strip() not in concept_excluded_t8
                     ]
-                    concept_news_t8 = merge_news_items(
-                        pool_concept_t8, topic_concept_t8, limit=8
-                    )
+                    concept_news_t8 = merge_news_items(pool_concept_t8, topic_concept_t8, limit=8)
                     concepts_brief_t8 = build_concepts_brief_for_llm(
                         concepts_t8, concept_news_t8, max_concepts=10, max_news=8
                     )
                     cninfo_t8 = cached_announcements_cninfo(symbol, days=30) or []
                     em_today_t8 = cached_announcements_em_today() or []
-                    em_for_stock_t8 = [
-                        a for a in em_today_t8 if a.get("code") == symbol
-                    ]
+                    em_for_stock_t8 = [a for a in em_today_t8 if a.get("code") == symbol]
                     ann_t8 = merge_announcements(cninfo_t8, em_for_stock_t8)
-                    announcements_brief_t8 = build_announcements_brief_for_llm(
-                        ann_t8, max_items=8
-                    )
+                    announcements_brief_t8 = build_announcements_brief_for_llm(ann_t8, max_items=8)
                     rep_t8 = cached_research_report(symbol, limit=10) or []
-                    research_brief_t8 = build_research_brief_for_llm(
-                        rep_t8, max_items=6
-                    )
+                    research_brief_t8 = build_research_brief_for_llm(rep_t8, max_items=6)
                 except Exception:
                     pass
 
@@ -4385,9 +4069,7 @@ with tab9:
                 "vol_ratio": float(vol_ratio_v),
                 "volatility": float(volatility_v),
                 "fundamentals": "; ".join(
-                    f"{k}: {v}"
-                    for k, v in (info or {}).items()
-                    if k in ("行业", "总市值", "市盈率", "市净率")
+                    f"{k}: {v}" for k, v in (info or {}).items() if k in ("行业", "总市值", "市盈率", "市净率")
                 ),
                 "stock_fund_brief": stock_fund_brief_t8,
                 "related_news_brief": related_brief_t8,
@@ -4433,9 +4115,7 @@ with tab11:
             _ai_dea = df["DEA"].iloc[-1] if "DEA" in df.columns else 0
             _ai_rsi = df["RSI"].iloc[-1] if "RSI" in df.columns else 50
             _ai_vol_ratio = (
-                df["volume"].tail(5).mean() / df["volume"].head(20).mean()
-                if df["volume"].head(20).mean() > 0
-                else 1
+                df["volume"].tail(5).mean() / df["volume"].head(20).mean() if df["volume"].head(20).mean() > 0 else 1
             )
             _ai_volatility = df["close"].pct_change().std() * 100
 
@@ -4461,9 +4141,7 @@ with tab11:
                 "vol_ratio": float(_ai_vol_ratio),
                 "volatility": float(_ai_volatility),
                 "fundamentals": "; ".join(
-                    f"{k}: {v}"
-                    for k, v in (info or {}).items()
-                    if k in ("行业", "总市值", "市盈率", "市净率")
+                    f"{k}: {v}" for k, v in (info or {}).items() if k in ("行业", "总市值", "市盈率", "市净率")
                 ),
             }
             ai_assistant_page.render(stock_data=ai_stock_data)

@@ -115,9 +115,7 @@ def get_evidence(evidence_id: str) -> Optional[dict[str, Any]]:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        row = conn.execute(
-            "SELECT * FROM evidence_items WHERE id=?", (evidence_id,)
-        ).fetchone()
+        row = conn.execute("SELECT * FROM evidence_items WHERE id=?", (evidence_id,)).fetchone()
     return _row_to_evidence(row) if row else None
 
 
@@ -148,9 +146,7 @@ def list_evidence(
                 (pattern, limit),
             ).fetchall()
         else:
-            rows = conn.execute(
-                "SELECT * FROM evidence_items ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM evidence_items ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
     return [_row_to_evidence(r) for r in rows]
 
 
@@ -158,9 +154,7 @@ def delete_evidence(evidence_id: str) -> bool:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id FROM evidence_items WHERE id=?", (evidence_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM evidence_items WHERE id=?", (evidence_id,)).fetchone()
         if not existing:
             return False
         conn.execute("DELETE FROM evidence_items WHERE id=?", (evidence_id,))

@@ -12,9 +12,7 @@ from llm_agents import call_agent, build_market_brief
 
 
 def test_with_news(stock_name: str, symbol: str):
-    print(
-        f"\n{'=' * 70}\n{stock_name} ({symbol}) — 含真实新闻的情绪分析测试\n{'=' * 70}"
-    )
+    print(f"\n{'=' * 70}\n{stock_name} ({symbol}) — 含真实新闻的情绪分析测试\n{'=' * 70}")
 
     # 1. 抓新闻
     print("[1/3] 抓取大盘资讯...")

@@ -107,9 +107,7 @@ class TestFailSafe:
         assert r.n_bull == 0 and r.n_bear == 0
 
     def test_non_numeric_confidence_safe(self):
-        agents = {
-            "a": {"signal": "买入", "confidence": "high", "reason": "x", "name": "A"}
-        }
+        agents = {"a": {"signal": "买入", "confidence": "high", "reason": "x", "name": "A"}}
         r = synthesize_debate(agents)  # 不抛
         assert r.status == OK
         assert r.n_bull == 1

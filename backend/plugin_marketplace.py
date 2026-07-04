@@ -314,8 +314,6 @@ def describe() -> dict[str, Any]:
         "installed_count": len(installed),
         "not_installed_count": len(not_installed),
         "categories": sorted({p["category"] for p in _PLUGIN_CATALOG}),
-        "must_have_remaining": [
-            p["name"] for p in not_installed if p.get("recommended") == "必接"
-        ],
+        "must_have_remaining": [p["name"] for p in not_installed if p.get("recommended") == "必接"],
         "note": "插件市场: 已装自动注册, 未装按目录给安装指引; 全部研究语义, 不下单。",
     }

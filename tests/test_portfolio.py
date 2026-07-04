@@ -43,9 +43,7 @@ class TestPortfolioAPI:
         assert isinstance(data["data"], list)
 
     def test_get_portfolio(self, client):
-        create = client.post(
-            "/api/portfolio", json={"name": "P2", "initial_capital": 80000}
-        )
+        create = client.post("/api/portfolio", json={"name": "P2", "initial_capital": 80000})
         pid = create.json()["data"]["id"]
         resp = client.get(f"/api/portfolio/{pid}")
         assert resp.status_code == 200
@@ -57,9 +55,7 @@ class TestPortfolioAPI:
         assert resp.status_code == 404
 
     def test_buy_trade(self, client):
-        create = client.post(
-            "/api/portfolio", json={"name": "BuyTest", "initial_capital": 100000}
-        )
+        create = client.post("/api/portfolio", json={"name": "BuyTest", "initial_capital": 100000})
         pid = create.json()["data"]["id"]
         resp = client.post(
             f"/api/portfolio/{pid}/trade",
@@ -71,9 +67,7 @@ class TestPortfolioAPI:
         assert data["data"]["cash"] < 100000
 
     def test_sell_trade(self, client):
-        create = client.post(
-            "/api/portfolio", json={"name": "SellTest", "initial_capital": 100000}
-        )
+        create = client.post("/api/portfolio", json={"name": "SellTest", "initial_capital": 100000})
         pid = create.json()["data"]["id"]
         client.post(
             f"/api/portfolio/{pid}/trade",
@@ -88,9 +82,7 @@ class TestPortfolioAPI:
         assert data["success"] is True
 
     def test_sell_no_position(self, client):
-        create = client.post(
-            "/api/portfolio", json={"name": "NoPos", "initial_capital": 100000}
-        )
+        create = client.post("/api/portfolio", json={"name": "NoPos", "initial_capital": 100000})
         pid = create.json()["data"]["id"]
         resp = client.post(
             f"/api/portfolio/{pid}/trade",
@@ -99,9 +91,7 @@ class TestPortfolioAPI:
         assert resp.status_code == 400
 
     def test_buy_insufficient_cash(self, client):
-        create = client.post(
-            "/api/portfolio", json={"name": "Poor", "initial_capital": 1000}
-        )
+        create = client.post("/api/portfolio", json={"name": "Poor", "initial_capital": 1000})
         pid = create.json()["data"]["id"]
         resp = client.post(
             f"/api/portfolio/{pid}/trade",
@@ -110,9 +100,7 @@ class TestPortfolioAPI:
         assert resp.status_code == 400
 
     def test_allocation(self, client):
-        create = client.post(
-            "/api/portfolio", json={"name": "Alloc", "initial_capital": 100000}
-        )
+        create = client.post("/api/portfolio", json={"name": "Alloc", "initial_capital": 100000})
         pid = create.json()["data"]["id"]
         client.post(
             f"/api/portfolio/{pid}/trade",
@@ -125,9 +113,7 @@ class TestPortfolioAPI:
         assert "_cash" in data["data"]
 
     def test_trades_list(self, client):
-        create = client.post(
-            "/api/portfolio", json={"name": "Trades", "initial_capital": 100000}
-        )
+        create = client.post("/api/portfolio", json={"name": "Trades", "initial_capital": 100000})
         pid = create.json()["data"]["id"]
         client.post(
             f"/api/portfolio/{pid}/trade",

@@ -280,9 +280,7 @@ def run_batch_critic(
     except Exception:
         pass
 
-    user_msg = build_critic_prompt(
-        stock_name, market_brief, agent_results, factor_context=factor_ctx
-    )
+    user_msg = build_critic_prompt(stock_name, market_brief, agent_results, factor_context=factor_ctx)
     messages = [
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_msg},
@@ -304,11 +302,7 @@ def run_batch_critic(
             is_primary = (vd, md) == primary
             call_api_key = (api_key or None) if is_primary else None
             call_base_url = (base_url or None) if is_primary else None
-            if (
-                not call_api_key
-                and not call_base_url
-                and not (cfg.get("api_key") and cfg.get("base_url"))
-            ):
+            if not call_api_key and not call_base_url and not (cfg.get("api_key") and cfg.get("base_url")):
                 last_err = f"{vd} 未配置完整"
                 continue
             text = call_llm(

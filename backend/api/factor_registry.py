@@ -60,6 +60,4 @@ def factor_cached(symbol: str):
     from backend.quant import factor_registry
 
     vec = factor_registry.get_cached_vector(symbol)
-    return ApiResponse(
-        success=bool(vec is not None), data={"symbol": symbol, "factors": vec or {}}
-    )
+    return ApiResponse(success=bool(vec is not None), data={"symbol": symbol, "factors": vec or {}})

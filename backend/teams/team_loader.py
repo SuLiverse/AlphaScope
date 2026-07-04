@@ -88,9 +88,7 @@ def _load_teams_from_disk(config_path: Optional[str] = None) -> Dict[str, Expert
                 ExpertMember(
                     id=m.get("id", ""),
                     name=_get_localized(m.get("displayName", ""), m.get("id", "")),
-                    name_en=m.get("displayName", {}).get("en", "")
-                    if isinstance(m.get("displayName"), dict)
-                    else "",
+                    name_en=m.get("displayName", {}).get("en", "") if isinstance(m.get("displayName"), dict) else "",
                     profession=_get_localized(m.get("profession", "")),
                     profession_en=m.get("profession", {}).get("en", "")
                     if isinstance(m.get("profession"), dict)

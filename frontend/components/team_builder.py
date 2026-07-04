@@ -73,9 +73,7 @@ def render():
                                 "状态": "✅" if m.enabled else "❌",
                             }
                         )
-                    st.dataframe(
-                        members_data, use_container_width=True, hide_index=True
-                    )
+                    st.dataframe(members_data, use_container_width=True, hide_index=True)
 
                 col1, col2, col3 = st.columns(3)
                 with col1:
@@ -108,13 +106,9 @@ def render():
                         st.markdown(f"- `{agent}`")
                     col1, col2 = st.columns(2)
                     with col1:
-                        st.metric(
-                            "Critic", "启用" if team.get("enable_critic") else "禁用"
-                        )
+                        st.metric("Critic", "启用" if team.get("enable_critic") else "禁用")
                     with col2:
-                        st.metric(
-                            "主席", "启用" if team.get("enable_chairman") else "禁用"
-                        )
+                        st.metric("主席", "启用" if team.get("enable_chairman") else "禁用")
     except Exception as e:
         st.warning(f"加载模板失败: {e}")
 

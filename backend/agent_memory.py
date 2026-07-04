@@ -5,29 +5,21 @@ from __future__ import annotations
 from typing import Any
 
 
-def build_agent_memory_context(
-    symbol: str = "", stock_name: str = "", limit: int = 5
-) -> str:
+def build_agent_memory_context(symbol: str = "", stock_name: str = "", limit: int = 5) -> str:
     """Return recent agent memory snippets for the current analysis target."""
     try:
         from backend.file_store import search_documents
 
         query = " ".join(part for part in (stock_name, symbol, "agent memory") if part)
         docs = search_documents(query or "agent memory", limit=limit)
-        memory_docs = [
-            doc
-            for doc in docs
-            if (doc.get("metadata") or {}).get("doc_type") == "agent_memory"
-        ]
+        memory_docs = [doc for doc in docs if (doc.get("metadata") or {}).get("doc_type") == "agent_memory"]
     except Exception:
         return ""
 
     if not memory_docs:
         return ""
 
-    lines = [
-        "【Agent 记忆】以下是历史分析中可复用的本地记忆，请只作为参考线索，关键结论仍需重新核验。"
-    ]
+    lines = ["【Agent 记忆】以下是历史分析中可复用的本地记忆，请只作为参考线索，关键结论仍需重新核验。"]
     for index, doc in enumerate(memory_docs[:limit], 1):
         metadata = doc.get("metadata") or {}
         title = doc.get("title", "")

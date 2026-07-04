@@ -24,9 +24,7 @@ class DipReversalStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         n = self.params["lookback"]
         if len(bars) <= n:
             return []
@@ -37,9 +35,7 @@ class DipReversalStrategy(BaseStrategy):
         signals: list[Signal] = []
         dip_ref: float | None = None  # reference close at last dip entry
         for i in range(n, len(bars)):
-            change = (
-                (closes[i] - closes[i - n]) / closes[i - n] if closes[i - n] else 0.0
-            )
+            change = (closes[i] - closes[i - n]) / closes[i - n] if closes[i - n] else 0.0
             symbol = bars[i].get("symbol", "")
             if change <= dip_thr and dip_ref is None:
                 shares = self._calc_shares(closes[i], portfolio_state)
@@ -54,9 +50,7 @@ class DipReversalStrategy(BaseStrategy):
                 dip_ref = closes[i]
             elif dip_ref is not None and closes[i] >= dip_ref * (1 + target):
                 gain = (closes[i] - dip_ref) / dip_ref
-                signals.append(
-                    Signal("sell", symbol, reason=f"反弹止盈 (+{gain * 100:.2f}%)")
-                )
+                signals.append(Signal("sell", symbol, reason=f"反弹止盈 (+{gain * 100:.2f}%)"))
                 dip_ref = None
             elif dip_ref is not None and closes[i] < dip_ref:
                 # 更新参考低点，跟踪更深的底部

@@ -246,9 +246,7 @@ class CompiledFormula:
     ok: bool
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    statements: list[tuple[str, str, Any]] = field(
-        default_factory=list
-    )  # (kind, name, ast)
+    statements: list[tuple[str, str, Any]] = field(default_factory=list)  # (kind, name, ast)
     buy_names: list[str] = field(default_factory=list)
     sell_names: list[str] = field(default_factory=list)
     var_names: list[str] = field(default_factory=list)
@@ -272,9 +270,7 @@ def compile_formula(src: str) -> CompiledFormula:
     if not src or not src.strip():
         return CompiledFormula(ok=False, errors=["公式为空。"])
     if len(src) > _MAX_FORMULA_LEN:
-        return CompiledFormula(
-            ok=False, errors=[f"公式过长(>{_MAX_FORMULA_LEN} 字符)。"]
-        )
+        return CompiledFormula(ok=False, errors=[f"公式过长(>{_MAX_FORMULA_LEN} 字符)。"])
 
     statements: list[tuple[str, str, Any]] = []
     buy_names: list[str] = []
@@ -357,9 +353,7 @@ def _find_output_colon(text: str) -> int:
     return -1
 
 
-def _collect_refs(
-    ast: Any, refs: set[str], var_names: list[str], errors: list[str]
-) -> None:
+def _collect_refs(ast: Any, refs: set[str], var_names: list[str], errors: list[str]) -> None:
     """遍历 AST 记录用到的数据引用,并校验函数名/参数。"""
     if not isinstance(ast, tuple):
         return
@@ -505,10 +499,7 @@ class _Evaluator:
     def _ref_series(self, ref_name: str) -> list[float]:
         col = _DATA_REFS[ref_name]
         if ref_name not in self.refs:
-            self.refs[ref_name] = [
-                float(b.get(col)) if b.get(col) is not None else _NAN
-                for b in self._bars
-            ]
+            self.refs[ref_name] = [float(b.get(col)) if b.get(col) is not None else _NAN for b in self._bars]
         return self.refs[ref_name]
 
     def eval(self, ast: Any) -> list[float]:
@@ -562,10 +553,7 @@ class _Evaluator:
         }
         fn = ops[op]
         return [
-            0.0
-            if (math.isnan(a[i]) or math.isnan(b[i]))
-            else (1.0 if fn(a[i], b[i]) else 0.0)
-            for i in range(self.n)
+            0.0 if (math.isnan(a[i]) or math.isnan(b[i])) else (1.0 if fn(a[i], b[i]) else 0.0) for i in range(self.n)
         ]
 
     def _call(self, fname: str, args: list[Any]) -> list[float]:
@@ -592,9 +580,7 @@ class _Evaluator:
         if fname == "AVEDEV":
             return _rolling(self.eval(args[0]), _const_int(args[1], "AVEDEV"), _avedev)
         if fname == "COUNT":
-            return _rolling(
-                _bool_series(self.eval(args[0])), _const_int(args[1], "COUNT"), sum
-            )
+            return _rolling(_bool_series(self.eval(args[0])), _const_int(args[1], "COUNT"), sum)
         if fname == "MAX":
             return _elementwise(self.eval(args[0]), self.eval(args[1]), max)
         if fname == "MIN":

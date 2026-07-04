@@ -204,9 +204,7 @@ def _render_message(msg: dict):
                             action = op.get("action", "观望")
                             pos = op.get("position", 0)
                             conf = op.get("confidence", 0)
-                            st.markdown(
-                                f"- **{name}**: {action} | 仓位 {pos}% | 置信度 {conf}%"
-                            )
+                            st.markdown(f"- **{name}**: {action} | 仓位 {pos}% | 置信度 {conf}%")
 
 
 # ============== 分析结果面板 ==============
@@ -402,9 +400,7 @@ def render(stock_data=None):
 
             # 显示用户上传的图片
             with st.chat_message("user"):
-                st.image(
-                    uploaded_image, caption="上传的K线图", use_container_width=True
-                )
+                st.image(uploaded_image, caption="上传的K线图", use_container_width=True)
                 if user_input:
                     st.markdown(user_input)
 
@@ -432,9 +428,7 @@ def render(stock_data=None):
                         if vision_result.detection:
                             d = vision_result.detection
                             if d.ticker:
-                                response_parts.append(
-                                    f"**识别标的**: {d.ticker_name} ({d.ticker})"
-                                )
+                                response_parts.append(f"**识别标的**: {d.ticker_name} ({d.ticker})")
                             if d.period:
                                 response_parts.append(f"**识别周期**: {d.period}")
                             response_parts.append(f"**图表类型**: {d.chart_type}")
@@ -444,38 +438,25 @@ def render(stock_data=None):
                             if k.trend:
                                 response_parts.append(f"**趋势判断**: {k.trend}")
                             if k.support_levels:
-                                response_parts.append(
-                                    f"**支撑位**: {', '.join(str(s) for s in k.support_levels)}"
-                                )
+                                response_parts.append(f"**支撑位**: {', '.join(str(s) for s in k.support_levels)}")
                             if k.resistance_levels:
-                                response_parts.append(
-                                    f"**压力位**: {', '.join(str(r) for r in k.resistance_levels)}"
-                                )
+                                response_parts.append(f"**压力位**: {', '.join(str(r) for r in k.resistance_levels)}")
                             if k.patterns:
-                                response_parts.append(
-                                    f"**识别形态**: {', '.join(k.patterns)}"
-                                )
+                                response_parts.append(f"**识别形态**: {', '.join(k.patterns)}")
                             if k.summary:
                                 response_parts.append(f"\n**综合判断**: {k.summary}")
 
                         if vision_result.needs_more_info:
-                            response_parts.append(
-                                f"\n**需要补充**: {', '.join(vision_result.missing_info)}"
-                            )
+                            response_parts.append(f"\n**需要补充**: {', '.join(vision_result.missing_info)}")
 
                         if vision_result.disclaimer:
                             response_parts.append(f"\n⚠️ {vision_result.disclaimer}")
 
                         response_content = (
-                            "\n\n".join(response_parts)
-                            if response_parts
-                            else "图片分析完成，但未提取到有效信息。"
+                            "\n\n".join(response_parts) if response_parts else "图片分析完成，但未提取到有效信息。"
                         )
                     else:
-                        response_content = (
-                            vision_result.summary
-                            or "图片分析失败，请确保上传的是K线图或金融图表。"
-                        )
+                        response_content = vision_result.summary or "图片分析失败，请确保上传的是K线图或金融图表。"
 
                     # 保存到对话
                     orchestrator.store.add_message(

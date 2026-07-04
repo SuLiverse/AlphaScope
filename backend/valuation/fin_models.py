@@ -173,9 +173,7 @@ def compute_dcf(features: dict, assumptions: dict | None = None) -> dict:
         "pv_explicit_yi": pv_explicit,
         "terminal_value_yi": round(tv_at_end, 3),
         "tv_pv_yi": tv_pv,
-        "tv_pct_of_ev": round(tv_pv / enterprise_value * 100, 1)
-        if enterprise_value > 0
-        else 0,
+        "tv_pct_of_ev": round(tv_pv / enterprise_value * 100, 1) if enterprise_value > 0 else 0,
         "enterprise_value_yi": enterprise_value,
         "net_debt_yi": round(net_debt, 3),
         "equity_value_yi": equity_value,
@@ -315,13 +313,9 @@ def build_comps_table(target: dict, peers: list[dict]) -> dict:
     cur_px = _num(target.get("price"))
     implied = {}
     if stats.get("pe") and target.get("eps"):
-        implied["via_median_pe"] = round(
-            stats["pe"]["median"] * _num(target.get("eps")), 2
-        )
+        implied["via_median_pe"] = round(stats["pe"]["median"] * _num(target.get("eps")), 2)
     if stats.get("pb") and target.get("bvps"):
-        implied["via_median_pb"] = round(
-            stats["pb"]["median"] * _num(target.get("bvps")), 2
-        )
+        implied["via_median_pb"] = round(stats["pb"]["median"] * _num(target.get("bvps")), 2)
 
     pe_pct = target_pct.get("pe", 50)
     if pe_pct <= 25:
@@ -408,18 +402,13 @@ def project_three_stmt(features: dict, assumptions: dict | None = None) -> dict:
 
     dep = [round(r * a["dep_pct_revenue"], 2) for r in rev]
     capex = [round(r * a["capex_pct_revenue"], 2) for r in rev]
-    nwc_chg = [
-        round((rev[i] - (rev[i - 1] if i > 0 else rev0)) * a["nwc_pct_revenue"], 2)
-        for i in range(len(rev))
-    ]
+    nwc_chg = [round((rev[i] - (rev[i - 1] if i > 0 else rev0)) * a["nwc_pct_revenue"], 2) for i in range(len(rev))]
     ocf = [round(ni[i] + dep[i] - nwc_chg[i], 2) for i in range(len(rev))]
     fcf = [round(ocf[i] - capex[i], 2) for i in range(len(rev))]
 
     equity0 = _num(features.get("equity_yi"))
     if equity0 <= 0:
-        equity0 = _num(features.get("market_cap_yi")) / max(
-            _num(features.get("pb")) or 2.0, 0.1
-        )
+        equity0 = _num(features.get("market_cap_yi")) / max(_num(features.get("pb")) or 2.0, 0.1)
     equity_series = []
     eq = equity0
     for n in ni:
@@ -593,9 +582,7 @@ def accretion_dilution(
         "pro_forma_eps": round(pro_forma_eps, 3),
         "standalone_eps": round(a_eps, 3),
         "accretion_pct": round(accretion, 1),
-        "verdict": "🟢 增厚"
-        if accretion > 3
-        else ("⚪ 中性" if -3 <= accretion <= 3 else "🔴 摊薄"),
+        "verdict": "🟢 增厚" if accretion > 3 else ("⚪ 中性" if -3 <= accretion <= 3 else "🔴 摊薄"),
         "methodology_log": [
             f"Step 1 · 报价 ¥{offer_px:.2f}(溢价 {premium_pct * 100:.0f}%)→ 总对价 {equity_value:.1f} 亿",
             f"Step 2 · 现金 {cash_pct * 100:.0f}% = {cash_needed:.1f} 亿; 换股 {stock_needed:.1f} 亿 → 新增 {new_shares_issued:.2f} 亿股",

@@ -61,9 +61,7 @@ class RedditProvider(BaseProvider):
             mentions = []
             sentiment_scores = []
 
-            for submission in subreddit.search(
-                symbol, limit=query.get("limit", 20), sort="new"
-            ):
+            for submission in subreddit.search(symbol, limit=query.get("limit", 20), sort="new"):
                 title = submission.title
                 score = submission.score
                 mentions.append(
@@ -83,11 +81,7 @@ class RedditProvider(BaseProvider):
                 else:
                     sentiment_scores.append(0.3)
 
-            avg_sentiment = (
-                sum(sentiment_scores) / len(sentiment_scores)
-                if sentiment_scores
-                else 0.5
-            )
+            avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0.5
             return {
                 "symbol": symbol,
                 "mention_count": len(mentions),
@@ -111,15 +105,11 @@ class RedditProvider(BaseProvider):
         try:
             subreddit = client.subreddit("wallstreetbets+stocks")
             result = []
-            for submission in subreddit.search(
-                symbol, limit=query.get("limit", 10), sort="hot"
-            ):
+            for submission in subreddit.search(symbol, limit=query.get("limit", 10), sort="hot"):
                 result.append(
                     {
                         "title": submission.title,
-                        "summary": submission.selftext[:200]
-                        if submission.selftext
-                        else "",
+                        "summary": submission.selftext[:200] if submission.selftext else "",
                         "source": "reddit/wallstreetbets",
                         "datetime": str(submission.created_utc),
                         "url": submission.url,

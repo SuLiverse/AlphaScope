@@ -25,9 +25,7 @@ _FEATURES = {
 
 
 def test_valuation_default(monkeypatch):
-    monkeypatch.setattr(
-        val, "features_from_fundamentals", lambda s: (dict(_FEATURES), [])
-    )
+    monkeypatch.setattr(val, "features_from_fundamentals", lambda s: (dict(_FEATURES), []))
     resp = client.get("/api/valuation/600519")
     assert resp.status_code == 200
     dcf = resp.json()["data"]["dcf"]
@@ -35,12 +33,8 @@ def test_valuation_default(monkeypatch):
 
 
 def test_valuation_scenario_assumptions_flow(monkeypatch):
-    monkeypatch.setattr(
-        val, "features_from_fundamentals", lambda s: (dict(_FEATURES), [])
-    )
-    resp = client.get(
-        "/api/valuation/600519?stage1_growth=0.25&terminal_g=0.03&beta=1.2"
-    )
+    monkeypatch.setattr(val, "features_from_fundamentals", lambda s: (dict(_FEATURES), []))
+    resp = client.get("/api/valuation/600519?stage1_growth=0.25&terminal_g=0.03&beta=1.2")
     assert resp.status_code == 200
     a = resp.json()["data"]["dcf"]["assumptions"]
     assert a["stage1_growth"] == 0.25
@@ -49,15 +43,9 @@ def test_valuation_scenario_assumptions_flow(monkeypatch):
 
 
 def test_valuation_higher_growth_lifts_value(monkeypatch):
-    monkeypatch.setattr(
-        val, "features_from_fundamentals", lambda s: (dict(_FEATURES), [])
-    )
-    low = client.get("/api/valuation/600519?stage1_growth=0.05").json()["data"]["dcf"][
-        "intrinsic_per_share"
-    ]
-    high = client.get("/api/valuation/600519?stage1_growth=0.25").json()["data"]["dcf"][
-        "intrinsic_per_share"
-    ]
+    monkeypatch.setattr(val, "features_from_fundamentals", lambda s: (dict(_FEATURES), []))
+    low = client.get("/api/valuation/600519?stage1_growth=0.05").json()["data"]["dcf"]["intrinsic_per_share"]
+    high = client.get("/api/valuation/600519?stage1_growth=0.25").json()["data"]["dcf"]["intrinsic_per_share"]
     assert high > low
 
 

@@ -97,9 +97,7 @@ class TaskQueue:
         try:
             result = func(task.input_data, task_id=task_id)
             with self._lock:
-                task.output_data = (
-                    result if isinstance(result, dict) else {"result": result}
-                )
+                task.output_data = result if isinstance(result, dict) else {"result": result}
                 task.status = TaskStatus.COMPLETED
         except Exception as e:
             with self._lock:
@@ -129,15 +127,11 @@ class TaskQueue:
             "created_at": task.created_at,
             "started_at": task.started_at,
             "completed_at": task.completed_at,
-            "duration_ms": round((task.completed_at - task.started_at) * 1000, 1)
-            if task.completed_at
-            else 0,
+            "duration_ms": round((task.completed_at - task.started_at) * 1000, 1) if task.completed_at else 0,
             "error": task.error,
         }
 
-    def list_tasks(
-        self, status: Optional[TaskStatus] = None, limit: int = 20
-    ) -> List[Dict[str, Any]]:
+    def list_tasks(self, status: Optional[TaskStatus] = None, limit: int = 20) -> List[Dict[str, Any]]:
         """列出任务"""
         with self._lock:
             tasks = list(self._tasks.values())

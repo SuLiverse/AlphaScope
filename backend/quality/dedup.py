@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 def _normalize(text: str) -> str:
     """标准化文本: 去除空白、标点、统一大小写"""
     text = re.sub(r"\s+", "", text)
-    text = re.sub(
-        r"[，。、；：" "''【】《》（）\\(\\)\\[\\]{}!！?？,.;:\"'\\-]", "", text
-    )
+    text = re.sub(r"[，。、；：" "''【】《》（）\\(\\)\\[\\]{}!！?？,.;:\"'\\-]", "", text)
     return text.lower()
 
 

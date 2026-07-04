@@ -22,16 +22,13 @@ from backend.project_paths import CACHE_DIR
 
 FUND_FLOW_CACHE_DIR = CACHE_DIR / "fund_flow"
 FUND_FLOW_CACHE_TTL_SECONDS = 1800  # 30 分钟 TTL：避免每次冷访问都打 eastmoney（~2.6s）
-EASTMONEY_FUND_FLOW_URL = (
-    "http://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
-)
+EASTMONEY_FUND_FLOW_URL = "http://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get"
 EASTMONEY_FUND_FLOW_TIMEOUT = (2.0, 6.0)
 EASTMONEY_HEADERS = {
     "Accept": "application/json,text/plain,*/*",
     "Referer": "https://quote.eastmoney.com/",
     "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0 Safari/537.36"
     ),
 }
 FLOW_NUMERIC_COLUMNS = [
@@ -64,6 +61,7 @@ def infer_market(symbol: str) -> str:
 def _cache_key(value: str) -> str:
     return re.sub(r"[^0-9A-Za-z_.-]+", "_", str(value or "").strip()) or "unknown"
 
+
 from backend.utils import safe_call as _safe
 
 
@@ -95,8 +93,7 @@ def _write_flow_cache(kind: str, key: str, df: pd.DataFrame) -> None:
         out = out.astype(object).where(pd.notnull(out), None)
         payload = {
             "saved_at": datetime.now().isoformat(),
-            "source": getattr(df, "attrs", {}).get("source")
-            or ("akshare" if kind == "market" else "eastmoney"),
+            "source": getattr(df, "attrs", {}).get("source") or ("akshare" if kind == "market" else "eastmoney"),
             "columns": list(out.columns),
             "records": out.to_dict(orient="records"),
         }
@@ -134,18 +131,14 @@ def _read_flow_cache(
                 saved_at = datetime.fromisoformat(payload["saved_at"])
             except (KeyError, ValueError):
                 return None
-            if (
-                datetime.now() - saved_at
-            ).total_seconds() > FUND_FLOW_CACHE_TTL_SECONDS:
+            if (datetime.now() - saved_at).total_seconds() > FUND_FLOW_CACHE_TTL_SECONDS:
                 return None
         df = pd.DataFrame(records, columns=payload.get("columns") or None)
         df = _normalize_flow_frame(df, days)
         df.attrs["source"] = payload.get("source") or "cache"
         df.attrs["degraded"] = fresh_only  # TTL 命中视为新鲜，不算降级
         df.attrs["source_status"] = "cache" if not fresh_only else "cache"
-        df.attrs["error"] = (
-            "" if fresh_only else "Using cached fund-flow data; provider unavailable"
-        )
+        df.attrs["error"] = "" if fresh_only else "Using cached fund-flow data; provider unavailable"
         df.attrs["cached_at"] = payload.get("saved_at", "")
         return df
     except Exception:
@@ -272,9 +265,7 @@ def summarize_fund_flow(df: pd.DataFrame, recent_days: int = 5) -> Dict[str, Any
         "large_total_yi": to_yi(recent["大单净流入-净额"].sum()),
         "medium_total_yi": to_yi(recent["中单净流入-净额"].sum()),
         "small_total_yi": to_yi(recent["小单净流入-净额"].sum()),
-        "last_date": str(last["日期"].date())
-        if hasattr(last["日期"], "date")
-        else str(last["日期"]),
+        "last_date": str(last["日期"].date()) if hasattr(last["日期"], "date") else str(last["日期"]),
         "last_main_yi": to_yi(last["主力净流入-净额"]),
         "last_main_pct": float(last["主力净流入-净占比"]),
         "inflow_days": int((recent["主力净流入-净额"] > 0).sum()),
@@ -313,11 +304,7 @@ if __name__ == "__main__":
     print("=" * 70)
     df = fetch_individual_fund_flow("600519", days=10)
     if df is not None:
-        print(
-            df[
-                ["日期", "收盘价", "涨跌幅", "主力净流入-净额", "主力净流入-净占比"]
-            ].to_string()
-        )
+        print(df[["日期", "收盘价", "涨跌幅", "主力净流入-净额", "主力净流入-净占比"]].to_string())
         s = summarize_fund_flow(df, recent_days=5)
         print("\n--- 5 日汇总 ---")
         for k, v in s.items():

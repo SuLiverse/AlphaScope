@@ -49,9 +49,7 @@ def _resolve_evidence_ids(agent_text: Any, number_to_id: Dict[int, str]) -> List
     import re as _re
 
     text = " ".join(
-        str(x)
-        for x in (agent_text if isinstance(agent_text, (list, tuple)) else [agent_text])
-        if x is not None
+        str(x) for x in (agent_text if isinstance(agent_text, (list, tuple)) else [agent_text]) if x is not None
     )
     ids: List[str] = []
     seen = set()
@@ -164,9 +162,7 @@ def _build_model_status(
         failure_text += " " + _sanitize_model_error(chairman_summary)
 
     auth_error = _is_auth_error(failure_text)
-    degraded = bool(failed_agents) or bool(
-        critic_block and not critic_block.get("ok", True)
-    )
+    degraded = bool(failed_agents) or bool(critic_block and not critic_block.get("ok", True))
     if chairman_summary and "失败" in chairman_summary:
         degraded = True
 
@@ -263,9 +259,7 @@ def _build_research_report_body(
             if risk_text and len(risk_lines) < 5:
                 risk_lines.append(f"- {risk_text}")
     if model_status.get("degraded"):
-        risk_lines.append(
-            "- 本次模型推理链路降级，所有方向性结论都应在修复 API 配置后复核。"
-        )
+        risk_lines.append("- 本次模型推理链路降级，所有方向性结论都应在修复 API 配置后复核。")
 
     critic_text = ""
     if critic_block and critic_block.get("ok"):
@@ -314,14 +308,8 @@ def _build_research_report_body(
 def _managed_agent_to_runtime_config(raw: dict) -> dict:
     key = str(raw.get("id") or raw.get("key") or "custom_agent").strip()
     prompt = AGENT_PROMPTS.get(key, {})
-    role = (
-        raw.get("description") or prompt.get("role") or "你是一位专业投资分析 Agent。"
-    )
-    instruction = (
-        raw.get("system_prompt")
-        or prompt.get("instruction")
-        or "请基于市场简报输出投资信号、置信度和理由。"
-    )
+    role = raw.get("description") or prompt.get("role") or "你是一位专业投资分析 Agent。"
+    instruction = raw.get("system_prompt") or prompt.get("instruction") or "请基于市场简报输出投资信号、置信度和理由。"
     name = raw.get("name") or prompt.get("name") or key
     return {
         "key": key,
@@ -434,19 +422,13 @@ def run_agents_with_mode(
     # 简报里的证据编号 [n] → 真实 evidence_id 映射, 供 Agent 结论反链溯源。
     number_to_id = {item["number"]: item["evidence_id"] for item in evidence_pool}
 
-    brief = build_market_brief(
-        stock_data, evidence_context=evidence_ctx, factor_context=factor_ctx
-    )
+    brief = build_market_brief(stock_data, evidence_context=evidence_ctx, factor_context=factor_ctx)
     # 证据池就绪后重算核验(纳入 evidence 维度), 并把「严禁编造缺失维度」提示注入简报。
     verification = verify_data(stock_data, evidence_pool=evidence_pool)
     brief += verification.brief_warning()
     api_keys = api_keys or {}
 
-    active = [
-        _agent_config_from_dict(a)
-        for a in agent_configs
-        if bool(a.get("enabled", True))
-    ]
+    active = [_agent_config_from_dict(a) for a in agent_configs if bool(a.get("enabled", True))]
     if not active:
         model_status = _build_model_status({})
         summary = {
@@ -517,9 +499,7 @@ def run_agents_with_mode(
     # 实现"点开结论可反查来源"的可审计能力(evidence 招牌落地)。
     if number_to_id:
         for r in results.values():
-            r["evidence_ids"] = _resolve_evidence_ids(
-                [r.get("reason", ""), r.get("evidence", [])], number_to_id
-            )
+            r["evidence_ids"] = _resolve_evidence_ids([r.get("reason", ""), r.get("evidence", [])], number_to_id)
     else:
         for r in results.values():
             r.setdefault("evidence_ids", [])
@@ -572,9 +552,7 @@ def run_agents_with_mode(
                     "summary": {"buy": buy, "sell": sell, "hold": hold},
                 },
                 stock_data.get("name", ""),
-                vendor=((global_ai_settings or {}).get("chairman") or {}).get(
-                    "provider"
-                ),
+                vendor=((global_ai_settings or {}).get("chairman") or {}).get("provider"),
                 model=((global_ai_settings or {}).get("chairman") or {}).get("model"),
             )
         except Exception as e:
@@ -610,9 +588,8 @@ def run_agents_with_mode(
 
         risk_gate = RiskEngine().gate(stock_data, summary).to_dict()
         if risk_gate.get("vetoed"):
-            banner = (
-                "⛔【风控一票否决】本研报因触发 critical 风控规则被否决, 方向性结论不作为投资依据:\n"
-                + "\n".join(f"  - {r}" for r in risk_gate.get("veto_reasons", []))
+            banner = "⛔【风控一票否决】本研报因触发 critical 风控规则被否决, 方向性结论不作为投资依据:\n" + "\n".join(
+                f"  - {r}" for r in risk_gate.get("veto_reasons", [])
             )
             research_report = f"{banner}\n\n{research_report}"
             vetoed_rating = compute_rating(list(results.values()), risk_vetoed=True)
@@ -823,9 +800,7 @@ def get_mode_model_table(mode: AnalysisMode) -> list:
             (
                 "critic",
                 "📝 Critic 审稿",
-                VENDORS.get(config.critic_provider, {}).get(
-                    "label", config.critic_provider
-                ),
+                VENDORS.get(config.critic_provider, {}).get("label", config.critic_provider),
                 config.critic_model,
             )
         )
@@ -834,9 +809,7 @@ def get_mode_model_table(mode: AnalysisMode) -> list:
             (
                 "chairman",
                 "🎩 投资委员会主席",
-                VENDORS.get(config.chairman_provider, {}).get(
-                    "label", config.chairman_provider
-                ),
+                VENDORS.get(config.chairman_provider, {}).get("label", config.chairman_provider),
                 config.chairman_model,
             )
         )

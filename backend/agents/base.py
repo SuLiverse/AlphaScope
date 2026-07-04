@@ -279,9 +279,7 @@ def _agent_config_from_dict(raw: dict) -> AgentConfig:
     )
 
 
-def _resolve_agent_ai_config(
-    cfg: AgentConfig, global_ai_settings: Optional[dict] = None
-) -> Tuple[str, str, str, str]:
+def _resolve_agent_ai_config(cfg: AgentConfig, global_ai_settings: Optional[dict] = None) -> Tuple[str, str, str, str]:
     global_ai_settings = global_ai_settings or {}
     if cfg.inherit_global_key and global_ai_settings.get("use_unified_key", True):
         return (

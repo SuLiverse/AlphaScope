@@ -320,9 +320,7 @@ def _coerce_preference_value(section: str, key: str, value: Any) -> Any:
     if isinstance(default, int):
         return _coerce_int(section, key, value, default)
     if isinstance(default, dict):
-        return (
-            copy.deepcopy(value) if isinstance(value, dict) else copy.deepcopy(default)
-        )
+        return copy.deepcopy(value) if isinstance(value, dict) else copy.deepcopy(default)
     text = str(value if value is not None else default).strip()
     if section == "general" and key == "language":
         return text if text in {"zh-CN", "en-US"} else default
@@ -399,9 +397,7 @@ def list_providers() -> list[dict[str, Any]]:
         result.append(
             {
                 "id": row["id"],
-                "name": _clean_provider_name(
-                    row["id"], row["name"], row["base_url"] or ""
-                ),
+                "name": _clean_provider_name(row["id"], row["name"], row["base_url"] or ""),
                 "type": row["type"],
                 "base_url": row["base_url"] or "",
                 "api_key_masked": mask_key(decrypt_key(row["encrypted_api_key"] or "")),
@@ -460,9 +456,7 @@ def save_provider(
     # existing 查询 + INSERT/UPDATE 在同一事务(原子性); _sync_to_gateway / get_provider
     # 会再加锁, 必须在事务外调用(_db_lock 不可重入)。
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id, config_json FROM model_providers WHERE id = ?", (provider_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id, config_json FROM model_providers WHERE id = ?", (provider_id,)).fetchone()
         next_config_json = config_json
         if next_config_json is None:
             next_config_json = (existing["config_json"] if existing else None) or "{}"
@@ -517,9 +511,7 @@ def delete_provider(provider_id: str) -> bool:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id FROM model_providers WHERE id = ?", (provider_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM model_providers WHERE id = ?", (provider_id,)).fetchone()
         if not existing:
             return False
         conn.execute("DELETE FROM model_providers WHERE id = ?", (provider_id,))
@@ -609,9 +601,7 @@ def test_connection(provider_id: str) -> dict[str, Any]:
             except Exception:
                 existing = {}
             existing["models"] = model_items
-            existing["default_model"] = generation_model or _preferred_model_id(
-                model_ids
-            )
+            existing["default_model"] = generation_model or _preferred_model_id(model_ids)
             save_provider(
                 provider_id=provider["id"],
                 name=provider["name"],
@@ -691,27 +681,21 @@ def _builtin_vendor_config(provider_id: str) -> dict[str, Any] | None:
     if provider_id == "claude":
         return {
             "api_key": os.getenv("CLAUDE_API_KEY"),
-            "base_url": (os.getenv("CLAUDE_BASE_URL", "") + "/v1")
-            if os.getenv("CLAUDE_BASE_URL")
-            else None,
+            "base_url": (os.getenv("CLAUDE_BASE_URL", "") + "/v1") if os.getenv("CLAUDE_BASE_URL") else None,
             "supports_json_mode": False,
             "label": "Claude",
         }
     if provider_id == "gpt":
         return {
             "api_key": os.getenv("GPT_API_KEY"),
-            "base_url": (os.getenv("GPT_BASE_URL", "") + "/v1")
-            if os.getenv("GPT_BASE_URL")
-            else None,
+            "base_url": (os.getenv("GPT_BASE_URL", "") + "/v1") if os.getenv("GPT_BASE_URL") else None,
             "supports_json_mode": True,
             "label": "GPT",
         }
     if provider_id == "mimo":
         return {
             "api_key": os.getenv("MIMO_API_KEY"),
-            "base_url": (os.getenv("MIMO_BASE_URL", "") + "/v1")
-            if os.getenv("MIMO_BASE_URL")
-            else None,
+            "base_url": (os.getenv("MIMO_BASE_URL", "") + "/v1") if os.getenv("MIMO_BASE_URL") else None,
             "supports_json_mode": False,
             "label": "Mimo",
         }
@@ -788,9 +772,7 @@ def _sync_to_gateway() -> None:
                     _restore_builtin_vendor(pid, VENDORS)
                 else:
                     VENDORS.pop(pid, None)
-                logger.warning(
-                    "跳过未完整配置 provider %s: API Key 或 Base URL 缺失", pid
-                )
+                logger.warning("跳过未完整配置 provider %s: API Key 或 Base URL 缺失", pid)
                 continue
             try:
                 safe_base_url = validate_custom_base_url(base_url)

@@ -228,8 +228,7 @@ def get_latest_price(symbol: str) -> Optional[dict[str, Any]]:
     db = Database()
     with db.transaction() as conn:
         rows = conn.execute(
-            "SELECT * FROM price_bars WHERE symbol=? AND frequency='1d' "
-            "ORDER BY date DESC LIMIT 20",
+            "SELECT * FROM price_bars WHERE symbol=? AND frequency='1d' ORDER BY date DESC LIMIT 20",
             (sym,),
         ).fetchall()
         bars = [_row_to_bar(row) for row in rows]

@@ -122,9 +122,7 @@ class ProviderRegistry:
         # 按优先级排序的候选 Provider
         candidates = self._get_candidates(data_type, market)
         if not candidates:
-            logger.warning(
-                "没有可用的 Provider: data_type=%s, market=%s", data_type, market
-            )
+            logger.warning("没有可用的 Provider: data_type=%s, market=%s", data_type, market)
             return []
 
         query = {"market": market, "symbol": symbol, **query_kwargs}

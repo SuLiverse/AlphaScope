@@ -45,9 +45,7 @@ class BaseStrategy(ABC):
         self.params = {**self.default_params, **(params or {})}
 
     @abstractmethod
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         """Generate trading signals from price bars.
 
         Args:
@@ -131,9 +129,7 @@ class StrategyRegistry:
         ]
 
     @classmethod
-    def create(
-        cls, name: str, params: dict[str, Any] | None = None
-    ) -> BaseStrategy | None:
+    def create(cls, name: str, params: dict[str, Any] | None = None) -> BaseStrategy | None:
         strategy_class = cls.get(name)
         if strategy_class:
             return strategy_class(params)
@@ -153,9 +149,7 @@ class StrategyRegistry:
         cls._discovered = True
         # This module lives at ``backend.quant.strategies.base``; the package to
         # scan is ``backend.quant.strategies`` (one level up).
-        package_name = (
-            __name__.rsplit(".base", 1)[0] if __name__.endswith(".base") else __name__
-        )
+        package_name = __name__.rsplit(".base", 1)[0] if __name__.endswith(".base") else __name__
         try:
             package = importlib.import_module(package_name)
         except Exception:

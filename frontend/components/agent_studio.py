@@ -62,10 +62,7 @@ def render():
     model_table = _get_model_table()
     if model_table:
         st.dataframe(
-            [
-                {"Agent": name, "供应商": vendor, "模型": model}
-                for _, name, vendor, model in model_table
-            ],
+            [{"Agent": name, "供应商": vendor, "模型": model} for _, name, vendor, model in model_table],
             use_container_width=True,
             hide_index=True,
         )
@@ -123,28 +120,18 @@ def render():
         with col1:
             agent_key = st.text_input("Agent ID", placeholder="my_analyst")
             agent_name = st.text_input("显示名称", placeholder="我的分析师")
-            agent_provider = st.selectbox(
-                "供应商", ["deepseek", "claude", "gpt", "mimo", "sensenova"]
-            )
+            agent_provider = st.selectbox("供应商", ["deepseek", "claude", "gpt", "mimo", "sensenova"])
         with col2:
             agent_model = st.text_input("模型", placeholder="deepseek-chat")
             agent_avatar = st.text_input("头像 Emoji", value="🤖")
-            card_style = st.selectbox(
-                "卡片风格", ["default", "value", "technical", "growth", "risk", "macro"]
-            )
+            card_style = st.selectbox("卡片风格", ["default", "value", "technical", "growth", "risk", "macro"])
 
-        agent_role = st.text_area(
-            "角色描述", placeholder="你是一位专注于XXX的分析师..."
-        )
-        agent_instruction = st.text_area(
-            "分析指令", placeholder="请基于数据进行XXX分析..."
-        )
+        agent_role = st.text_area("角色描述", placeholder="你是一位专注于XXX的分析师...")
+        agent_instruction = st.text_area("分析指令", placeholder="请基于数据进行XXX分析...")
 
         if st.form_submit_button("创建 Agent"):
             if agent_key and agent_name and agent_role:
-                st.success(
-                    f"Agent '{agent_name}' 配置已记录。可通过 dashboard 的自定义 Agent 功能使用。"
-                )
+                st.success(f"Agent '{agent_name}' 配置已记录。可通过 dashboard 的自定义 Agent 功能使用。")
                 st.json(
                     {
                         "key": agent_key,

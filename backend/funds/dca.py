@@ -8,9 +8,7 @@ from typing import Any
 from backend.schemas.funds import DCAFrequency, DCASimulationResult
 
 
-def _generate_dates(
-    start_date: str, end_date: str, frequency: DCAFrequency
-) -> list[str]:
+def _generate_dates(start_date: str, end_date: str, frequency: DCAFrequency) -> list[str]:
     """生成定投日期序列"""
     start = datetime.strptime(start_date, "%Y-%m-%d")
     end = datetime.strptime(end_date, "%Y-%m-%d")
@@ -32,9 +30,7 @@ def _generate_dates(
     return dates
 
 
-def _find_nearest_nav(
-    nav_records: list[dict[str, Any]], target_date: str
-) -> float | None:
+def _find_nearest_nav(nav_records: list[dict[str, Any]], target_date: str) -> float | None:
     """找到最接近目标日期的净值"""
     if not nav_records:
         return None
@@ -48,12 +44,7 @@ def _find_nearest_nav(
     best = None
     best_diff = float("inf")
     for r in nav_records:
-        diff = abs(
-            (
-                datetime.strptime(r["date"], "%Y-%m-%d")
-                - datetime.strptime(target_date, "%Y-%m-%d")
-            ).days
-        )
+        diff = abs((datetime.strptime(r["date"], "%Y-%m-%d") - datetime.strptime(target_date, "%Y-%m-%d")).days)
         if diff < best_diff:
             best_diff = diff
             best = r["nav"]

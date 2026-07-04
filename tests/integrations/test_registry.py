@@ -259,13 +259,9 @@ def test_dispatch_supports_all_category_capability_pairs():
         NAME = "stub_sweep"
 
         def param_sweep(self, bars=None, param_grid=None, metric="sharpe", top_n=20):
-            return [
-                {"params": {"fast": 5, "slow": 20}, "metric": metric, "top_n": top_n}
-            ]
+            return [{"params": {"fast": 5, "slow": 20}, "metric": metric, "top_n": top_n}]
 
-    res = _dispatch(
-        _StubSweep(), "backtest", "param_sweep", {"metric": "sharpe", "top_n": 5}
-    )
+    res = _dispatch(_StubSweep(), "backtest", "param_sweep", {"metric": "sharpe", "top_n": 5})
     assert isinstance(res, list) and res[0]["top_n"] == 5
 
     # 未声明能力仍应抛 ValueError (守卫)

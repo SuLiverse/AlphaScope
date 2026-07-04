@@ -56,9 +56,7 @@ class EastMoneyProvider(BaseProvider):
                     {
                         "source": "eastmoney",
                         "upstream": "eastmoney",
-                        "title": item.get("title", "")
-                        .replace("<em>", "")
-                        .replace("</em>", ""),
+                        "title": item.get("title", "").replace("<em>", "").replace("</em>", ""),
                         "summary": item.get("content", "")[:200],
                         "datetime": item.get("date", ""),
                         "url": item.get("url", ""),

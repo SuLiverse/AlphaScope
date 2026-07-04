@@ -34,12 +34,7 @@ class TestCompile:
     def test_macd_compiles(self):
         from backend.quant.tdx_compiler import compile_formula
 
-        src = (
-            "DIFF:=EMA(CLOSE,12)-EMA(CLOSE,26);"
-            "DEA:=EMA(DIFF,9);"
-            "ENTERLONG:CROSS(DIFF,DEA);"
-            "EXITLONG:CROSS(DEA,DIFF);"
-        )
+        src = "DIFF:=EMA(CLOSE,12)-EMA(CLOSE,26);DEA:=EMA(DIFF,9);ENTERLONG:CROSS(DIFF,DEA);EXITLONG:CROSS(DEA,DIFF);"
         r = compile_formula(src)
         assert r.ok, r.errors
         assert "ENTERLONG" in r.buy_names
@@ -112,9 +107,7 @@ class TestEvaluate:
 
         closes = [10, 12, 11, 15, 9, 20, 8, 25]
         bars = _bars_from_closes(closes)
-        res = evaluate_formula(
-            "ENTERLONG:CLOSE=HHV(CLOSE,3) AND CLOSE>REF(CLOSE,1);", bars
-        )
+        res = evaluate_formula("ENTERLONG:CLOSE=HHV(CLOSE,3) AND CLOSE>REF(CLOSE,1);", bars)
         assert res.ok
         assert isinstance(res.buy, list) and len(res.buy) == len(closes)
 
@@ -171,9 +164,7 @@ class TestStrategy:
         bars = _bars_from_closes(closes)
         strat = StrategyRegistry.create(
             "tdx",
-            {
-                "formula": "ENTERLONG:CROSS(MA(CLOSE,5),MA(CLOSE,10));EXITLONG:CLOSE<MA(CLOSE,5);"
-            },
+            {"formula": "ENTERLONG:CROSS(MA(CLOSE,5),MA(CLOSE,10));EXITLONG:CLOSE<MA(CLOSE,5);"},
         )
         engine = BacktestEngine(initial_capital=1000000)
         result = engine.run(strat, bars, "T")

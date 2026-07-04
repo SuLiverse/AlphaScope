@@ -52,9 +52,7 @@ class TestStability:
             "backend.ai_assistant.conversation_store.ConversationStore.create_conversation",
             return_value="c1",
         ):
-            resp = await client.post(
-                "/api/conversations", json={"title": "test", "mode": "free"}
-            )
+            resp = await client.post("/api/conversations", json={"title": "test", "mode": "free"})
         assert resp.json()["success"] is True
 
         with patch(
@@ -113,9 +111,7 @@ class TestErrorHandling:
 
     @pytest.mark.anyio
     async def test_vision_no_image(self, client):
-        resp = await client.post(
-            "/api/vision/analyze", json={"image_base64": "", "mime_type": "image/png"}
-        )
+        resp = await client.post("/api/vision/analyze", json={"image_base64": "", "mime_type": "image/png"})
         assert resp.status_code == 200
 
 
@@ -137,9 +133,7 @@ class TestDiagnostics:
             },
             "health": {"total_checks": 0, "ok": 0, "errors": 0},
         }
-        with patch(
-            "backend.diagnostics_store.get_diagnostics_summary", return_value=mock
-        ):
+        with patch("backend.diagnostics_store.get_diagnostics_summary", return_value=mock):
             resp = await client.get("/api/diagnostics/summary")
         assert resp.json()["success"] is True
 
@@ -177,9 +171,7 @@ class TestDegradation:
 
     @pytest.mark.anyio
     async def test_no_chromadb_health(self, client):
-        with patch(
-            "backend.rag.vector_store.VectorStore._get_client", return_value=None
-        ):
+        with patch("backend.rag.vector_store.VectorStore._get_client", return_value=None):
             resp = await client.get("/health")
         assert resp.json()["data"]["status"] == "healthy"
 
@@ -239,9 +231,7 @@ class TestBackupRestore:
 
         db = Database()
         conn = db._conn
-        tables = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         table_names = {t[0] for t in tables}
         required = {"news_items", "price_bars", "evidence_items", "ai_conversations"}
         assert required.issubset(table_names)

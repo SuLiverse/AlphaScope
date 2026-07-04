@@ -41,9 +41,7 @@ class PaperOrder(BaseModel):
     stamp_duty: Optional[float] = Field(default=None, description="模拟印花税 (卖出)")
 
     status: PaperOrderStatus = Field(default=PaperOrderStatus.PENDING)
-    reject_reason: Optional[str] = Field(
-        default=None, description="REJECTED 时的规则理由"
-    )
+    reject_reason: Optional[str] = Field(default=None, description="REJECTED 时的规则理由")
     created_at: datetime = Field(default_factory=datetime.now)
     filled_at: Optional[datetime] = Field(default=None)
 
@@ -56,6 +54,4 @@ class PaperOrder(BaseModel):
     def assert_paper_only(self) -> None:
         """守卫: 防止未来误把 PaperOrder 喂给真实 broker 适配器。"""
         if not self.paper_only:
-            raise ValueError(
-                "PaperOrder.paper_only 必须为 True; 纸面订单不可进入真实交易链路。"
-            )
+            raise ValueError("PaperOrder.paper_only 必须为 True; 纸面订单不可进入真实交易链路。")

@@ -38,9 +38,7 @@ class DocumentPipeline:
     def __init__(self):
         self._processed: Dict[str, ProcessedDocument] = {}
 
-    def process_file(
-        self, file_path: str, metadata: Optional[Dict] = None
-    ) -> Optional[ProcessedDocument]:
+    def process_file(self, file_path: str, metadata: Optional[Dict] = None) -> Optional[ProcessedDocument]:
         """处理文件：解析 → 清洗 → 分块 → 索引"""
         t0 = time.time()
         p = Path(file_path)
@@ -86,9 +84,7 @@ class DocumentPipeline:
 
         return doc
 
-    def process_text(
-        self, text: str, filename: str = "text", metadata: Optional[Dict] = None
-    ) -> ProcessedDocument:
+    def process_text(self, text: str, filename: str = "text", metadata: Optional[Dict] = None) -> ProcessedDocument:
         """处理文本内容"""
         t0 = time.time()
 
@@ -181,9 +177,7 @@ class DocumentPipeline:
             wb = openpyxl.load_workbook(str(path), read_only=True)
             text_parts = []
             for sheet in wb.worksheets[:5]:  # 最多 5 个 sheet
-                for row in sheet.iter_rows(
-                    max_row=100, values_only=True
-                ):  # 每 sheet 最多 100 行
+                for row in sheet.iter_rows(max_row=100, values_only=True):  # 每 sheet 最多 100 行
                     row_text = " | ".join(str(c) for c in row if c is not None)
                     if row_text.strip():
                         text_parts.append(row_text)
@@ -204,9 +198,7 @@ class DocumentPipeline:
                 cleaned.append(line)
         return "\n".join(cleaned)
 
-    def _chunk_content(
-        self, content: str, chunk_size: int = 500, overlap: int = 50
-    ) -> List[str]:
+    def _chunk_content(self, content: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
         """分块内容"""
         if len(content) <= chunk_size:
             return [content]
@@ -263,9 +255,7 @@ class DocumentPipeline:
             logger.debug(f"索引文档失败: {e}")
             return []
 
-    def process_and_persist(
-        self, file_path: str, metadata: Optional[Dict] = None
-    ) -> Optional[ProcessedDocument]:
+    def process_and_persist(self, file_path: str, metadata: Optional[Dict] = None) -> Optional[ProcessedDocument]:
         """处理文件 → 保存到 SQLite → 索引到向量库"""
         from backend.file_store import content_hash, save_chunks, save_document
 

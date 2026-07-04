@@ -52,9 +52,7 @@ from backend.integrations.registry import register
 # ============================================================
 
 
-def bars_to_price_df(
-    bars: list[dict[str, Any]], symbols: list[str] | None = None
-) -> "pd.DataFrame":
+def bars_to_price_df(bars: list[dict[str, Any]], symbols: list[str] | None = None) -> "pd.DataFrame":
     """把 OHLCV dict 列表 (可能多标的) 转成 bt 要求的 wide 格式价格 DataFrame。
 
     bt 要求: index=date, columns=asset, values=close price。
@@ -81,14 +79,8 @@ def bars_to_price_df(
             return pivot.sort_index()
         else:
             # 单标的
-            name = (
-                symbols[0] if symbols else (df[sym_col].iloc[0] if sym_col else "ASSET")
-            )
-            return (
-                df.set_index(date_col)[[close_col]]
-                .rename(columns={close_col: name})
-                .sort_index()
-            )
+            name = symbols[0] if symbols else (df[sym_col].iloc[0] if sym_col else "ASSET")
+            return df.set_index(date_col)[[close_col]].rename(columns={close_col: name}).sort_index()
     except Exception:
         return pd.DataFrame() if pd is not None else None  # type: ignore[return-value]
 
@@ -229,9 +221,7 @@ class BtAdapter(BacktestEngineAdapter):
         失败安全: bt 不可用 / 数据不足 / 运行抛错 → 返回空结果, 不抛。
         """
         if not _BT_AVAILABLE:
-            return self._unavailable_result(
-                strategy_id, symbols, start, end, assumptions
-            )
+            return self._unavailable_result(strategy_id, symbols, start, end, assumptions)
 
         prices = kw.get("prices")
         bars = kw.get("bars")
@@ -282,10 +272,7 @@ class BtAdapter(BacktestEngineAdapter):
                 prices_series = res[strat_name].prices
                 if isinstance(prices_series, pd.DataFrame):
                     prices_series = prices_series.iloc[:, 0]
-                equity_curve = [
-                    {"date": str(idx.date()), "value": float(val)}
-                    for idx, val in prices_series.items()
-                ]
+                equity_curve = [{"date": str(idx.date()), "value": float(val)} for idx, val in prices_series.items()]
             except Exception:
                 equity_curve = []
 

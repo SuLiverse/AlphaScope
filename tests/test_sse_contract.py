@@ -43,13 +43,9 @@ def client():
 @pytest.mark.anyio
 async def test_status_event_has_type_and_mode(client):
     """status event 必须包含 type 和 mode"""
-    mock_orch = _mock_orchestrator(
-        {"mode": "deep", "content": "x", "evidence": [], "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "deep", "content": "x", "evidence": [], "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     events = _parse_sse_events(resp.text)
@@ -61,13 +57,9 @@ async def test_status_event_has_type_and_mode(client):
 @pytest.mark.anyio
 async def test_status_event_uses_existing_conversation_id(client):
     """status event 续聊时必须回传已有 conversation_id"""
-    mock_orch = _mock_orchestrator(
-        {"mode": "free", "content": "x", "evidence": [], "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "free", "content": "x", "evidence": [], "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post(
             "/api/chat/stream",
             json={"message": "hi", "conversation_id": "existing-conv-id"},
@@ -82,13 +74,9 @@ async def test_status_event_uses_existing_conversation_id(client):
 @pytest.mark.anyio
 async def test_implicit_mode_keeps_auto_routing(client):
     """未显式传 mode 时不能覆盖 orchestrator 自动路由"""
-    mock_orch = _mock_orchestrator(
-        {"mode": "deep", "content": "x", "evidence": [], "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "deep", "content": "x", "evidence": [], "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         await client.post("/api/chat/stream", json={"message": "hi"})
 
     assert mock_orch.send_message.call_args.kwargs["mode_override"] is None
@@ -97,13 +85,9 @@ async def test_implicit_mode_keeps_auto_routing(client):
 @pytest.mark.anyio
 async def test_explicit_mode_overrides_auto_routing(client):
     """显式传 mode 时才跳过自动路由"""
-    mock_orch = _mock_orchestrator(
-        {"mode": "standard", "content": "x", "evidence": [], "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "standard", "content": "x", "evidence": [], "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         await client.post(
             "/api/chat/stream",
             json={"message": "hi", "mode": "standard"},
@@ -124,9 +108,7 @@ async def test_chat_api_passes_provider_model_and_context(client):
         }
     )
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post(
             "/api/chat",
             json={
@@ -170,13 +152,9 @@ async def test_chat_api_passes_provider_model_and_context(client):
 @pytest.mark.anyio
 async def test_content_events_have_type_and_chunk(client):
     """content event 必须包含 type 和 chunk"""
-    mock_orch = _mock_orchestrator(
-        {"mode": "free", "content": "hello world test", "evidence": [], "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "free", "content": "hello world test", "evidence": [], "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     events = _parse_sse_events(resp.text)
@@ -192,13 +170,9 @@ async def test_content_events_have_type_and_chunk(client):
 async def test_evidence_event_has_type_and_data(client):
     """evidence event 必须包含 type 和 data (list)"""
     evidence_data = [{"source": "test", "text": "evidence1"}]
-    mock_orch = _mock_orchestrator(
-        {"mode": "deep", "content": "x", "evidence": evidence_data, "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "deep", "content": "x", "evidence": evidence_data, "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     events = _parse_sse_events(resp.text)
@@ -211,13 +185,9 @@ async def test_evidence_event_has_type_and_data(client):
 async def test_agents_event_has_type_and_data(client):
     """agents event 必须包含 type 和 data (dict)"""
     agents_data = {"fundamental": {"signal": "buy", "confidence": 80}}
-    mock_orch = _mock_orchestrator(
-        {"mode": "deep", "content": "x", "evidence": [], "agents": agents_data}
-    )
+    mock_orch = _mock_orchestrator({"mode": "deep", "content": "x", "evidence": [], "agents": agents_data})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     events = _parse_sse_events(resp.text)
@@ -238,9 +208,7 @@ async def test_done_event_is_always_last(client):
         }
     )
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     events = _parse_sse_events(resp.text)
@@ -251,13 +219,9 @@ async def test_done_event_is_always_last(client):
 async def test_content_chunking_20_char_max(client):
     """content 按 20 字符分块，最后一块可能更短"""
     content = "a" * 45  # 20 + 20 + 5
-    mock_orch = _mock_orchestrator(
-        {"mode": "free", "content": content, "evidence": [], "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "free", "content": content, "evidence": [], "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     events = _parse_sse_events(resp.text)
@@ -276,13 +240,9 @@ async def test_content_chunking_20_char_max(client):
 @pytest.mark.anyio
 async def test_conditional_events_absent_when_empty(client):
     """evidence 和 agents 为空时不发送对应 event"""
-    mock_orch = _mock_orchestrator(
-        {"mode": "free", "content": "ok", "evidence": [], "agents": {}}
-    )
+    mock_orch = _mock_orchestrator({"mode": "free", "content": "ok", "evidence": [], "agents": {}})
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     events = _parse_sse_events(resp.text)
@@ -301,9 +261,7 @@ async def test_orchestrator_failure_returns_json_not_sse():
 
     transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        with patch(
-            "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-        ):
+        with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
             resp = await client.post("/api/chat/stream", json={"message": "hi"})
 
     assert resp.status_code == 500

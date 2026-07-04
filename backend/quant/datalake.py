@@ -184,9 +184,7 @@ def _lake_dir() -> Path:
 
 
 def _parquet_path(symbol: str) -> Path:
-    safe = "".join(
-        ch for ch in str(symbol).strip() if ch.isalnum() or ch in ("_", ".", "-")
-    )
+    safe = "".join(ch for ch in str(symbol).strip() if ch.isalnum() or ch in ("_", ".", "-"))
     return _lake_dir() / f"{safe or 'unknown'}.parquet"
 
 
@@ -221,9 +219,7 @@ def ingest_prices(symbol: str, bars: List[Dict[str, Any]]) -> Dict[str, Any]:
         con = duckdb.connect()
         try:
             con.register("df", df)
-            con.execute(
-                f"COPY (SELECT * FROM df ORDER BY date) TO '{path}' (FORMAT PARQUET)"
-            )
+            con.execute(f"COPY (SELECT * FROM df ORDER BY date) TO '{path}' (FORMAT PARQUET)")
         finally:
             con.close()
         return {"ok": True, "symbol": str(symbol), "rows": len(rows), "path": path}
@@ -289,9 +285,7 @@ def query(sql: str, limit: int = 500) -> Dict[str, Any]:
 
         con = duckdb.connect()
         try:
-            con.execute(
-                f"CREATE VIEW prices AS SELECT * FROM read_parquet('{_glob_str()}')"
-            )
+            con.execute(f"CREATE VIEW prices AS SELECT * FROM read_parquet('{_glob_str()}')")
             lim = max(1, min(5000, int(limit) if limit else 500))
             cur = con.execute(f"SELECT * FROM ({sql.rstrip(';')}) AS _q LIMIT {lim}")
             cols = [d[0] for d in cur.description]

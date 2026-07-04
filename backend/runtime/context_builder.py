@@ -18,9 +18,7 @@ logger = logging.getLogger(__name__)
 _TYPE_ICON = {"news": "📰", "report": "📊", "announcement": "📋"}
 
 
-def fetch_evidence_pool(
-    symbol: str, stock_name: str = "", limit: int = 8
-) -> List[Dict[str, Any]]:
+def fetch_evidence_pool(symbol: str, stock_name: str = "", limit: int = 8) -> List[Dict[str, Any]]:
     """检索相关证据, 返回结构化证据池 (v1.9.x)
 
     每条证据带稳定 `evidence_id`(DB 主键), 供 Agent 结论反链溯源。
@@ -84,11 +82,7 @@ def fetch_factor_context(symbol: str, stock_name: str = "", days: int = 30) -> s
 
         gen = get_factor_generator()
         report = gen.generate(symbol, stock_name, days=days, include_signals=True)
-        if (
-            report.news_count == 0
-            and report.event_count == 0
-            and report.report_count == 0
-        ):
+        if report.news_count == 0 and report.event_count == 0 and report.report_count == 0:
             return ""
         return format_factor_summary(report)
     except Exception as e:
@@ -96,24 +90,18 @@ def fetch_factor_context(symbol: str, stock_name: str = "", days: int = 30) -> s
         return ""
 
 
-def build_market_brief(
-    stock_data: Dict[str, Any], evidence_context: str = "", factor_context: str = ""
-) -> str:
+def build_market_brief(stock_data: Dict[str, Any], evidence_context: str = "", factor_context: str = "") -> str:
     """把数据打包成一段简洁的市场简报"""
     name = stock_data.get("name") or "未知标的"
     symbol = stock_data.get("symbol") or ""
     close = float(stock_data.get("close") or 0)
-    day_change = float(
-        stock_data.get("day_change", stock_data.get("change_pct", 0)) or 0
-    )
+    day_change = float(stock_data.get("day_change", stock_data.get("change_pct", 0)) or 0)
     days = int(stock_data.get("days") or 0)
     period_change = float(stock_data.get("period_change") or 0)
     period_high = float(stock_data.get("period_high") or 0)
     period_low = float(stock_data.get("period_low") or 0)
     volume = float(stock_data.get("volume") or 0)
-    total_amount = float(
-        stock_data.get("total_amount", stock_data.get("amount", 0)) or 0
-    )
+    total_amount = float(stock_data.get("total_amount", stock_data.get("amount", 0)) or 0)
     price_note = ""
     if close <= 0:
         price_note = "\n- 行情状态: 暂无可用价格数据，请结合数据源状态判断。"

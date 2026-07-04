@@ -61,9 +61,7 @@ def analyze_event_impact(
 
         event_close = price_map[closest_date].get("close", 0)
         pre_close = price_map[pre_dates[0]]["close"] if pre_dates and event_close else 0
-        post_close = (
-            price_map[post_dates[-1]]["close"] if post_dates and event_close else 0
-        )
+        post_close = price_map[post_dates[-1]]["close"] if post_dates and event_close else 0
 
         impact = {
             "event_date": closest_date,
@@ -80,9 +78,7 @@ def analyze_event_impact(
     return results
 
 
-def get_sentiment_trend(
-    events: list[dict[str, Any]], days: int = 30
-) -> list[dict[str, Any]]:
+def get_sentiment_trend(events: list[dict[str, Any]], days: int = 30) -> list[dict[str, Any]]:
     """按日聚合情绪趋势。"""
     daily: dict[str, list[float]] = defaultdict(list)
 

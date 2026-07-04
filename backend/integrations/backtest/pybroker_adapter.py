@@ -62,9 +62,7 @@ from backend.integrations.registry import register
 # ============================================================
 
 
-def bars_to_pybroker_df(
-    bars: list[dict[str, Any]], symbol: str = "DEMO"
-) -> "pd.DataFrame":
+def bars_to_pybroker_df(bars: list[dict[str, Any]], symbol: str = "DEMO") -> "pd.DataFrame":
     """把 AlphaScope OHLCV dict 列表转成 PyBroker 要求的长格式 DataFrame。
 
     PyBroker 要求列: date / symbol / open / high / low / close (+ volume 可选)。
@@ -243,9 +241,7 @@ class PybrokerAdapter(BacktestEngineAdapter):
         失败安全: pybroker 不可用 / 数据不足 / 运行抛错 → 返回空结果, 不抛。
         """
         if not _PB_AVAILABLE:
-            return self._unavailable_result(
-                strategy_id, symbols, start, end, assumptions
-            )
+            return self._unavailable_result(strategy_id, symbols, start, end, assumptions)
 
         bars = kw.get("bars") or []
         fast = int(kw.get("fast", 5))
@@ -264,9 +260,7 @@ class PybrokerAdapter(BacktestEngineAdapter):
 
         df = bars_to_pybroker_df(bars, symbol=symbol)
         if df is None or len(df) <= slow + 5:  # 留 warmup 余量
-            return self._insufficient_result(
-                strategy_id, symbol, start, end, assump, initial_cash
-            )
+            return self._insufficient_result(strategy_id, symbol, start, end, assump, initial_cash)
 
         # 确定日期范围 (优先用 df 实际范围, 因为 PyBroker 按日期过滤)
         df_start = str(df["date"].min().date())
@@ -302,10 +296,7 @@ class PybrokerAdapter(BacktestEngineAdapter):
             try:
                 eq_df = result.portfolio
                 equity_curve = (
-                    [
-                        {"date": str(idx.date()), "value": float(row["equity"])}
-                        for idx, row in eq_df.iterrows()
-                    ]
+                    [{"date": str(idx.date()), "value": float(row["equity"])} for idx, row in eq_df.iterrows()]
                     if "equity" in eq_df.columns and len(eq_df) > 0
                     else []
                 )
@@ -330,9 +321,7 @@ class PybrokerAdapter(BacktestEngineAdapter):
                 research_only=True,
             )
         except Exception:
-            return self._insufficient_result(
-                strategy_id, symbol, start, end, assump, initial_cash
-            )
+            return self._insufficient_result(strategy_id, symbol, start, end, assump, initial_cash)
 
     # ---------- 失败安全兜底 ----------
 
@@ -344,9 +333,7 @@ class PybrokerAdapter(BacktestEngineAdapter):
         end: str,
         assumptions: BacktestAssumptions | None,
     ) -> NormalizedBacktestResult:
-        assump = assumptions or build_assumptions(
-            engine_name=self.NAME, note="pybroker 不可用"
-        )
+        assump = assumptions or build_assumptions(engine_name=self.NAME, note="pybroker 不可用")
         return NormalizedBacktestResult(
             engine_name=self.NAME,
             strategy_id=strategy_id,

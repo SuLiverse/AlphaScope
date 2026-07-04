@@ -99,9 +99,7 @@ class DCASimulator:
                     "total_shares": round(total_shares, 4),
                     "total_invested": round(total_invested, 2),
                     "current_value": round(current_value, 2),
-                    "return_pct": round(
-                        (current_value - total_invested) / total_invested * 100, 2
-                    )
+                    "return_pct": round((current_value - total_invested) / total_invested * 100, 2)
                     if total_invested > 0
                     else 0,
                 }
@@ -111,18 +109,13 @@ class DCASimulator:
         final_price = prices[-1]
         final_value = total_shares * final_price
         avg_cost = total_invested / total_shares if total_shares > 0 else 0
-        total_return = (
-            (final_value - total_invested) / total_invested if total_invested > 0 else 0
-        )
+        total_return = (final_value - total_invested) / total_invested if total_invested > 0 else 0
 
         # Calculate volatility from period returns
         period_returns = []
         for i in range(1, len(portfolio_values)):
             if portfolio_values[i - 1] > 0:
-                period_returns.append(
-                    (portfolio_values[i] - portfolio_values[i - 1])
-                    / portfolio_values[i - 1]
-                )
+                period_returns.append((portfolio_values[i] - portfolio_values[i - 1]) / portfolio_values[i - 1])
 
         volatility = self._calc_volatility(period_returns)
         max_dd = self._calc_max_drawdown(portfolio_values)
@@ -137,11 +130,7 @@ class DCASimulator:
         mean_ret = sum(period_returns) / len(period_returns) if period_returns else 0
         std_ret = volatility
         daily_rf = risk_free_rate / periods_per_year if periods_per_year > 0 else 0
-        sharpe = (
-            (mean_ret - daily_rf) / std_ret * math.sqrt(periods_per_year)
-            if std_ret > 0
-            else 0
-        )
+        sharpe = (mean_ret - daily_rf) / std_ret * math.sqrt(periods_per_year) if std_ret > 0 else 0
 
         return DCAResult(
             total_invested=total_invested,
@@ -212,9 +201,7 @@ def compare_dca_vs_lumpsum(
     amount_per_period = total_amount / periods if periods > 0 else total_amount
 
     simulator = DCASimulator()
-    dca_result = simulator.simulate(
-        prices, [f"d{i}" for i in range(len(prices))], amount_per_period, frequency
-    )
+    dca_result = simulator.simulate(prices, [f"d{i}" for i in range(len(prices))], amount_per_period, frequency)
 
     # Lump sum: buy all at first price
     first_price = prices[0]

@@ -40,9 +40,7 @@ async def test_smoke_health(client):
 @pytest.mark.anyio
 async def test_smoke_conversation_create_and_list(client):
     """创建会话后可列出"""
-    resp = await client.post(
-        "/api/conversations", json={"title": "smoke", "mode": "free"}
-    )
+    resp = await client.post("/api/conversations", json={"title": "smoke", "mode": "free"})
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
@@ -65,9 +63,7 @@ async def test_smoke_chat_stream(client):
         "agents": {},
     }
 
-    with patch(
-        "backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch
-    ):
+    with patch("backend.ai_assistant.orchestrator.ChatOrchestrator", return_value=mock_orch):
         resp = await client.post(
             "/api/chat/stream",
             json={"message": "hi", "mode": "free"},
@@ -87,9 +83,7 @@ async def test_smoke_vision_analyze(client):
     from backend.vision.vision_agent import VisionAnalysisResult
 
     mock_result = VisionAnalysisResult(
-        detection=ChartDetectionResult(
-            is_chart=True, chart_type="kline", ticker="600519"
-        ),
+        detection=ChartDetectionResult(is_chart=True, chart_type="kline", ticker="600519"),
         summary="test analysis",
         ok=True,
     )

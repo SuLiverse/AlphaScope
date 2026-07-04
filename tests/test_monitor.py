@@ -100,9 +100,7 @@ def test_snapshot_wrapper_is_failure_safe(monkeypatch):
             "metrics": {},
         }
 
-    monkeypatch.setattr(
-        monitor, "_COLLECTORS", [("traces", boom), ("quant_engine", ok)]
-    )
+    monkeypatch.setattr(monitor, "_COLLECTORS", [("traces", boom), ("quant_engine", ok)])
     snap = build_system_snapshot(now=1.0)
     by_key = {c["key"]: c for c in snap["components"]}
     assert by_key["traces"]["status"] == STATUS_UNKNOWN

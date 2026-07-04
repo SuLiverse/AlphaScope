@@ -126,9 +126,7 @@ class DCASimulateBody(BaseModel):
     symbol: str = Field(default="", description="兼容基金代码")
     amount: float = Field(default=0.0, description="每期金额")
     amount_per_period: float = Field(default=0.0, description="兼容每期金额")
-    frequency: str = Field(
-        default="monthly", description="频率: weekly/biweekly/monthly/quarterly"
-    )
+    frequency: str = Field(default="monthly", description="频率: weekly/biweekly/monthly/quarterly")
     start_date: str = Field(default="", description="开始日期 YYYY-MM-DD")
     end_date: str = Field(default="", description="结束日期 YYYY-MM-DD")
     periods: int = Field(default=36, description="兼容模拟期数")
@@ -172,11 +170,7 @@ async def search_funds(
         results = _LEGACY_FUNDS
         if q:
             q_lower = q.lower()
-            results = [
-                item
-                for item in results
-                if q_lower in item["name"].lower() or q_lower in item["symbol"]
-            ]
+            results = [item for item in results if q_lower in item["name"].lower() or q_lower in item["symbol"]]
         if risk:
             results = [item for item in results if item["risk"] == risk]
         if fund_type:
@@ -347,9 +341,7 @@ def _legacy_dca_result(body: DCASimulateBody) -> dict[str, Any]:
     dca = {
         "total_invested": round(total_invested, 2),
         "final_value": round(final_value, 2),
-        "total_return_pct": round(
-            (final_value - total_invested) / total_invested * 100, 2
-        ),
+        "total_return_pct": round((final_value - total_invested) / total_invested * 100, 2),
     }
     lumpsum_value = total_invested * (growth * 0.98)
     return {
@@ -357,15 +349,10 @@ def _legacy_dca_result(body: DCASimulateBody) -> dict[str, Any]:
         "lumpsum": {
             "total_invested": round(total_invested, 2),
             "final_value": round(lumpsum_value, 2),
-            "return_pct": round(
-                (lumpsum_value - total_invested) / total_invested * 100, 2
-            ),
+            "return_pct": round((lumpsum_value - total_invested) / total_invested * 100, 2),
         },
         "winner": "dca" if final_value >= lumpsum_value else "lumpsum",
-        "prices": [
-            round(float(body.initial_price or 1.0) * (1 + i * 0.002), 4)
-            for i in range(periods)
-        ],
+        "prices": [round(float(body.initial_price or 1.0) * (1 + i * 0.002), 4) for i in range(periods)],
     }
 
 
@@ -384,9 +371,7 @@ async def simulate_dca(body: DCASimulateBody):
 
     provider = get_provider()
     try:
-        records = await provider.get_nav_history(
-            fund_code, body.start_date, body.end_date
-        )
+        records = await provider.get_nav_history(fund_code, body.start_date, body.end_date)
         if not records:
             return ApiResponse(
                 success=False,

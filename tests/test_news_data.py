@@ -84,18 +84,13 @@ def test_to_float_or_none_filters_nan():
 
 
 def test_eastmoney_article_url_requires_numeric_code():
-    assert (
-        _eastmoney_article_url("202601011234")
-        == "http://finance.eastmoney.com/a/202601011234.html"
-    )
+    assert _eastmoney_article_url("202601011234") == "http://finance.eastmoney.com/a/202601011234.html"
     assert _eastmoney_article_url("../bad") == ""
     assert _eastmoney_article_url("") == ""
 
 
 def test_parse_eastmoney_search_payload_jsonp():
-    payload = _parse_eastmoney_search_payload(
-        'cb({"result":{"cmsArticleWebOld":[{"title":"x"}]}});'
-    )
+    payload = _parse_eastmoney_search_payload('cb({"result":{"cmsArticleWebOld":[{"title":"x"}]}});')
     assert payload["result"]["cmsArticleWebOld"][0]["title"] == "x"
     assert _parse_eastmoney_search_payload("not-json") == {}
 
@@ -200,10 +195,7 @@ def test_merge_announcements_drops_empty_and_titleless():
 
 
 def test_brief_for_llm_renders_top_n():
-    items = [
-        {"title": f"公告{i}", "category": "回购", "date": "2026-05-17"}
-        for i in range(10)
-    ]
+    items = [{"title": f"公告{i}", "category": "回购", "date": "2026-05-17"} for i in range(10)]
     brief = build_announcements_brief_for_llm(items, max_items=3)
     assert brief.count("\n") == 2  # 3 行 = 2 个换行
     assert "回购" in brief
@@ -414,9 +406,7 @@ class TestExtractBusinessTerms:
             assert "进出口" not in t
 
     def test_short_text_yields_short_list(self):
-        terms = extract_business_terms(
-            "茅台酒及系列酒的生产与销售;饮料、食品的生产、销售"
-        )
+        terms = extract_business_terms("茅台酒及系列酒的生产与销售;饮料、食品的生产、销售")
         # 茅台酒、饮料、食品 都是合法核心词;通用词被过滤
         assert "茅台酒" in terms
 

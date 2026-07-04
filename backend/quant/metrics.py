@@ -10,15 +10,10 @@ def calc_returns(equity_curve: list[float]) -> list[float]:
     """Calculate period-over-period returns from equity curve."""
     if len(equity_curve) < 2:
         return []
-    return [
-        (equity_curve[i] - equity_curve[i - 1]) / equity_curve[i - 1]
-        for i in range(1, len(equity_curve))
-    ]
+    return [(equity_curve[i] - equity_curve[i - 1]) / equity_curve[i - 1] for i in range(1, len(equity_curve))]
 
 
-def calc_sharpe(
-    returns: list[float], risk_free_rate: float = 0.03, periods_per_year: int = 252
-) -> float:
+def calc_sharpe(returns: list[float], risk_free_rate: float = 0.03, periods_per_year: int = 252) -> float:
     """Annualized Sharpe ratio."""
     if not returns:
         return 0.0
@@ -79,9 +74,7 @@ def calc_total_return(initial_capital: float, final_equity: float) -> float:
     return (final_equity - initial_capital) / initial_capital
 
 
-def calc_sortino(
-    returns: list[float], risk_free_rate: float = 0.03, periods_per_year: int = 252
-) -> float:
+def calc_sortino(returns: list[float], risk_free_rate: float = 0.03, periods_per_year: int = 252) -> float:
     """Sortino ratio: like Sharpe but only penalizes downside volatility."""
     if not returns or len(returns) < 2:
         return 0.0
@@ -150,9 +143,7 @@ def calc_alpha(
     return ann_p - (risk_free_rate + beta * (ann_b - risk_free_rate))
 
 
-def calc_excess_return(
-    strategy_curve: list[float], benchmark_curve: list[float]
-) -> float:
+def calc_excess_return(strategy_curve: list[float], benchmark_curve: list[float]) -> float:
     """超额收益(累计, 分数): 策略总收益 - 基准总收益。
 
     无基准或基准退化(非正)时返回 0.0。
@@ -226,12 +217,8 @@ def build_performance_summary(
     summary["has_benchmark"] = has_benchmark
     summary["benchmark_name"] = benchmark_name if has_benchmark else ""
     if has_benchmark:
-        summary["excess_return"] = round(
-            calc_excess_return(equity_curve, benchmark_curve) * 100, 2
-        )
-        summary["information_ratio"] = round(
-            calc_information_ratio(returns, bench_returns), 2
-        )
+        summary["excess_return"] = round(calc_excess_return(equity_curve, benchmark_curve) * 100, 2)
+        summary["information_ratio"] = round(calc_information_ratio(returns, bench_returns), 2)
         summary["beta"] = round(calc_beta(returns, bench_returns), 3)
         summary["alpha"] = round(calc_alpha(returns, bench_returns), 3)
     else:

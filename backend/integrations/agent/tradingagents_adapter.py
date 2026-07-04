@@ -273,9 +273,7 @@ class TradingagentsAdapter(AgentTeamAdapter):
             company = str(kw.get("company_name") or sym)
             try:
                 graph = TradingAgentsGraph(debug=False, config=cfg)  # type: ignore[misc]
-                final_state, decision = graph.propagate(
-                    company, trade_date, asset_type=asset_type
-                )
+                final_state, decision = graph.propagate(company, trade_date, asset_type=asset_type)
                 out.append(map_decision_to_opinion(final_state, decision))
             except Exception:
                 # 单标的失败不影响其余 (失败安全); 不抛, 不记订单, 不污染证据

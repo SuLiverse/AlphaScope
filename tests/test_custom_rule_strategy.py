@@ -88,12 +88,7 @@ def test_eval_rules_logic():
         is True
     )
     # NaN 字段 → 该条不成立
-    assert (
-        _eval_rules(
-            [{"field": "rsi", "op": "<", "value": 30}], {"rsi": float("nan")}, "and"
-        )
-        is False
-    )
+    assert _eval_rules([{"field": "rsi", "op": "<", "value": 30}], {"rsi": float("nan")}, "and") is False
     # 空规则 → False
     assert _eval_rules([], ctx, "and") is False
     # 未知字段 → False
@@ -109,9 +104,7 @@ def test_empty_rules_no_signals():
 def test_buy_rule_triggers():
     # 一直上涨 → pct_change>0 持续触发买入
     bars = _bars([10 + i for i in range(10)])
-    strat = CustomRuleStrategy(
-        {"buy_rules": [{"field": "pct_change", "op": ">", "value": 0}]}
-    )
+    strat = CustomRuleStrategy({"buy_rules": [{"field": "pct_change", "op": ">", "value": 0}]})
     sigs = strat.generate_signals(bars, {"equity": 100000})
     assert len(sigs) == len(bars)
     assert any(s.action == "buy" for s in sigs)

@@ -14,9 +14,7 @@ router = APIRouter(prefix="/api/evidence", tags=["evidence"])
 
 
 class EvidenceCreateRequest(BaseModel):
-    evidence_type: str = Field(
-        description="证据类型: news/report/announcement/price/fund_flow/fundamental/other"
-    )
+    evidence_type: str = Field(description="证据类型: news/report/announcement/price/fund_flow/fundamental/other")
     title: str = Field(description="证据标题")
     source: str = Field(description="数据来源")
     claim: str = Field(default="", description="支撑的结论")
@@ -54,9 +52,7 @@ async def list_evidence(
 
 # 注意路由顺序: 字面 /aggregate 必须先于参数 /{evidence_id}, 否则被吞(id="aggregate")。
 @router.get("/aggregate")
-async def aggregate_evidence(
-    symbol: str, data_type: str = "news", max_sources: int = Query(3, ge=1, le=5)
-):
+async def aggregate_evidence(symbol: str, data_type: str = "news", max_sources: int = Query(3, ge=1, le=5)):
     """多源证据聚合 + 交叉验证(激活沉睡的 evidence_aggregator)。
 
     并行查多个 provider, 跨源去重 + 矛盾检测, 返回 AggregatedEvidence(is_multi_source/
@@ -181,9 +177,7 @@ async def build_chain_graph(req: ChainGraphRequest):
             ev_i = req.evidence[i] if i < len(req.evidence) else {}
             ev_j = req.evidence[j] if j < len(req.evidence) else {}
             shared_symbols = set(ev_i.get("symbols", [])) & set(ev_j.get("symbols", []))
-            if shared_symbols or _related_claims(
-                ev_i.get("claim", ""), ev_j.get("claim", "")
-            ):
+            if shared_symbols or _related_claims(ev_i.get("claim", ""), ev_j.get("claim", "")):
                 edges.append(
                     {
                         "source": nodes[i]["id"],

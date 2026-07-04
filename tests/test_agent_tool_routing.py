@@ -223,14 +223,10 @@ class TestFundMetricsTool:
         mock_provider = AsyncMock()
         mock_provider.get_nav_history.return_value = []
 
-        with patch(
-            "backend.runtime.tool_router.get_tool_router", return_value=ToolRouter()
-        ):
+        with patch("backend.runtime.tool_router.get_tool_router", return_value=ToolRouter()):
             router = ToolRouter()
             # Patch the handler's provider
-            with patch(
-                "backend.funds.providers.get_provider", return_value=mock_provider
-            ):
+            with patch("backend.funds.providers.get_provider", return_value=mock_provider):
                 result = router.call_tool("fund_metrics", fund_code="000001")
 
         assert result.data is not None

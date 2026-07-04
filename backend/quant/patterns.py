@@ -32,10 +32,7 @@ NEUTRAL = "neutral"
 CANDLE = "candlestick"  # 蜡烛形态
 STRUCTURE = "structure"  # 结构/趋势信号
 
-_DISCLAIMER = (
-    "形态识别仅描述历史 K 线结构,其后续表现并不必然,不预测未来涨跌、"
-    "不构成任何投资建议。"
-)
+_DISCLAIMER = "形态识别仅描述历史 K 线结构,其后续表现并不必然,不预测未来涨跌、不构成任何投资建议。"
 
 
 @dataclass
@@ -162,9 +159,7 @@ def _trend(closes: list[float], i: int, window: int = 5) -> str:
 # ============== 单根蜡烛形态 ==============
 
 
-def _single_bar_patterns(
-    bars: list[dict], closes: list[float], i: int
-) -> list[Pattern]:
+def _single_bar_patterns(bars: list[dict], closes: list[float], i: int) -> list[Pattern]:
     b = bars[i]
     rng = _rng(b)
     if rng <= 0:
@@ -175,9 +170,7 @@ def _single_bar_patterns(
 
     # 十字星: 实体极小
     if body <= 0.1 * rng:
-        out.append(
-            Pattern("十字星", CANDLE, NEUTRAL, _date(b), i, "开收盘几乎相等,多空僵持")
-        )
+        out.append(Pattern("十字星", CANDLE, NEUTRAL, _date(b), i, "开收盘几乎相等,多空僵持"))
         return out  # 十字星与锤子/星互斥
 
     # 锤子线 / 上吊线: 长下影、短上影、小实体
@@ -205,11 +198,7 @@ def _single_bar_patterns(
                 )
             )
         else:
-            out.append(
-                Pattern(
-                    "纺锤/长下影", CANDLE, NEUTRAL, _date(b), i, "长下影线,盘中下探回升"
-                )
-            )
+            out.append(Pattern("纺锤/长下影", CANDLE, NEUTRAL, _date(b), i, "长下影线,盘中下探回升"))
 
     # 流星线 / 倒锤子: 长上影、短下影、小实体
     elif upper >= 2 * body and lower <= body and body <= 0.4 * rng:
@@ -236,9 +225,7 @@ def _single_bar_patterns(
                 )
             )
         else:
-            out.append(
-                Pattern("长上影", CANDLE, NEUTRAL, _date(b), i, "长上影线,盘中冲高回落")
-            )
+            out.append(Pattern("长上影", CANDLE, NEUTRAL, _date(b), i, "长上影线,盘中冲高回落"))
 
     return out
 
@@ -255,13 +242,7 @@ def _two_bar_patterns(bars: list[dict], i: int) -> list[Pattern]:
     co, cc = _o(cur), _c(cur)
 
     # 看涨吞没: 前阴后阳, 后实体吞没前实体
-    if (
-        _is_bear(prev)
-        and _is_bull(cur)
-        and co <= pc
-        and cc >= po
-        and _body(cur) > _body(prev)
-    ):
+    if _is_bear(prev) and _is_bull(cur) and co <= pc and cc >= po and _body(cur) > _body(prev):
         out.append(
             Pattern(
                 "看涨吞没",
@@ -273,13 +254,7 @@ def _two_bar_patterns(bars: list[dict], i: int) -> list[Pattern]:
             )
         )
     # 看跌吞没: 前阳后阴
-    elif (
-        _is_bull(prev)
-        and _is_bear(cur)
-        and co >= pc
-        and cc <= po
-        and _body(cur) > _body(prev)
-    ):
+    elif _is_bull(prev) and _is_bear(cur) and co >= pc and cc <= po and _body(cur) > _body(prev):
         out.append(
             Pattern(
                 "看跌吞没",
@@ -339,13 +314,7 @@ def _three_bar_patterns(bars: list[dict], i: int) -> list[Pattern]:
     mid_a = (_o(a) + _c(a)) / 2
 
     # 启明星: 大阴 + 小星(跳空低) + 大阳收过首根中点
-    if (
-        _is_bear(a)
-        and star_small
-        and _is_bull(c)
-        and _c(c) > mid_a
-        and _body(c) >= 0.5 * rng_c
-    ):
+    if _is_bear(a) and star_small and _is_bull(c) and _c(c) > mid_a and _body(c) >= 0.5 * rng_c:
         out.append(
             Pattern(
                 "启明星",
@@ -357,13 +326,7 @@ def _three_bar_patterns(bars: list[dict], i: int) -> list[Pattern]:
             )
         )
     # 黄昏星: 大阳 + 小星(跳空高) + 大阴收破首根中点
-    if (
-        _is_bull(a)
-        and star_small
-        and _is_bear(c)
-        and _c(c) < mid_a
-        and _body(c) >= 0.5 * rng_c
-    ):
+    if _is_bull(a) and star_small and _is_bear(c) and _c(c) < mid_a and _body(c) >= 0.5 * rng_c:
         out.append(
             Pattern(
                 "黄昏星",
@@ -376,14 +339,10 @@ def _three_bar_patterns(bars: list[dict], i: int) -> list[Pattern]:
         )
     # 红三兵: 三连阳, 收盘逐根抬高
     if _is_bull(a) and _is_bull(b) and _is_bull(c) and _c(a) < _c(b) < _c(c):
-        out.append(
-            Pattern("红三兵", CANDLE, BULLISH, _date(c), i, "三连阳收盘抬高,多头强势")
-        )
+        out.append(Pattern("红三兵", CANDLE, BULLISH, _date(c), i, "三连阳收盘抬高,多头强势"))
     # 三只乌鸦: 三连阴, 收盘逐根走低
     if _is_bear(a) and _is_bear(b) and _is_bear(c) and _c(a) > _c(b) > _c(c):
-        out.append(
-            Pattern("三只乌鸦", CANDLE, BEARISH, _date(c), i, "三连阴收盘走低,空头强势")
-        )
+        out.append(Pattern("三只乌鸦", CANDLE, BEARISH, _date(c), i, "三连阴收盘走低,空头强势"))
 
     return out
 
@@ -504,15 +463,10 @@ def _double_top_bottom(bars: list[dict], closes: list[float]) -> list[Pattern]:
     troughs = [
         i
         for i in range(2, n - 2)
-        if lows[i] <= lows[i - 1]
-        and lows[i] <= lows[i - 2]
-        and lows[i] <= lows[i + 1]
-        and lows[i] <= lows[i + 2]
+        if lows[i] <= lows[i - 1] and lows[i] <= lows[i - 2] and lows[i] <= lows[i + 1] and lows[i] <= lows[i + 2]
     ]
 
-    def _last_pair(
-        idxs: list[int], vals: list[float], near: float = 0.03, min_gap: int = 4
-    ):
+    def _last_pair(idxs: list[int], vals: list[float], near: float = 0.03, min_gap: int = 4):
         for a in range(len(idxs) - 1, 0, -1):
             for b in range(a - 1, -1, -1):
                 i1, i2 = idxs[b], idxs[a]
@@ -555,9 +509,7 @@ def _double_top_bottom(bars: list[dict], closes: list[float]) -> list[Pattern]:
 # ============== 主入口 ==============
 
 
-def detect_patterns(
-    bars: list[dict[str, Any]], symbol: str = "", lookback: int = 60
-) -> PatternReport:
+def detect_patterns(bars: list[dict[str, Any]], symbol: str = "", lookback: int = 60) -> PatternReport:
     """从 OHLCV 序列检出蜡烛 + 结构形态。永不抛出。
 
     Args:
@@ -604,9 +556,7 @@ def _detect(bars: list[dict], symbol: str, lookback: int) -> PatternReport:
         patterns.extend(_structure_patterns(clean, closes, i))
 
     # 全序列结构信号(均线交叉只保留落在扫描窗内的)
-    patterns.extend(
-        [p for p in _ma_cross_patterns(clean, closes) if p.index >= scan_start]
-    )
+    patterns.extend([p for p in _ma_cross_patterns(clean, closes) if p.index >= scan_start])
     patterns.extend(_double_top_bottom(clean, closes))
 
     # 去重(同日同名)+ 倒序(最近在前)

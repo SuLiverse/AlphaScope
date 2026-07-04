@@ -166,9 +166,7 @@ async def test_get_summary(client):
         },
         "health": {"total_checks": 0, "ok": 0, "errors": 0},
     }
-    with patch(
-        "backend.diagnostics_store.get_diagnostics_summary", return_value=mock_summary
-    ):
+    with patch("backend.diagnostics_store.get_diagnostics_summary", return_value=mock_summary):
         resp = await client.get("/api/diagnostics/summary")
     assert resp.status_code == 200
     assert resp.json()["success"] is True

@@ -98,15 +98,11 @@ async def get_latest_price(symbol: str):
             return ApiResponse(success=True, data=intraday_bars[-1])
 
     fetch_result = None
-    raw_daily_bars = _get(
-        symbol=symbol, frequency="1d", limit=20, include_incompatible=True
-    )
+    raw_daily_bars = _get(symbol=symbol, frequency="1d", limit=20, include_incompatible=True)
     daily_bars = filter_incompatible_price_bars(raw_daily_bars)
     if not daily_bars:
         fetch_result = await fetch_prices(symbol, days=120)
-        raw_daily_bars = _get(
-            symbol=symbol, frequency="1d", limit=20, include_incompatible=True
-        )
+        raw_daily_bars = _get(symbol=symbol, frequency="1d", limit=20, include_incompatible=True)
         daily_bars = filter_incompatible_price_bars(raw_daily_bars)
     bar = daily_bars[0] if daily_bars else _latest(symbol)
     if not bar:
@@ -153,12 +149,8 @@ async def get_prices(
         )
 
     aggregated_frequencies = {"1w", "1mo", "1y"}
-    store_frequency = (
-        "1d" if normalized_frequency in aggregated_frequencies else normalized_frequency
-    )
-    fetch_days = default_daily_window_days(
-        max(1, min(limit, 500)), normalized_frequency
-    )
+    store_frequency = "1d" if normalized_frequency in aggregated_frequencies else normalized_frequency
+    fetch_days = default_daily_window_days(max(1, min(limit, 500)), normalized_frequency)
     raw_bars = _get(
         symbol=symbol,
         frequency=store_frequency,
@@ -173,20 +165,11 @@ async def get_prices(
     error = None
     error_code = None
     should_extend_period_history = False
-    if (
-        normalized_frequency in aggregated_frequencies
-        and bars
-        and not start
-        and not end
-    ):
-        should_extend_period_history = (
-            len(aggregate_price_bars(bars, normalized_frequency)) < limit
-        )
+    if normalized_frequency in aggregated_frequencies and bars and not start and not end:
+        should_extend_period_history = len(aggregate_price_bars(bars, normalized_frequency)) < limit
 
     if (not bars or should_extend_period_history) and not start and not end:
-        fetch_result = await fetch_prices(
-            symbol, days=max(1, min(fetch_days, MAX_PRICE_FETCH_DAYS))
-        )
+        fetch_result = await fetch_prices(symbol, days=max(1, min(fetch_days, MAX_PRICE_FETCH_DAYS)))
         if not fetch_result.success:
             degraded = True
             error = fetch_result.error
@@ -200,9 +183,7 @@ async def get_prices(
             frequency=store_frequency,
             start_date=start,
             end_date=end,
-            limit=fetch_days
-            if normalized_frequency in aggregated_frequencies
-            else limit,
+            limit=fetch_days if normalized_frequency in aggregated_frequencies else limit,
             include_incompatible=True,
         )
         bars = filter_incompatible_price_bars(raw_bars)

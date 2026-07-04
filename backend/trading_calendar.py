@@ -126,20 +126,12 @@ def trading_days(
         return []
     cal = _get_cal(market)
     if cal is None:
-        return [
-            s + timedelta(days=i)
-            for i in range((e - s).days + 1)
-            if (s + timedelta(days=i)).weekday() < 5
-        ]
+        return [s + timedelta(days=i) for i in range((e - s).days + 1) if (s + timedelta(days=i)).weekday() < 5]
     try:
         sessions = cal.sessions_in_range(_to_timestamp(s), _to_timestamp(e))
         return [ts.date() for ts in sessions]
     except Exception:
-        return [
-            s + timedelta(days=i)
-            for i in range((e - s).days + 1)
-            if (s + timedelta(days=i)).weekday() < 5
-        ]
+        return [s + timedelta(days=i) for i in range((e - s).days + 1) if (s + timedelta(days=i)).weekday() < 5]
 
 
 def count_trading_days(

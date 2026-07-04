@@ -65,9 +65,7 @@ class TestConversationStore:
         msg_id = tmp_store.add_message(conv_id, "user", "你好")
         assert msg_id > 0
 
-        msg_id2 = tmp_store.add_message(
-            conv_id, "assistant", "你好！有什么可以帮你的？"
-        )
+        msg_id2 = tmp_store.add_message(conv_id, "assistant", "你好！有什么可以帮你的？")
         assert msg_id2 > msg_id
 
         count = tmp_store.get_message_count(conv_id)

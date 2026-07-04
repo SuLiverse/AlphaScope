@@ -120,9 +120,7 @@ class Tracer:
         else:
             logger.debug("[Trace] %s ok (%.0fms)", span.name, span.duration_ms)
 
-    def get_traces(
-        self, limit: int = 50, status: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+    def get_traces(self, limit: int = 50, status: Optional[str] = None) -> List[Dict[str, Any]]:
         with self._lock:
             spans = list(self._spans)
         if status:
@@ -197,9 +195,7 @@ def traced_func(operation: str = "", tracer_name: str = "default") -> Callable:
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            with traced(
-                op_name, tracer_name, **{k: str(v)[:50] for k, v in kwargs.items()}
-            ):
+            with traced(op_name, tracer_name, **{k: str(v)[:50] for k, v in kwargs.items()}):
                 return func(*args, **kwargs)
 
         return wrapper

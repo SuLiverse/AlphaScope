@@ -26,9 +26,7 @@ def client():
 
 
 @pytest.mark.anyio
-async def test_generic_file_upload_sanitizes_path_traversal_filename(
-    client, tmp_path, monkeypatch
-):
+async def test_generic_file_upload_sanitizes_path_traversal_filename(client, tmp_path, monkeypatch):
     monkeypatch.setattr("backend.project_paths.UPLOADS_DIR", tmp_path / "uploads")
 
     async with client:
@@ -48,9 +46,7 @@ async def test_generic_file_upload_sanitizes_path_traversal_filename(
 
 
 @pytest.mark.anyio
-async def test_generic_file_upload_rejects_empty_sanitized_filename(
-    client, tmp_path, monkeypatch
-):
+async def test_generic_file_upload_rejects_empty_sanitized_filename(client, tmp_path, monkeypatch):
     monkeypatch.setattr("backend.project_paths.UPLOADS_DIR", tmp_path / "uploads")
 
     async with client:

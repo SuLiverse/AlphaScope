@@ -142,9 +142,7 @@ class ModeResolver:
     def __init__(self, config_path: Optional[str] = None) -> None:
         if self._initialized:
             return
-        self._config_path = (
-            Path(config_path) if config_path else CONFIG_DIR / "models.yaml"
-        )
+        self._config_path = Path(config_path) if config_path else CONFIG_DIR / "models.yaml"
         self._raw_config: Dict[str, Any] = {}
         self._mode_cache: Dict[AnalysisMode, AgentModeConfig] = {}
         self._load_config()
@@ -153,14 +151,10 @@ class ModeResolver:
     def _load_config(self) -> None:
         """Load configuration from YAML file"""
         if not self._config_path.exists():
-            logger.info(
-                "[ModeResolver] Config not found: %s, using defaults", self._config_path
-            )
+            logger.info("[ModeResolver] Config not found: %s, using defaults", self._config_path)
             return
         try:
-            self._raw_config = (
-                yaml.safe_load(self._config_path.read_text(encoding="utf-8")) or {}
-            )
+            self._raw_config = yaml.safe_load(self._config_path.read_text(encoding="utf-8")) or {}
             logger.info("[ModeResolver] Loaded config from %s", self._config_path)
         except Exception as e:
             logger.warning("[ModeResolver] Failed to load config: %s", e)
@@ -225,9 +219,7 @@ class ModeResolver:
         return AgentModeConfig(
             mode=AnalysisMode.DEEP,
             name=raw.get("name", "深入模式"),
-            description=raw.get(
-                "description", "全面分析，5个Agent+主席+Critic，高性能模型"
-            ),
+            description=raw.get("description", "全面分析，5个Agent+主席+Critic，高性能模型"),
             agents=agents,
             enable_evidence=raw.get("enable_evidence", True),
             enable_factors=raw.get("enable_factors", True),
@@ -346,9 +338,7 @@ if __name__ == "__main__":
     resolver = get_mode_resolver()
     print("Available modes:")
     for mode_info in resolver.list_modes():
-        print(
-            f"  {mode_info['value']}: {mode_info['name']} - {mode_info['description']}"
-        )
+        print(f"  {mode_info['value']}: {mode_info['name']} - {mode_info['description']}")
 
     for mode in AnalysisMode:
         config = resolver.resolve(mode)

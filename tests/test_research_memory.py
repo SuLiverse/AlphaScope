@@ -87,21 +87,15 @@ class TestBuildSnapshot:
         assert snap["snapshot_id"].startswith("600519-")
 
     def test_failure_safe_on_empty_result(self):
-        snap = rm.build_snapshot(
-            "000001", "", {}, None, now=datetime(2026, 6, 27, 10, 0, 0)
-        )
+        snap = rm.build_snapshot("000001", "", {}, None, now=datetime(2026, 6, 27, 10, 0, 0))
         assert snap["symbol"] == "000001"
         assert snap["signal"] == "未知"
         assert snap["confidence"] == 0.0
 
     def test_is_meaningful_filters_empty(self):
-        empty = rm.build_snapshot(
-            "X", "", {}, None, now=datetime(2026, 6, 27, 10, 0, 0)
-        )
+        empty = rm.build_snapshot("X", "", {}, None, now=datetime(2026, 6, 27, 10, 0, 0))
         assert rm._is_meaningful(empty) is False
-        full = rm.build_snapshot(
-            "X", "", self._result(), None, now=datetime(2026, 6, 27, 10, 0, 0)
-        )
+        full = rm.build_snapshot("X", "", self._result(), None, now=datetime(2026, 6, 27, 10, 0, 0))
         assert rm._is_meaningful(full) is True
 
 
@@ -248,9 +242,7 @@ class TestRecordAndTimeline:
         assert tl["snapshots"][-1]["signal"] == "卖出"
 
     def test_skips_empty_result(self, mem):
-        rid = mem.record_snapshot(
-            "000001", "", {}, None, now=datetime(2026, 6, 1, 9, 0, 0)
-        )
+        rid = mem.record_snapshot("000001", "", {}, None, now=datetime(2026, 6, 1, 9, 0, 0))
         assert rid is None
         assert mem.count() == 0
 

@@ -147,9 +147,7 @@ def render(df, show_ma: bool = True, show_macd: bool = True, show_rsi: bool = Fa
         current_row += 1
 
     # 成交量
-    vol_colors = [
-        "#ef5350" if c >= o else "#26a69a" for c, o in zip(df["close"], df["open"])
-    ]
+    vol_colors = ["#ef5350" if c >= o else "#26a69a" for c, o in zip(df["close"], df["open"])]
     fig.add_trace(
         go.Bar(
             x=df["date"],

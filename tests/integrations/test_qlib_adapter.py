@@ -148,9 +148,7 @@ try:
 except Exception:
     _HAS_QLIB = False
 
-_qlib_required = pytest.mark.skipif(
-    not _HAS_QLIB, reason="qlib 未安装, 跳过执行路径用例"
-)
+_qlib_required = pytest.mark.skipif(not _HAS_QLIB, reason="qlib 未安装, 跳过执行路径用例")
 
 
 @_qlib_required

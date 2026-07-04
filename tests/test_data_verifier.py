@@ -110,9 +110,7 @@ def test_evidence_pool_included_when_provided():
     v_with = verify_data(sd, evidence_pool=[{"evidence_id": "e1"}])
     assert any(d.dimension == "evidence" and d.status == OK for d in v_with.dimensions)
     v_empty = verify_data(sd, evidence_pool=[])
-    assert any(
-        d.dimension == "evidence" and d.status == MISSING for d in v_empty.dimensions
-    )
+    assert any(d.dimension == "evidence" and d.status == MISSING for d in v_empty.dimensions)
     # 不提供时不纳入 evidence 维度
     v_none = verify_data(sd)
     assert not any(d.dimension == "evidence" for d in v_none.dimensions)

@@ -59,9 +59,7 @@ def dispatch_message(req: DispatchRequest):
         )
         results.append(r.to_dict())
     sent = sum(1 for r in results if r["ok"])
-    return ApiResponse(
-        success=True, data={"results": results, "sent": sent, "total": len(results)}
-    )
+    return ApiResponse(success=True, data={"results": results, "sent": sent, "total": len(results)})
 
 
 @router.post("/dispatch-alerts")
@@ -147,4 +145,3 @@ def test_channel(channel: str):
         "这是一条来自研策中枢 AlphaScope 的测试消息。如果你收到了,说明渠道配置正确。",
     )
     return ApiResponse(success=result.ok, data=result.to_dict())
-

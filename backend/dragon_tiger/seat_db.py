@@ -241,11 +241,7 @@ def match_seats_in_lhb(lhb_records: list[dict]) -> dict[str, list[dict]]:
     matches: dict[str, list[dict]] = {}
     for nick, info in SEATS.items():
         seat_keywords = info.get("seats", [])
-        hits = [
-            row
-            for row in lhb_records
-            if any(kw in _seat_text(row) for kw in seat_keywords)
-        ]
+        hits = [row for row in lhb_records if any(kw in _seat_text(row) for kw in seat_keywords)]
         if hits:
             matches[nick] = hits
     return matches
@@ -273,9 +269,7 @@ def split_inst_vs_youzi(records: list[dict]) -> dict:
     """
     inst_buy = inst_sell = youzi_buy = youzi_sell = 0.0
     for r in records:
-        seat = str(
-            r.get("营业部名称") or r.get("交易营业部名称") or r.get("交易营业部") or ""
-        )
+        seat = str(r.get("营业部名称") or r.get("交易营业部名称") or r.get("交易营业部") or "")
         buy = _num(r.get("买入金额") or r.get("买入额") or 0)
         sell = _num(r.get("卖出金额") or r.get("卖出额") or 0)
         if _is_institutional(seat):

@@ -27,9 +27,7 @@ def client():
 
 
 @pytest.mark.anyio
-async def test_knowledge_upload_sanitizes_path_traversal_filename(
-    client, tmp_path, monkeypatch
-):
+async def test_knowledge_upload_sanitizes_path_traversal_filename(client, tmp_path, monkeypatch):
     monkeypatch.setattr("backend.api.knowledge.UPLOADS_DIR", tmp_path / "uploads")
     mock_doc = MagicMock()
     mock_doc.doc_id = "doc-safe"
@@ -58,9 +56,7 @@ async def test_knowledge_upload_sanitizes_path_traversal_filename(
 
 
 @pytest.mark.anyio
-async def test_knowledge_upload_uses_sanitized_filename_for_disk_and_metadata(
-    client, tmp_path, monkeypatch
-):
+async def test_knowledge_upload_uses_sanitized_filename_for_disk_and_metadata(client, tmp_path, monkeypatch):
     monkeypatch.setattr("backend.api.knowledge.UPLOADS_DIR", tmp_path / "uploads")
     mock_doc = MagicMock()
     mock_doc.doc_id = "doc-safe"

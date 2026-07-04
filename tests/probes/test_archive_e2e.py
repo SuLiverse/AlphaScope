@@ -21,9 +21,7 @@ from archive import save_report, list_reports, get_stats, get_combo_stats
 
 
 def e2e_with_archive(stock_name, symbol):
-    print(
-        f"\n{'=' * 70}\n端到端 + 存档测试: {stock_name} ({symbol}) v0.5 异构\n{'=' * 70}"
-    )
+    print(f"\n{'=' * 70}\n端到端 + 存档测试: {stock_name} ({symbol}) v0.5 异构\n{'=' * 70}")
 
     print("[模型阵容]")
     for k, name, vendor, model in get_agent_model_table():
@@ -39,12 +37,8 @@ def e2e_with_archive(stock_name, symbol):
 
     df_stock = fetch_individual_fund_flow(symbol, days=30)
     df_market = fetch_market_fund_flow(days=30)
-    s_stock = (
-        summarize_fund_flow(df_stock, recent_days=5) if df_stock is not None else {}
-    )
-    s_market = (
-        summarize_fund_flow(df_market, recent_days=5) if df_market is not None else {}
-    )
+    s_stock = summarize_fund_flow(df_stock, recent_days=5) if df_stock is not None else {}
+    s_market = summarize_fund_flow(df_market, recent_days=5) if df_market is not None else {}
 
     payload = {
         "name": stock_name,
@@ -71,17 +65,11 @@ def e2e_with_archive(stock_name, symbol):
         "related_news_brief": build_news_brief_for_llm(related, max_items=8),
         "market_news_brief": build_news_brief_for_llm(em[:6], max_items=6),
         "research_brief": build_research_brief_for_llm(reports, max_items=8),
-        "stock_fund_brief": build_fund_flow_brief_for_llm(s_stock, kind=stock_name)
-        if s_stock
-        else "",
-        "market_fund_brief": build_fund_flow_brief_for_llm(s_market, kind="大盘")
-        if s_market
-        else "",
+        "stock_fund_brief": build_fund_flow_brief_for_llm(s_stock, kind=stock_name) if s_stock else "",
+        "market_fund_brief": build_fund_flow_brief_for_llm(s_market, kind="大盘") if s_market else "",
     }
 
-    print(
-        f"[1] 数据准备 用时 {time.time() - t0:.1f}s | 新闻 {len(related)} 条 | 研报 {len(reports)} 份"
-    )
+    print(f"[1] 数据准备 用时 {time.time() - t0:.1f}s | 新闻 {len(related)} 条 | 研报 {len(reports)} 份")
 
     print("[2] 5 Agent (异构模型) 并行推理...")
     t1 = time.time()
@@ -92,15 +80,11 @@ def e2e_with_archive(stock_name, symbol):
         r = res["agents"].get(k)
         if r:
             ok_flag = "OK" if r.get("ok") else "FALLBACK"
-            print(
-                f"      {r['name']:<22} [{r.get('vendor', '?')}/{r.get('model', '?')}] {ok_flag}"
-            )
+            print(f"      {r['name']:<22} [{r.get('vendor', '?')}/{r.get('model', '?')}] {ok_flag}")
             print(f"        → {r['signal']} ({r['confidence']}%)")
 
     summary = res["summary"]
-    print(
-        f"[3] 投票: 买{summary['buy']}/卖{summary['sell']}/观{summary['hold']} → {summary['final']}"
-    )
+    print(f"[3] 投票: 买{summary['buy']}/卖{summary['sell']}/观{summary['hold']} → {summary['final']}")
 
     print("[4] 主席总结...")
     chairman = summarize_with_chairman(res, stock_name)
@@ -126,19 +110,13 @@ def e2e_with_archive(stock_name, symbol):
 
     report_md += f"\n## 投票\n买{summary['buy']}/卖{summary['sell']}/观{summary['hold']} → **{summary['final']}**\n\n## 主席\n{chairman}\n"
 
-    arc_res = save_report(
-        stock_name, symbol, payload, res, chairman, report_md, dedupe_minutes=0
-    )
+    arc_res = save_report(stock_name, symbol, payload, res, chairman, report_md, dedupe_minutes=0)
     print(f"    {arc_res['reason']} → {arc_res['path']}")
 
     print("\n[6] 索引检查（v0.5 模型组合元数据）:")
     s = get_stats()
-    print(
-        f"    总数 {s['total']} | 股票 {s['stocks']} | 买/卖/观 {s['buy']}/{s['sell']}/{s['hold']}"
-    )
-    print(
-        f"    出现过的模型组合: {s.get('distinct_combos', 0)} | 主→兜底次数: {s.get('fallback_total', 0)}"
-    )
+    print(f"    总数 {s['total']} | 股票 {s['stocks']} | 买/卖/观 {s['buy']}/{s['sell']}/{s['hold']}")
+    print(f"    出现过的模型组合: {s.get('distinct_combos', 0)} | 主→兜底次数: {s.get('fallback_total', 0)}")
     print("    最近 3 条：")
     for r in list_reports(limit=3):
         print(
@@ -146,17 +124,13 @@ def e2e_with_archive(stock_name, symbol):
         )
         am = r.get("agent_models", {})
         if am:
-            print(
-                f"        模型快照: {len(am)} 个 Agent，组合签名长度 {len(r.get('combo_signature', ''))} 字符"
-            )
+            print(f"        模型快照: {len(am)} 个 Agent，组合签名长度 {len(r.get('combo_signature', ''))} 字符")
 
     print("\n[7] 模型组合横向统计:")
     combos = get_combo_stats()
     for c in combos[:5]:
         sig_short = c["combo"][:80] + ("..." if len(c["combo"]) > 80 else "")
-        print(
-            f"    [{c['count']}次] 买{c['buy']}/卖{c['sell']}/观{c['hold']} 均{c['avg_confidence']}%"
-        )
+        print(f"    [{c['count']}次] 买{c['buy']}/卖{c['sell']}/观{c['hold']} 均{c['avg_confidence']}%")
         print(f"      {sig_short}")
 
     print(f"\n总耗时 {time.time() - t0:.1f}s")

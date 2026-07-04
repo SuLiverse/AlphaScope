@@ -26,9 +26,7 @@ class DataSourceResult(BaseModel):
     source_url: str = Field(default="", description="原始链接")
     published_at: Optional[datetime] = Field(default=None, description="发布时间")
     fetched_at: datetime = Field(default_factory=datetime.now, description="抓取时间")
-    data_type: str = Field(
-        default="news", description="数据类型: news/report/announcement/price/fund_flow"
-    )
+    data_type: str = Field(default="news", description="数据类型: news/report/announcement/price/fund_flow")
     symbols: list[str] = Field(default_factory=list, description="关联股票代码")
     confidence: float = Field(default=0.7, ge=0.0, le=1.0, description="数据可信度")
     metadata: dict[str, Any] = Field(default_factory=dict, description="附加元数据")
@@ -54,6 +52,4 @@ class DataSourceStatus(BaseModel):
     healthy: int = Field(default=0, description="健康数")
     degraded: int = Field(default=0, description="降级数")
     unhealthy: int = Field(default=0, description="不健康数")
-    providers: list[ProviderHealthStatus] = Field(
-        default_factory=list, description="各 Provider 状态"
-    )
+    providers: list[ProviderHealthStatus] = Field(default_factory=list, description="各 Provider 状态")

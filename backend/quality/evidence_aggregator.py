@@ -209,9 +209,7 @@ class EvidenceAggregator:
             logger.debug("Provider selection failed: %s", e)
             return []
 
-    def _cross_source_dedup(
-        self, items: List[Dict[str, Any]], data_type: str
-    ) -> List[Dict[str, Any]]:
+    def _cross_source_dedup(self, items: List[Dict[str, Any]], data_type: str) -> List[Dict[str, Any]]:
         """Deduplicate items across different sources"""
         if not items:
             return []
@@ -281,15 +279,12 @@ class EvidenceAggregator:
 
         # Count items confirmed by multiple sources
         multi_source_items = [i for i in items if i.get("_source_count", 1) >= 2]
-        confirmed = len(
-            set(src for item in multi_source_items for src in item.get("_sources", []))
-        )
+        confirmed = len(set(src for item in multi_source_items for src in item.get("_sources", [])))
 
         if confirmed >= 2:
             # Multi-source confirmation
             confidence = min(
-                self.SINGLE_SOURCE_CONFIDENCE
-                + (confirmed - 1) * self.CONFIRMATION_BOOST,
+                self.SINGLE_SOURCE_CONFIDENCE + (confirmed - 1) * self.CONFIRMATION_BOOST,
                 self.MAX_CONFIDENCE,
             )
         else:

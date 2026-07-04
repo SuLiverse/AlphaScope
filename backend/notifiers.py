@@ -73,9 +73,7 @@ def send_serverchan(sckey: str, title: str, body: str) -> SendResult:
     sckey = (sckey or "").strip()
     if not sckey:
         return SendResult(False, "serverchan", "缺少 SendKey")
-    url = f"https://sctapi.ftqq.com/{sckey}.send?" + urlencode(
-        {"title": title[:32], "desp": body[:2000]}
-    )
+    url = f"https://sctapi.ftqq.com/{sckey}.send?" + urlencode({"title": title[:32], "desp": body[:2000]})
     res = _http_get(url)
     return SendResult(res["ok"], "serverchan", res.get("error") or res.get("body", ""))
 
@@ -111,9 +109,8 @@ def send_telegram(bot_token: str, chat_id: str, title: str, body: str) -> SendRe
     chat_id = (chat_id or "").strip()
     if not bot_token or not chat_id:
         return SendResult(False, "telegram", "缺少 bot_token 或 chat_id")
-    url = (
-        f"https://api.telegram.org/bot{bot_token}/sendMessage?"
-        + urlencode({"chat_id": chat_id, "text": f"{title}\n\n{body}"[:3500], "parse_mode": "HTML"})
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage?" + urlencode(
+        {"chat_id": chat_id, "text": f"{title}\n\n{body}"[:3500], "parse_mode": "HTML"}
     )
     res = _http_get(url)
     return SendResult(res["ok"], "telegram", res.get("error") or res.get("body", ""))
@@ -170,9 +167,7 @@ def dispatch(channel: str, config: dict, title: str, body: str) -> SendResult:
         if channel == "feishu":
             return send_feishu(config.get("webhook", ""), title, body)
         if channel == "telegram":
-            return send_telegram(
-                config.get("bot_token", ""), config.get("chat_id", ""), title, body
-            )
+            return send_telegram(config.get("bot_token", ""), config.get("chat_id", ""), title, body)
         if channel == "email":
             return send_email(
                 config.get("smtp_host", ""),

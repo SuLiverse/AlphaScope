@@ -58,9 +58,7 @@ class RiskController:
             )
 
         # Check total exposure
-        current_exposure = sum(
-            p.shares * p.current_price for p in current_positions.values()
-        )
+        current_exposure = sum(p.shares * p.current_price for p in current_positions.values())
         new_exposure = current_exposure + cost
         exposure_pct = (new_exposure / equity * 100) if equity > 0 else 100
         if exposure_pct > self.config.max_total_exposure_pct:
@@ -80,9 +78,7 @@ class RiskController:
     ) -> RiskCheckResult:
         """Validate a sell order."""
         if symbol not in current_positions:
-            return RiskCheckResult(
-                allowed=False, reason=f"无持仓: {symbol}", rule="no_position"
-            )
+            return RiskCheckResult(allowed=False, reason=f"无持仓: {symbol}", rule="no_position")
 
         pos = current_positions[symbol]
         if shares > pos.shares:
@@ -136,9 +132,7 @@ class RiskController:
             )
         return RiskCheckResult(allowed=True, reason="通过")
 
-    def check_daily_loss(
-        self, start_equity: float, current_equity: float
-    ) -> RiskCheckResult:
+    def check_daily_loss(self, start_equity: float, current_equity: float) -> RiskCheckResult:
         """Check daily loss circuit breaker."""
         if start_equity <= 0:
             return RiskCheckResult(allowed=True, reason="通过")

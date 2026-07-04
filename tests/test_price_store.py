@@ -520,9 +520,7 @@ async def test_get_prices_intraday_uses_intraday_fetcher(client):
         }
     ]
     with (
-        patch(
-            "backend.price_periods.fetch_intraday_prices", return_value=intraday
-        ) as mock_fetch_intraday,
+        patch("backend.price_periods.fetch_intraday_prices", return_value=intraday) as mock_fetch_intraday,
         patch("backend.price_store.get_prices") as mock_get_prices,
     ):
         resp = await client.get("/api/prices/600519?frequency=intraday&limit=240")
@@ -561,9 +559,7 @@ async def test_get_latest_price_prefers_daily_bar(client):
     }
     with (
         patch("backend.price_periods.fetch_intraday_prices", return_value=[]),
-        patch(
-            "backend.price_store.get_prices", return_value=[daily]
-        ) as mock_get_prices,
+        patch("backend.price_store.get_prices", return_value=[daily]) as mock_get_prices,
         patch("backend.price_store.get_latest_price", return_value=monthly),
     ):
         resp = await client.get("/api/prices/600519/latest")
@@ -572,9 +568,7 @@ async def test_get_latest_price_prefers_daily_bar(client):
     data = resp.json()["data"]
     assert data["frequency"] == "1d"
     assert data["change_pct"] == 5.0
-    mock_get_prices.assert_called_once_with(
-        symbol="600519", frequency="1d", limit=20, include_incompatible=True
-    )
+    mock_get_prices.assert_called_once_with(symbol="600519", frequency="1d", limit=20, include_incompatible=True)
 
 
 @pytest.mark.anyio

@@ -121,9 +121,7 @@ def _norm_date(value: Any) -> str:
         return ""
     # 纯数字 → 时间戳(>1e12 视为毫秒)
     try:
-        if isinstance(value, (int, float)) or (
-            isinstance(value, str) and value.strip().isdigit()
-        ):
+        if isinstance(value, (int, float)) or (isinstance(value, str) and value.strip().isdigit()):
             ts = float(value)
             if ts > 1e12:
                 ts /= 1000.0
@@ -167,12 +165,8 @@ def apply_field_map(
                 "high": _to_float(_record_get(rec, field_map.get("high"))),
                 "low": _to_float(_record_get(rec, field_map.get("low"))),
                 "close": close,
-                "volume": _to_float(_record_get(rec, field_map.get("volume")))
-                if field_map.get("volume")
-                else 0.0,
-                "amount": _to_float(_record_get(rec, field_map.get("amount")))
-                if field_map.get("amount")
-                else 0.0,
+                "volume": _to_float(_record_get(rec, field_map.get("volume"))) if field_map.get("volume") else 0.0,
+                "amount": _to_float(_record_get(rec, field_map.get("amount"))) if field_map.get("amount") else 0.0,
                 "source": "http_json",
                 "user_provided": True,
             }
@@ -202,9 +196,7 @@ def normalize_source(cfg: Dict[str, Any]) -> Dict[str, Any]:
         method = "GET"
     headers = cfg.get("headers") if isinstance(cfg.get("headers"), dict) else {}
     field_map = cfg.get("field_map") if isinstance(cfg.get("field_map"), dict) else {}
-    field_map = {
-        k: v for k, v in field_map.items() if k in _ALL_FIELDS and v not in (None, "")
-    }
+    field_map = {k: v for k, v in field_map.items() if k in _ALL_FIELDS and v not in (None, "")}
     return {
         "id": sid,
         "name": name,
@@ -240,9 +232,7 @@ def list_sources() -> List[Dict[str, Any]]:
 
 def _write_sources(sources: List[Dict[str, Any]]) -> bool:
     try:
-        _sources_file().write_text(
-            json.dumps(sources, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+        _sources_file().write_text(json.dumps(sources, ensure_ascii=False, indent=2), encoding="utf-8")
         return True
     except Exception:
         return False
@@ -375,9 +365,7 @@ def fetch_json(
 
 def _materialize(symbol: str, bars: List[Dict[str, Any]]) -> bool:
     try:
-        _data_file(symbol).write_text(
-            json.dumps(bars, ensure_ascii=False), encoding="utf-8"
-        )
+        _data_file(symbol).write_text(json.dumps(bars, ensure_ascii=False), encoding="utf-8")
         return True
     except Exception:
         return False
@@ -447,9 +435,7 @@ def refresh_source(
             "kept_cache": True,
         }
 
-    bars = apply_field_map(
-        records, src.get("field_map", {}), symbol=symbol, limit=limit
-    )
+    bars = apply_field_map(records, src.get("field_map", {}), symbol=symbol, limit=limit)
     if not bars:
         _update_source_status(source_id, "error", "字段映射无有效行(检查 field_map)")
         return {
@@ -462,9 +448,7 @@ def refresh_source(
 
     _materialize(symbol, bars)
     dates = [b["date"] for b in bars]
-    _update_source_status(
-        source_id, "ok", None, bar_count=len(bars), last_refresh=now_iso
-    )
+    _update_source_status(source_id, "ok", None, bar_count=len(bars), last_refresh=now_iso)
     return {
         "ok": True,
         "source_id": source_id,
@@ -513,18 +497,14 @@ def preview_fetch(
         return {"ok": False, "error": (res or {}).get("error") or "抓取失败"}
     records = extract_records(res.get("payload"), records_path)
     if not records:
-        keys = (
-            list(res["payload"].keys()) if isinstance(res.get("payload"), dict) else []
-        )
+        keys = list(res["payload"].keys()) if isinstance(res.get("payload"), dict) else []
         return {"ok": False, "error": "记录路径定位不到数组", "top_level_keys": keys}
     sample = records[0]
     return {
         "ok": True,
         "record_count": len(records),
         "sample": sample,
-        "sample_keys": list(sample.keys())
-        if isinstance(sample, dict)
-        else [f"[{i}]" for i in range(len(sample))],
+        "sample_keys": list(sample.keys()) if isinstance(sample, dict) else [f"[{i}]" for i in range(len(sample))],
         "inferred_field_map": infer_field_map(sample),
     }
 

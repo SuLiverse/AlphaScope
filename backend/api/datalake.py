@@ -102,9 +102,7 @@ def datalake_screen(body: ScreenBody):
     from backend.quant import datalake
 
     filters = [f.model_dump() for f in body.filters]
-    result = datalake.screen(
-        filters, order_by=body.order_by, descending=body.descending, limit=body.limit
-    )
+    result = datalake.screen(filters, order_by=body.order_by, descending=body.descending, limit=body.limit)
     return ApiResponse(
         success=bool(result.get("ok")),
         data=result,

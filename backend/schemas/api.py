@@ -26,9 +26,7 @@ class ApiResponse(BaseModel, Generic[T]):
     trace_id: Optional[str] = Field(default=None, description="请求追踪ID")
     source: Optional[str] = Field(default=None, description="数据来源")
     tool_call_id: Optional[str] = Field(default=None, description="工具调用ID")
-    evidence_ids: Optional[list[str]] = Field(
-        default=None, description="关联证据ID列表"
-    )
+    evidence_ids: Optional[list[str]] = Field(default=None, description="关联证据ID列表")
 
 
 class PaginatedData(BaseModel, Generic[T]):
@@ -48,21 +46,15 @@ class PaginatedData(BaseModel, Generic[T]):
 class ChatRequest(BaseModel):
     """聊天请求"""
 
-    conversation_id: Optional[str] = Field(
-        default=None, description="会话ID，为空则创建新会话"
-    )
+    conversation_id: Optional[str] = Field(default=None, description="会话ID，为空则创建新会话")
     message: str = Field(description="用户消息", max_length=10000)
-    mode: str = Field(
-        default="free", description="模式: free/standard/deep/expert/vision"
-    )
+    mode: str = Field(default="free", description="模式: free/standard/deep/expert/vision")
     stock_symbol: Optional[str] = Field(default=None, description="股票代码")
     stock_name: Optional[str] = Field(default=None, description="股票名称")
     expert_team_id: Optional[str] = Field(default=None, description="专家团ID")
     provider: Optional[str] = Field(default=None, description="模型 Provider ID")
     model: Optional[str] = Field(default=None, description="模型 ID")
-    context: Optional[dict[str, Any]] = Field(
-        default=None, description="前端注入的行情、资金和界面上下文"
-    )
+    context: Optional[dict[str, Any]] = Field(default=None, description="前端注入的行情、资金和界面上下文")
 
 
 class AnalysisRequest(BaseModel):
@@ -71,12 +63,8 @@ class AnalysisRequest(BaseModel):
     stock_symbol: str = Field(description="股票代码")
     stock_name: str = Field(default="", description="股票名称")
     mode: str = Field(default="deep", description="分析模式: standard/deep/auto")
-    agent_configs: Optional[list[dict[str, Any]]] = Field(
-        default=None, description="Agent 配置覆盖"
-    )
-    global_ai_settings: Optional[dict[str, Any]] = Field(
-        default=None, description="全局 AI 设置"
-    )
+    agent_configs: Optional[list[dict[str, Any]]] = Field(default=None, description="Agent 配置覆盖")
+    global_ai_settings: Optional[dict[str, Any]] = Field(default=None, description="全局 AI 设置")
 
 
 class VisionRequest(BaseModel):
@@ -87,9 +75,7 @@ class VisionRequest(BaseModel):
     user_context: str = Field(default="", description="用户上下文说明")
     vendor: str = Field(default="deepseek", description="视觉模型供应商")
     model: str = Field(default="deepseek-chat", description="视觉模型名称")
-    ticker: str = Field(
-        default="", description="用户提供的股票代码（可选，跳过识别追问）"
-    )
+    ticker: str = Field(default="", description="用户提供的股票代码（可选，跳过识别追问）")
 
 
 class ConversationCreate(BaseModel):
@@ -143,9 +129,7 @@ class ChatResultData(BaseModel):
     conversation_id: str = Field(description="会话ID")
     mode: str = Field(description="使用的模式")
     content: str = Field(description="回复内容")
-    agents: Optional[list[dict[str, Any]]] = Field(
-        default=None, description="Agent 分析结果"
-    )
+    agents: Optional[list[dict[str, Any]]] = Field(default=None, description="Agent 分析结果")
     evidence: Optional[list[dict[str, Any]]] = Field(default=None, description="证据链")
     summary: Optional[str] = Field(default=None, description="摘要")
     compliance_note: Optional[str] = Field(default=None, description="合规声明")
@@ -177,9 +161,7 @@ class RealDataComparison(BaseModel):
     """真实行情交叉验证结果"""
 
     real_trend: str = Field(default="", description="真实趋势")
-    trend_consistent: bool = Field(
-        default=False, description="视觉趋势与真实趋势是否一致"
-    )
+    trend_consistent: bool = Field(default=False, description="视觉趋势与真实趋势是否一致")
     latest_close: float = Field(default=0.0, description="最新收盘价")
     conflicts: list[str] = Field(default_factory=list, description="冲突点")
 
@@ -192,12 +174,8 @@ class VisionResultData(BaseModel):
     analysis: str = Field(description="分析内容")
     needs_followup: bool = Field(default=False, description="是否需要追问")
     followup_question: Optional[str] = Field(default=None, description="追问内容")
-    kline_analysis: Optional[KlineAnalysisData] = Field(
-        default=None, description="K线分析结构化数据"
-    )
-    real_data: Optional[RealDataComparison] = Field(
-        default=None, description="真实行情交叉验证"
-    )
+    kline_analysis: Optional[KlineAnalysisData] = Field(default=None, description="K线分析结构化数据")
+    real_data: Optional[RealDataComparison] = Field(default=None, description="真实行情交叉验证")
 
 
 class AgentData(BaseModel):
@@ -324,9 +302,7 @@ class BacktestRunRequest(BaseModel):
     days: int = Field(default=120, ge=10, le=1000, description="回测天数")
     initial_capital: float = Field(default=100000.0, gt=0, description="初始资金")
     params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
-    benchmark_symbol: str = Field(
-        default="", description="可选基准代码(如沪深300 sh000300), 用于超额/信息比率"
-    )
+    benchmark_symbol: str = Field(default="", description="可选基准代码(如沪深300 sh000300), 用于超额/信息比率")
 
 
 class TradeRecord(BaseModel):

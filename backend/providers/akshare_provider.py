@@ -237,18 +237,14 @@ class AkShareProvider(BaseProvider):
             return self._get_hk_prices(query)
 
         frequency = str(query.get("frequency") or "").lower()
-        period = query.get("period") or {"1w": "weekly", "1mo": "monthly"}.get(
-            frequency, "daily"
-        )
+        period = query.get("period") or {"1w": "weekly", "1mo": "monthly"}.get(frequency, "daily")
         start_date = query.get("start_date", "")
         end_date = query.get("end_date", "")
         if not end_date:
             end_date = datetime.now().strftime("%Y%m%d")
         if not start_date:
             limit = int(query.get("limit", 120) or 120)
-            start_date = (datetime.now() - timedelta(days=max(limit * 2, 30))).strftime(
-                "%Y%m%d"
-            )
+            start_date = (datetime.now() - timedelta(days=max(limit * 2, 30))).strftime("%Y%m%d")
         adjust = query.get("adjust", "")
 
         try:
@@ -282,9 +278,7 @@ class AkShareProvider(BaseProvider):
                         "amplitude": _float_value(row.get("振幅", 0)),
                         "change_pct": _float_value(row.get("涨跌幅", 0)),
                         "adjust": adjust,
-                        "frequency": {"weekly": "1w", "monthly": "1mo"}.get(
-                            str(period), "1d"
-                        ),
+                        "frequency": {"weekly": "1w", "monthly": "1mo"}.get(str(period), "1d"),
                         "source": "akshare",
                     }
                 )
@@ -509,9 +503,7 @@ class AkShareProvider(BaseProvider):
                         "symbol": symbol,
                         "date": str(row.get("日期", "")),
                         "main_net_inflow": float(row.get("主力净流入-净额", 0)),
-                        "super_large_net_inflow": float(
-                            row.get("超大单净流入-净额", 0)
-                        ),
+                        "super_large_net_inflow": float(row.get("超大单净流入-净额", 0)),
                         "large_net_inflow": float(row.get("大单净流入-净额", 0)),
                         "medium_net_inflow": float(row.get("中单净流入-净额", 0)),
                         "small_net_inflow": float(row.get("小单净流入-净额", 0)),

@@ -23,9 +23,7 @@ class BollingerBreakStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         period = self.params["period"]
         if len(bars) < period:
             return []
@@ -52,11 +50,7 @@ class BollingerBreakStrategy(BaseStrategy):
                     )
                 )
             elif close < mid:
-                signals.append(
-                    Signal(
-                        "sell", symbol, reason=f"跌破布林中轨 ({close:.2f}<{mid:.2f})"
-                    )
-                )
+                signals.append(Signal("sell", symbol, reason=f"跌破布林中轨 ({close:.2f}<{mid:.2f})"))
             else:
                 signals.append(Signal("hold", symbol, reason="轨道内运行"))
         return signals

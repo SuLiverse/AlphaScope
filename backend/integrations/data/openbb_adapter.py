@@ -97,9 +97,7 @@ def _pick_date(row: Any) -> str:
     return ""
 
 
-def normalize_ohlcv_df(
-    df: Any, symbol: str, market: str = "US"
-) -> list[dict[str, Any]]:
+def normalize_ohlcv_df(df: Any, symbol: str, market: str = "US") -> list[dict[str, Any]]:
     """把 OpenBB 返回的 dataframe 归一化成 AlphaScope 标准 OHLCV dict 列表。
 
     兼容 pandas / polars DataFrame, 以及各 provider 的字段名差异。

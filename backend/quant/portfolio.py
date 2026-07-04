@@ -50,9 +50,7 @@ class Trade:
 class Portfolio:
     """Portfolio tracker with cash, positions, and trade history."""
 
-    def __init__(
-        self, initial_capital: float = 100000.0, commission_rate: float = 0.001
-    ):
+    def __init__(self, initial_capital: float = 100000.0, commission_rate: float = 0.001):
         self.initial_capital = initial_capital
         self.cash = initial_capital
         self.commission_rate = commission_rate
@@ -94,9 +92,7 @@ class Portfolio:
             pos.shares = total_shares
             pos.current_price = price
         else:
-            self.positions[symbol] = Position(
-                symbol=symbol, shares=shares, avg_cost=price, current_price=price
-            )
+            self.positions[symbol] = Position(symbol=symbol, shares=shares, avg_cost=price, current_price=price)
 
         self.trades.append(
             Trade(
@@ -195,7 +191,5 @@ class Portfolio:
             "cash": round(self.cash, 2),
             "positions_count": len(self.positions),
             "total_trades": len(self.trades),
-            "total_return_pct": round(
-                (equity - self.initial_capital) / self.initial_capital * 100, 2
-            ),
+            "total_return_pct": round((equity - self.initial_capital) / self.initial_capital * 100, 2),
         }

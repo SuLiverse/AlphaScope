@@ -82,15 +82,11 @@ class AnomalyDetector:
                 change_pct = abs((close - prev_close) / prev_close) * 100
                 limit = self._get_price_limit(symbol)
                 if change_pct > limit + 0.5:  # 0.5% tolerance
-                    anomalies.append(
-                        f"涨跌幅({change_pct:.1f}%)超过涨跌停限制({limit}%)"
-                    )
+                    anomalies.append(f"涨跌幅({change_pct:.1f}%)超过涨跌停限制({limit}%)")
 
         return anomalies
 
-    def check_news(
-        self, news: Dict[str, Any], all_news: Optional[List[Dict[str, Any]]] = None
-    ) -> List[str]:
+    def check_news(self, news: Dict[str, Any], all_news: Optional[List[Dict[str, Any]]] = None) -> List[str]:
         """
         Check a news item for anomalies.
 
@@ -117,11 +113,7 @@ class AnomalyDetector:
 
         # Duplicate timestamp check
         if all_news and dt:
-            same_ts_count = sum(
-                1
-                for n in all_news
-                if n.get("datetime") == dt and n.get("title") == title
-            )
+            same_ts_count = sum(1 for n in all_news if n.get("datetime") == dt and n.get("title") == title)
             if same_ts_count > self.MAX_DUPLICATE_TIMESTAMP:
                 anomalies.append(f"同一时间戳({dt})同标题出现{same_ts_count}次")
 

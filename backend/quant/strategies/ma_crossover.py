@@ -21,9 +21,7 @@ class MAStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         if len(bars) < self.params["long_period"]:
             return []
 
@@ -34,9 +32,7 @@ class MAStrategy(BaseStrategy):
         signals = []
         for i in range(1, len(bars)):
             if i < self.params["long_period"]:
-                signals.append(
-                    Signal("hold", bars[i].get("symbol", ""), reason="数据不足")
-                )
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
                 continue
 
             prev_short = short_ma[i - 1]
@@ -63,9 +59,7 @@ class MAStrategy(BaseStrategy):
                     )
                 )
             else:
-                signals.append(
-                    Signal("hold", bars[i].get("symbol", ""), reason="无信号")
-                )
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="无信号"))
 
         return signals
 

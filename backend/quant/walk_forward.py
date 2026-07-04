@@ -134,8 +134,7 @@ class WalkForwardReport:
             "full_period": self.full_period,
             "assumptions": self.assumptions,
             "disclaimer": (
-                "样本外回测仅用于评估策略在不同历史区间的稳健性，"
-                "不代表未来表现，不构成任何投资建议或收益承诺。"
+                "样本外回测仅用于评估策略在不同历史区间的稳健性，不代表未来表现，不构成任何投资建议或收益承诺。"
             ),
         }
 
@@ -145,9 +144,7 @@ class WalkForwardReport:
 # ---------------------------------------------------------------------------
 
 
-def _strategy_factory(
-    strategy: StrategyArg, params: dict[str, Any] | None
-) -> Callable[[], BaseStrategy | None]:
+def _strategy_factory(strategy: StrategyArg, params: dict[str, Any] | None) -> Callable[[], BaseStrategy | None]:
     """Return a zero-arg factory producing a *fresh* strategy per window.
 
     A fresh instance avoids any state leaking across windows. Accepts either a
@@ -167,9 +164,7 @@ def _sort_bars(bars: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return sorted((dict(b) for b in bars), key=lambda b: str(b.get("date", "")))
 
 
-def _make_windows(
-    n_bars: int, n_splits: int, scheme: str
-) -> tuple[list[tuple[int, int, int, int]], int]:
+def _make_windows(n_bars: int, n_splits: int, scheme: str) -> tuple[list[tuple[int, int, int, int]], int]:
     """Compute (is_start, is_end, oos_start, oos_end) index tuples.
 
     The series is divided into ``n_splits + 1`` equal folds; window ``w`` tests
@@ -240,9 +235,7 @@ def _build_window(
     if n_is < 1 or n_oos < 1:
         return None
 
-    equity, dates, trades, _assump = _run_segment_backtest(
-        factory, slice_bars, symbol, initial_capital
-    )
+    equity, dates, trades, _assump = _run_segment_backtest(factory, slice_bars, symbol, initial_capital)
     # The engine seeds equity_history with the initial capital and then appends
     # one point per bar, so its length is len(bars) + 1: index 0 is pre-trading
     # capital, index k is equity *after* bar k-1. The IS/OOS split therefore sits
@@ -389,13 +382,9 @@ def run_walk_forward(
     """
     requested = n_splits
     scheme = scheme if scheme in ("anchored", "rolling") else "anchored"
-    n_splits = max(
-        _MIN_SPLITS, min(_MAX_SPLITS, int(n_splits) if n_splits else _MIN_SPLITS)
-    )
+    n_splits = max(_MIN_SPLITS, min(_MAX_SPLITS, int(n_splits) if n_splits else _MIN_SPLITS))
 
-    strategy_name = (
-        strategy if isinstance(strategy, str) else getattr(strategy, "name", "unknown")
-    )
+    strategy_name = strategy if isinstance(strategy, str) else getattr(strategy, "name", "unknown")
     factory = _strategy_factory(strategy, params)
 
     clean = _sort_bars(bars or [])
@@ -405,9 +394,7 @@ def run_walk_forward(
     full_period: dict[str, Any] = {}
     assumptions: dict[str, Any] = {}
     if n_bars >= 2:
-        eq, _d, tr, assumptions = _run_segment_backtest(
-            factory, clean, symbol, initial_capital
-        )
+        eq, _d, tr, assumptions = _run_segment_backtest(factory, clean, symbol, initial_capital)
         if len(eq) >= 2:
             full_period = build_performance_summary(
                 equity_curve=eq,

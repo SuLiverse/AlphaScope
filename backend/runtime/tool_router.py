@@ -175,13 +175,9 @@ class ToolRouter:
         """调用工具"""
         tool = self._tools.get(tool_id)
         if not tool:
-            return ToolCallResult(
-                tool_id=tool_id, success=False, error=f"工具不存在: {tool_id}"
-            )
+            return ToolCallResult(tool_id=tool_id, success=False, error=f"工具不存在: {tool_id}")
         if not tool.enabled:
-            return ToolCallResult(
-                tool_id=tool_id, success=False, error=f"工具已禁用: {tool_id}"
-            )
+            return ToolCallResult(tool_id=tool_id, success=False, error=f"工具已禁用: {tool_id}")
 
         # Rate limiting
         count = self._call_counts.get(tool_id, 0)
@@ -244,9 +240,7 @@ class ToolRouter:
         except Exception as e:
             return {"symbol": symbol, "error": str(e)}
 
-    def _tool_news_search(
-        self, query: str = "", symbol: str = "", **kwargs
-    ) -> Dict[str, Any]:
+    def _tool_news_search(self, query: str = "", symbol: str = "", **kwargs) -> Dict[str, Any]:
         """新闻搜索工具"""
         try:
             from backend.news_data import fetch_news
@@ -287,17 +281,12 @@ class ToolRouter:
             results = provider.search(query, max_results=5)
             return {
                 "query": query,
-                "results": [
-                    {"title": r.title, "url": r.url, "snippet": r.snippet}
-                    for r in results
-                ],
+                "results": [{"title": r.title, "url": r.url, "snippet": r.snippet} for r in results],
             }
         except Exception as e:
             return {"query": query, "error": str(e)}
 
-    def _tool_evidence_search(
-        self, query: str = "", symbol: str = "", **kwargs
-    ) -> Dict[str, Any]:
+    def _tool_evidence_search(self, query: str = "", symbol: str = "", **kwargs) -> Dict[str, Any]:
         """证据检索工具（RAG）"""
         try:
             from backend.rag.retriever import Retriever
@@ -327,9 +316,7 @@ class ToolRouter:
                 start_date=start_date,
                 end_date=end_date,
                 initial_capital=initial_capital,
-                params=kwargs.get("params")
-                if isinstance(kwargs.get("params"), dict)
-                else None,
+                params=kwargs.get("params") if isinstance(kwargs.get("params"), dict) else None,
             )
             return {
                 "run_id": result.get("run_id"),
@@ -380,9 +367,7 @@ class ToolRouter:
             from backend.schemas.funds import DCAFrequency
 
             provider = get_provider()
-            records = asyncio.run(
-                provider.get_nav_history(fund_code, start_date, end_date)
-            )
+            records = asyncio.run(provider.get_nav_history(fund_code, start_date, end_date))
             if not records:
                 return {"fund_code": fund_code, "error": "无净值数据"}
 

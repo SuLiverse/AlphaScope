@@ -268,9 +268,7 @@ def test_fetch_intraday_prices_keeps_latest_trade_day_and_previous_close(monkeyp
             return rows
 
     monkeypatch.setattr("backend.price_periods.get_market", lambda symbol: "CN")
-    monkeypatch.setattr(
-        "backend.price_periods._previous_daily_close", lambda symbol, before=None: 10.0
-    )
+    monkeypatch.setattr("backend.price_periods._previous_daily_close", lambda symbol, before=None: 10.0)
     monkeypatch.setitem(__import__("sys").modules, "akshare", FakeAkshare)
 
     result = fetch_intraday_prices("600519", limit=240)

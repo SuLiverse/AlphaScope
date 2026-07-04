@@ -34,9 +34,7 @@ class WikipediaViewsProvider(BaseProvider):
         import requests
 
         url = f"{self.BASE_URL}{endpoint}"
-        headers = {
-            "User-Agent": "AlphaScope/1.0 (https://github.com/TIANWEN-cpu/AlphaScope)"
-        }
+        headers = {"User-Agent": "AlphaScope/1.0 (https://github.com/TIANWEN-cpu/AlphaScope)"}
         resp = requests.get(url, headers=headers, params=params or {}, timeout=15)
         resp.raise_for_status()
         return resp.json()
@@ -55,20 +53,12 @@ class WikipediaViewsProvider(BaseProvider):
             # Try English Wikipedia first, then Chinese
             for lang in ["en", "zh"]:
                 try:
-                    raw = self._get(
-                        f"/all-access/user/{lang.wikipedia}/{page_title}/daily/{start}/{end}"
-                    )
+                    raw = self._get(f"/all-access/user/{lang.wikipedia}/{page_title}/daily/{start}/{end}")
                     items = raw.get("items", [])
                     if items:
                         views = [item.get("views", 0) for item in items]
                         avg_views = sum(views) / len(views) if views else 0
-                        recent = (
-                            sum(views[-7:]) / 7
-                            if len(views) >= 7
-                            else views[-1]
-                            if views
-                            else 0
-                        )
+                        recent = sum(views[-7:]) / 7 if len(views) >= 7 else views[-1] if views else 0
                         trend_pct = ((recent - avg_views) / max(avg_views, 1)) * 100
 
                         return {

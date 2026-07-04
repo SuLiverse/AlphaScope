@@ -22,10 +22,7 @@ def _good_returns(n_assets: int = 4, n_periods: int = 252) -> pd.DataFrame:
     """造 n_assets × n_periods 的收益 DataFrame (有信号, 优化器能解)。"""
     np.random.seed(42)
     return pd.DataFrame(
-        {
-            f"A{i}": np.random.normal(0.001 + i * 0.0003, 0.02 - i * 0.002, n_periods)
-            for i in range(n_assets)
-        }
+        {f"A{i}": np.random.normal(0.001 + i * 0.0003, 0.02 - i * 0.002, n_periods) for i in range(n_assets)}
     )
 
 
@@ -161,9 +158,7 @@ def test_optimize_insufficient_data_returns_degraded():
 
 
 def test_optimize_single_asset_fails_safe():
-    r = po.optimize_portfolio(
-        pd.DataFrame({"A": np.random.normal(0, 0.02, 252)}), method="max_sharpe"
-    )
+    r = po.optimize_portfolio(pd.DataFrame({"A": np.random.normal(0, 0.02, 252)}), method="max_sharpe")
     assert r["degraded"] is True
 
 

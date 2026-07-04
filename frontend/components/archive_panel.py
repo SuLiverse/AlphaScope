@@ -60,16 +60,12 @@ def render():
     无需参数，所有数据从 archive 后端模块获取。
     """
     st.markdown("#### 📚 研究存档")
-    st.caption(
-        "每次 LLM 深度分析的报告会自动归档到此处，支持检索、后验标签和模型组合统计。"
-    )
+    st.caption("每次 LLM 深度分析的报告会自动归档到此处，支持检索、后验标签和模型组合统计。")
 
     # 自动标签区域
     if _TAGGER_AVAILABLE:
         with st.expander("🏷️ 历史归档自动标签", expanded=False):
-            st.caption(
-                "为未打标签的报告计算 3/5/10 日后验涨跌幅，用于后续验证模型信号。"
-            )
+            st.caption("为未打标签的报告计算 3/5/10 日后验涨跌幅，用于后续验证模型信号。")
             if st.button(
                 "刷新行情标签",
                 use_container_width=True,
@@ -232,13 +228,9 @@ def _render_decision_and_activity(stats: dict):
             date_counter[r.get("date", "")] += 1
 
         today = datetime.now().date()
-        dates = [
-            (today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(13, -1, -1)
-        ]
+        dates = [(today - timedelta(days=i)).strftime("%Y-%m-%d") for i in range(13, -1, -1)]
         counts = [date_counter.get(d, 0) for d in dates]
-        date_labels = [
-            (today - timedelta(days=i)).strftime("%m-%d") for i in range(13, -1, -1)
-        ]
+        date_labels = [(today - timedelta(days=i)).strftime("%m-%d") for i in range(13, -1, -1)]
 
         act_fig = go.Figure()
         act_fig.add_trace(
@@ -299,9 +291,7 @@ def _render_combo_stats():
         )
 
         combo_df = pd.DataFrame(combo_stats)
-        combo_df["combo_display"] = combo_df["combo"].apply(
-            lambda x: x[:50] + "..." if len(x) > 50 else x
-        )
+        combo_df["combo_display"] = combo_df["combo"].apply(lambda x: x[:50] + "..." if len(x) > 50 else x)
         st.dataframe(
             combo_df[
                 [
@@ -314,16 +304,12 @@ def _render_combo_stats():
                 ]
             ],
             column_config={
-                "combo_display": st.column_config.TextColumn(
-                    "组合签名", help="完整签名可在 tooltip 中查看"
-                ),
+                "combo_display": st.column_config.TextColumn("组合签名", help="完整签名可在 tooltip 中查看"),
                 "count": "出现次数",
                 "buy": "买入",
                 "sell": "卖出",
                 "hold": "观望",
-                "avg_confidence": st.column_config.NumberColumn(
-                    "平均置信度", format="%.1f%%"
-                ),
+                "avg_confidence": st.column_config.NumberColumn("平均置信度", format="%.1f%%"),
             },
             hide_index=True,
             use_container_width=True,
@@ -331,10 +317,7 @@ def _render_combo_stats():
 
         viz_c1, viz_c2 = st.columns(2)
         with viz_c1:
-            bar_labels = [
-                c["combo"][:40] + "..." if len(c["combo"]) > 40 else c["combo"]
-                for c in combo_stats
-            ]
+            bar_labels = [c["combo"][:40] + "..." if len(c["combo"]) > 40 else c["combo"] for c in combo_stats]
             bar_fig = go.Figure(
                 go.Bar(
                     x=bar_labels,
@@ -433,27 +416,13 @@ def _render_combo_performance():
                 "combo_display": st.column_config.TextColumn("组合签名"),
                 "count": st.column_config.NumberColumn("总样本"),
                 "samples_with_label": st.column_config.NumberColumn("已回填(5日)"),
-                "avg_5d_return": st.column_config.NumberColumn(
-                    "5日均收益", format="%.2f%%"
-                ),
-                "avg_10d_return": st.column_config.NumberColumn(
-                    "10日均收益", format="%.2f%%"
-                ),
-                "avg_20d_return": st.column_config.NumberColumn(
-                    "20日均收益", format="%.2f%%"
-                ),
-                "avg_drawdown_10d": st.column_config.NumberColumn(
-                    "10日均回撤", format="%.2f%%"
-                ),
-                "hit_rate_5d": st.column_config.NumberColumn(
-                    "5日命中率", format="%.0f%%"
-                ),
-                "buy_hit_rate_5d": st.column_config.NumberColumn(
-                    "买入5日命中率", format="%.0f%%"
-                ),
-                "hold_hit_rate_5d": st.column_config.NumberColumn(
-                    "观望5日命中率", format="%.0f%%"
-                ),
+                "avg_5d_return": st.column_config.NumberColumn("5日均收益", format="%.2f%%"),
+                "avg_10d_return": st.column_config.NumberColumn("10日均收益", format="%.2f%%"),
+                "avg_20d_return": st.column_config.NumberColumn("20日均收益", format="%.2f%%"),
+                "avg_drawdown_10d": st.column_config.NumberColumn("10日均回撤", format="%.2f%%"),
+                "hit_rate_5d": st.column_config.NumberColumn("5日命中率", format="%.0f%%"),
+                "buy_hit_rate_5d": st.column_config.NumberColumn("买入5日命中率", format="%.0f%%"),
+                "hold_hit_rate_5d": st.column_config.NumberColumn("观望5日命中率", format="%.0f%%"),
             },
             hide_index=True,
             use_container_width=True,
@@ -470,19 +439,9 @@ def _render_combo_performance():
                 ret_fig = go.Figure(
                     go.Bar(
                         x=[c["avg_5d_return"] for c in top_perf][::-1],
-                        y=[
-                            (c["combo"][:40] + "...")
-                            if len(c["combo"]) > 40
-                            else c["combo"]
-                            for c in top_perf
-                        ][::-1],
+                        y=[(c["combo"][:40] + "...") if len(c["combo"]) > 40 else c["combo"] for c in top_perf][::-1],
                         orientation="h",
-                        marker=dict(
-                            color=[
-                                "#ef5350" if c["avg_5d_return"] > 0 else "#26a69a"
-                                for c in top_perf
-                            ][::-1]
-                        ),
+                        marker=dict(color=["#ef5350" if c["avg_5d_return"] > 0 else "#26a69a" for c in top_perf][::-1]),
                         text=[f"{c['avg_5d_return']:+.2f}%" for c in top_perf][::-1],
                         textposition="outside",
                     )
@@ -506,9 +465,7 @@ def _render_search_and_list():
     """渲染检索栏 + 报告列表/详情"""
     fc0, fc1, fc2, fc3, fc4 = st.columns([1.5, 2, 2, 2, 2])
     with fc0:
-        f_type = st.selectbox(
-            "类型", ["全部", "Agent 报告", "圆桌纪要"], key="arc_type"
-        )
+        f_type = st.selectbox("类型", ["全部", "Agent 报告", "圆桌纪要"], key="arc_type")
     with fc1:
         f_stock = st.text_input(
             "🔍 股票名称/代码",
@@ -543,9 +500,7 @@ def _render_search_and_list():
     st.markdown(f"**命中 {len(reports)} 条报告**")
 
     if not reports:
-        st.caption(
-            "暂无符合条件的存档报告。请先在「Agent 协作分析」Tab 启动深度分析，报告会自动归档。"
-        )
+        st.caption("暂无符合条件的存档报告。请先在「Agent 协作分析」Tab 启动深度分析，报告会自动归档。")
         return
 
     # 列表 + 详情切换
@@ -609,9 +564,7 @@ def _render_report_list(reports: list, view_key: str):
             )
 
         day_chg = r.get("day_change", 0) or 0
-        chg_color = (
-            "#ef5350" if day_chg > 0 else "#26a69a" if day_chg < 0 else "#6b7280"
-        )
+        chg_color = "#ef5350" if day_chg > 0 else "#26a69a" if day_chg < 0 else "#6b7280"
 
         # v0.9: 审稿质量徽标
         critic_meta = r.get("critic") or {}

@@ -34,9 +34,7 @@ def test_store_save_list_decrypt():
     from backend import notifier_store
 
     _clear_channels()
-    notifier_store.save_channel(
-        "serverchan", enabled=True, config={"sckey": "SCT123abc"}
-    )
+    notifier_store.save_channel("serverchan", enabled=True, config={"sckey": "SCT123abc"})
     items = notifier_store.list_channels()
     assert any(c["channel"] == "serverchan" and c["enabled"] for c in items)
 
@@ -105,16 +103,12 @@ def test_api_dispatch_alerts_all_succeed_marks_acked(client):
 
     _clear_channels()
     alert_store.clear_all()
-    alert_store.add_alert(
-        alert_id="d1", symbol="s", name="", alert_type="price_change", message="m1"
-    )
+    alert_store.add_alert(alert_id="d1", symbol="s", name="", alert_type="price_change", message="m1")
     # 配两个启用渠道
     notifier_store.save_channel("serverchan", True, {"sckey": "SCT1"})
     notifier_store.save_channel("pushplus", True, {"token": "tok1"})
 
-    with patch(
-        "backend.notifiers._http_get", return_value={"ok": True, "status": 200, "body": "{}"}
-    ):
+    with patch("backend.notifiers._http_get", return_value={"ok": True, "status": 200, "body": "{}"}):
         r = client.post("/api/notifiers/dispatch-alerts")
     data = r.json()["data"]
     assert data["all_succeeded"] is True
@@ -131,9 +125,7 @@ def test_api_dispatch_alerts_partial_fail_keeps_unacked(client):
 
     _clear_channels()
     alert_store.clear_all()
-    alert_store.add_alert(
-        alert_id="d2", symbol="s", name="", alert_type="price_change", message="m2"
-    )
+    alert_store.add_alert(alert_id="d2", symbol="s", name="", alert_type="price_change", message="m2")
     notifier_store.save_channel("serverchan", True, {"sckey": "SCT1"})
     notifier_store.save_channel("pushplus", True, {"token": "tok1"})
 
@@ -146,9 +138,7 @@ def test_api_dispatch_alerts_partial_fail_keeps_unacked(client):
 
     import backend.notifiers as N
 
-    with patch.object(N, "_http_get", side_effect=fake_get), patch.object(
-        N, "_http_post_json", side_effect=fake_post
-    ):
+    with patch.object(N, "_http_get", side_effect=fake_get), patch.object(N, "_http_post_json", side_effect=fake_post):
         r = client.post("/api/notifiers/dispatch-alerts")
     data = r.json()["data"]
     assert data["all_succeeded"] is False

@@ -6,9 +6,7 @@ import math
 from datetime import datetime, timedelta
 
 
-def _make_bars(
-    n: int, start_close: float = 100.0, drift: float = 0.3, wobble: float = 6.0
-):
+def _make_bars(n: int, start_close: float = 100.0, drift: float = 0.3, wobble: float = 6.0):
     """Deterministic OHLCV series: gentle uptrend + sine wobble. Fixed base date
     (not ``now``) so the data is fully reproducible."""
     base = datetime(2024, 1, 1)
@@ -36,9 +34,7 @@ class TestWindowSplitting:
     def test_insufficient_data_is_failsafe(self):
         from backend.quant.walk_forward import run_walk_forward, INSUFFICIENT
 
-        report = run_walk_forward(
-            "ma_crossover", _make_bars(20), symbol="TEST", n_splits=5
-        )
+        report = run_walk_forward("ma_crossover", _make_bars(20), symbol="TEST", n_splits=5)
         assert report.status == INSUFFICIENT
         assert report.n_windows == 0
         assert report.windows == []
@@ -48,9 +44,7 @@ class TestWindowSplitting:
     def test_enough_data_produces_requested_windows(self):
         from backend.quant.walk_forward import run_walk_forward, OK, DEGRADED
 
-        report = run_walk_forward(
-            "ma_crossover", _make_bars(240), symbol="TEST", n_splits=5
-        )
+        report = run_walk_forward("ma_crossover", _make_bars(240), symbol="TEST", n_splits=5)
         assert report.status in (OK, DEGRADED)
         assert report.n_windows >= 2
         assert report.n_windows <= 5
@@ -58,9 +52,7 @@ class TestWindowSplitting:
     def test_oos_windows_are_chronological_and_tiling(self):
         from backend.quant.walk_forward import run_walk_forward
 
-        report = run_walk_forward(
-            "ma_crossover", _make_bars(240), symbol="TEST", n_splits=5
-        )
+        report = run_walk_forward("ma_crossover", _make_bars(240), symbol="TEST", n_splits=5)
         prev_oos_end = ""
         for w in report.windows:
             # IS precedes OOS within each window
@@ -77,9 +69,7 @@ class TestSchemes:
         from backend.quant.walk_forward import run_walk_forward
 
         bars = _make_bars(240)
-        report = run_walk_forward(
-            "ma_crossover", bars, symbol="T", n_splits=5, scheme="anchored"
-        )
+        report = run_walk_forward("ma_crossover", bars, symbol="T", n_splits=5, scheme="anchored")
         assert report.scheme == "anchored"
         for w in report.windows:
             assert w.is_start_date == bars[0]["date"]
@@ -87,9 +77,7 @@ class TestSchemes:
     def test_rolling_is_window_slides(self):
         from backend.quant.walk_forward import run_walk_forward
 
-        report = run_walk_forward(
-            "ma_crossover", _make_bars(240), symbol="T", n_splits=5, scheme="rolling"
-        )
+        report = run_walk_forward("ma_crossover", _make_bars(240), symbol="T", n_splits=5, scheme="rolling")
         assert report.scheme == "rolling"
         starts = [w.is_start_date for w in report.windows]
         # rolling IS start must be non-decreasing and not all identical
@@ -99,9 +87,7 @@ class TestSchemes:
     def test_invalid_scheme_defaults_to_anchored(self):
         from backend.quant.walk_forward import run_walk_forward
 
-        report = run_walk_forward(
-            "ma_crossover", _make_bars(150), symbol="T", scheme="nonsense"
-        )
+        report = run_walk_forward("ma_crossover", _make_bars(150), symbol="T", scheme="nonsense")
         assert report.scheme == "anchored"
 
 
@@ -109,9 +95,7 @@ class TestAggregateAndContract:
     def test_aggregate_fields_in_range(self):
         from backend.quant.walk_forward import run_walk_forward
 
-        agg = run_walk_forward(
-            "ma_crossover", _make_bars(240), symbol="T", n_splits=5
-        ).aggregate
+        agg = run_walk_forward("ma_crossover", _make_bars(240), symbol="T", n_splits=5).aggregate
         assert 0.0 <= agg["consistency_score"] <= 100.0
         assert 0.0 <= agg["pct_profitable_windows"] <= 100.0
         assert agg["worst_oos_return"] <= agg["best_oos_return"]
@@ -120,9 +104,7 @@ class TestAggregateAndContract:
     def test_full_period_present(self):
         from backend.quant.walk_forward import run_walk_forward
 
-        report = run_walk_forward(
-            "ma_crossover", _make_bars(240), symbol="T", n_splits=5
-        )
+        report = run_walk_forward("ma_crossover", _make_bars(240), symbol="T", n_splits=5)
         assert report.full_period  # non-empty performance dict
         assert "total_return" in report.full_period
 
@@ -157,9 +139,7 @@ class TestAggregateAndContract:
         from backend.quant.walk_forward import run_walk_forward
 
         # request absurd split count → clamped to <= 12, and auto-reduced to fit data
-        report = run_walk_forward(
-            "ma_crossover", _make_bars(300), symbol="T", n_splits=99
-        )
+        report = run_walk_forward("ma_crossover", _make_bars(300), symbol="T", n_splits=99)
         assert report.requested_windows == 99
         assert report.n_windows <= 12
 

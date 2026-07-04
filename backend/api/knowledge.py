@@ -76,9 +76,7 @@ async def upload_document(file: UploadFile = File(...)):
     from backend.rag.document_pipeline import get_document_pipeline
 
     pipeline = get_document_pipeline()
-    doc = pipeline.process_and_persist(
-        str(save_path), metadata={"original_name": safe_filename}
-    )
+    doc = pipeline.process_and_persist(str(save_path), metadata={"original_name": safe_filename})
 
     if not doc:
         return ApiResponse(success=False, error="文件处理失败")

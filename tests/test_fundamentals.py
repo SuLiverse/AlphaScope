@@ -23,9 +23,7 @@ class TestValuationMetrics:
     def test_basic(self):
         from backend.fundamentals import calc_valuation_metrics
 
-        result = calc_valuation_metrics(
-            pe=20, pb=3, revenue_yi=100, net_profit_yi=20, market_cap_yi=400
-        )
+        result = calc_valuation_metrics(pe=20, pb=3, revenue_yi=100, net_profit_yi=20, market_cap_yi=400)
         assert result["pe"] == 20
         assert result["pb"] == 3
         assert result["ps"] == 4.0  # 400/100
@@ -66,9 +64,7 @@ class TestEarningsQuality:
     def test_high_quality(self):
         from backend.fundamentals import assess_earnings_quality
 
-        result = assess_earnings_quality(
-            net_profit=100, operating_cf=120, non_recurring=5
-        )
+        result = assess_earnings_quality(net_profit=100, operating_cf=120, non_recurring=5)
         assert result["ocf_to_profit_ratio"] == 1.2
         assert result["quality_score"] >= 70
         assert result["quality_level"] in ("优秀", "良好")
@@ -76,9 +72,7 @@ class TestEarningsQuality:
     def test_low_quality(self):
         from backend.fundamentals import assess_earnings_quality
 
-        result = assess_earnings_quality(
-            net_profit=100, operating_cf=30, non_recurring=50
-        )
+        result = assess_earnings_quality(net_profit=100, operating_cf=30, non_recurring=50)
         assert result["ocf_to_profit_ratio"] == 0.3
         assert len(result["warnings"]) > 0
 

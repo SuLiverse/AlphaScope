@@ -61,9 +61,7 @@ def upsert_position(req: PositionUpsertRequest):
         shares=req.shares,
         cost=req.cost,
     )
-    return ApiResponse(
-        success=True, data={"items": research_portfolio_store.list_positions()}
-    )
+    return ApiResponse(success=True, data={"items": research_portfolio_store.list_positions()})
 
 
 @router.delete("/positions/{symbol}")
@@ -81,9 +79,7 @@ def delete_position(symbol: str):
 
 class OptimizeRequest(BaseModel):
     symbols: list[str] = Field(default_factory=list, description="持仓代码(6位)")
-    method: str = Field(
-        default="max_sharpe", description="max_sharpe / min_variance / equal_weight"
-    )
+    method: str = Field(default="max_sharpe", description="max_sharpe / min_variance / equal_weight")
     days: int = Field(default=120, ge=30, le=500, description="回看交易日数")
     rf: float = Field(default=0.02, ge=0, le=0.2, description="无风险利率(年化)")
 
@@ -162,12 +158,8 @@ def available_optimizers():
 
 
 class PerformanceRequest(BaseModel):
-    equity_curve: list[float] | None = Field(
-        default=None, description="净值曲线(与 returns 二选一)"
-    )
-    returns: list[float] | None = Field(
-        default=None, description="收益序列(与 equity_curve 二选一)"
-    )
+    equity_curve: list[float] | None = Field(default=None, description="净值曲线(与 returns 二选一)")
+    returns: list[float] | None = Field(default=None, description="收益序列(与 equity_curve 二选一)")
 
 
 @router.post("/performance")
@@ -176,9 +168,7 @@ def performance_report(req: PerformanceRequest):
 
     if not req.equity_curve and not req.returns:
         raise HTTPException(status_code=400, detail="需提供 equity_curve 或 returns")
-    result: dict[str, Any] = build_report(
-        equity_curve=req.equity_curve, returns=req.returns
-    )
+    result: dict[str, Any] = build_report(equity_curve=req.equity_curve, returns=req.returns)
     return ApiResponse(success=True, data=result)
 
 

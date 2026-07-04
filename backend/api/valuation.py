@@ -20,15 +20,9 @@ router = APIRouter(prefix="/api/valuation", tags=["valuation"])
 @router.get("/{symbol}")
 async def get_valuation(
     symbol: str,
-    stage1_growth: float | None = Query(
-        default=None, ge=-0.5, le=1.0, description="一阶段 FCF 年增速(小数,如 0.10)"
-    ),
-    terminal_g: float | None = Query(
-        default=None, ge=0.0, le=0.2, description="永续增长率(小数,如 0.025)"
-    ),
-    beta: float | None = Query(
-        default=None, ge=0.1, le=3.0, description="贝塔(影响 WACC)"
-    ),
+    stage1_growth: float | None = Query(default=None, ge=-0.5, le=1.0, description="一阶段 FCF 年增速(小数,如 0.10)"),
+    terminal_g: float | None = Query(default=None, ge=0.0, le=0.2, description="永续增长率(小数,如 0.025)"),
+    beta: float | None = Query(default=None, ge=0.1, le=3.0, description="贝塔(影响 WACC)"),
 ):
     """对个股运行机构级估值建模(DCF/Comps/LBO/三表);可调假设做情景分析。"""
     from backend.valuation import value_symbol

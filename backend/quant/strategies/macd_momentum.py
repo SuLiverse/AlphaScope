@@ -19,9 +19,7 @@ class MACDMomentumStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         if len(bars) < self.params["slow_period"] + self.params["signal_period"]:
             return []
 
@@ -35,9 +33,7 @@ class MACDMomentumStrategy(BaseStrategy):
         signals = []
         for i in range(1, len(bars)):
             if i < self.params["slow_period"] + self.params["signal_period"]:
-                signals.append(
-                    Signal("hold", bars[i].get("symbol", ""), reason="数据不足")
-                )
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
                 continue
 
             prev_macd = macd_line[i - 1]
@@ -58,13 +54,9 @@ class MACDMomentumStrategy(BaseStrategy):
                 )
             # Death cross: MACD crosses below signal line
             elif prev_macd >= prev_signal and curr_macd < curr_signal:
-                signals.append(
-                    Signal("sell", bars[i].get("symbol", ""), reason="MACD 死叉")
-                )
+                signals.append(Signal("sell", bars[i].get("symbol", ""), reason="MACD 死叉"))
             else:
-                signals.append(
-                    Signal("hold", bars[i].get("symbol", ""), reason="无信号")
-                )
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="无信号"))
 
         return signals
 

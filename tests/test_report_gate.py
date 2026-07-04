@@ -26,34 +26,20 @@ GOOD_EC = {
 
 class TestIndividualChecks:
     def test_placeholder_is_critical(self):
-        r = run_gate(
-            "这是一段足够长的报告正文，用于占位检查测试。" * 3
-            + " [TODO] 补充结论。风险提示"
-        )
-        assert any(
-            i["category"] == "placeholder" and i["severity"] == "critical"
-            for i in r["issues"]
-        )
+        r = run_gate("这是一段足够长的报告正文，用于占位检查测试。" * 3 + " [TODO] 补充结论。风险提示")
+        assert any(i["category"] == "placeholder" and i["severity"] == "critical" for i in r["issues"])
         assert r["passed"] is False
 
     def test_fluff_critical_phrase(self):
         text = "公司基本面良好，建议买入。" * 5 + " 风险提示：仅供参考。"
         r = run_gate(text)
-        assert any(
-            i["category"] == "fluff" and i["severity"] == "critical"
-            for i in r["issues"]
-        )
+        assert any(i["category"] == "fluff" and i["severity"] == "critical" for i in r["issues"])
         assert r["passed"] is False
 
     def test_fluff_warning_phrase(self):
-        text = (
-            "公司业绩稳健增长，营收 +12%，净利 +9%，估值合理。" * 3
-            + " 风险提示：仅供参考。"
-        )
+        text = "公司业绩稳健增长，营收 +12%，净利 +9%，估值合理。" * 3 + " 风险提示：仅供参考。"
         r = run_gate(text)
-        assert any(
-            i["category"] == "fluff" and i["severity"] == "warning" for i in r["issues"]
-        )
+        assert any(i["category"] == "fluff" and i["severity"] == "warning" for i in r["issues"])
 
     def test_low_coverage_critical(self):
         r = run_gate(
@@ -64,10 +50,7 @@ class TestIndividualChecks:
                 "missing_evidence": [],
             },
         )
-        assert any(
-            i["category"] == "evidence" and i["severity"] == "critical"
-            for i in r["issues"]
-        )
+        assert any(i["category"] == "evidence" and i["severity"] == "critical" for i in r["issues"])
 
     def test_mid_coverage_warning(self):
         r = run_gate(
@@ -112,10 +95,7 @@ class TestIndividualChecks:
 
     def test_empty_report_critical(self):
         r = run_gate("太短")
-        assert any(
-            i["category"] == "structure" and i["severity"] == "critical"
-            for i in r["issues"]
-        )
+        assert any(i["category"] == "structure" and i["severity"] == "critical" for i in r["issues"])
         assert r["passed"] is False
 
     def test_critic_low_score_warning(self):

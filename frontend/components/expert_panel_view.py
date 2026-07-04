@@ -54,9 +54,7 @@ def _render_card(op, idx: int, symbol: str):
     """渲染单个专家卡片(顶部摘要,可折叠展开依据)"""
     if not op:
         return
-    color = CARD_STYLES.get(
-        getattr(op, "card_style", "default"), _action_color(op.action)
-    )
+    color = CARD_STYLES.get(getattr(op, "card_style", "default"), _action_color(op.action))
     fb_tag = ""
     if op.fallback_used and op.ok:
         fb_tag = "<span style='background:#fef3c7; color:#b45309; font-size:0.66rem; padding:1px 6px; border-radius:4px; margin-left:4px;'>降级模型</span>"
@@ -133,10 +131,7 @@ def _render_card(op, idx: int, symbol: str):
             st.markdown("**主要风险**:")
             for r in op.risks:
                 st.markdown(f"- {r}")
-        st.markdown(
-            f"**操作建议**: {op.action} | **建议仓位**: {op.position}% | "
-            f"**止损位**: ¥{op.stop_loss:.2f}"
-        )
+        st.markdown(f"**操作建议**: {op.action} | **建议仓位**: {op.position}% | **止损位**: ¥{op.stop_loss:.2f}")
         st.caption(f"模型: {op.vendor} / `{op.model}` | 关注维度风格: {op.style}")
 
 
@@ -220,9 +215,7 @@ def _new_expert_template(idx: int) -> dict:
 def _render_team_editor(symbol: str) -> dict:
     data = _ensure_team_state(symbol)
     with st.expander("专家团人设与成员管理", expanded=False):
-        st.caption(
-            "当前为会话内临时配置：可新增/复制/删除专家，刷新页面后如未导出会恢复默认。"
-        )
+        st.caption("当前为会话内临时配置：可新增/复制/删除专家，刷新页面后如未导出会恢复默认。")
         t1, t2, t3 = st.columns([1.2, 1.2, 1])
         with t1:
             data["display_name"] = st.text_input(
@@ -231,9 +224,7 @@ def _render_team_editor(symbol: str) -> dict:
                 key=f"team_name_{symbol}",
             )
         with t2:
-            data["avatar"] = st.text_input(
-                "团队头像", value=data.get("avatar", "🎓"), key=f"team_avatar_{symbol}"
-            )
+            data["avatar"] = st.text_input("团队头像", value=data.get("avatar", "🎓"), key=f"team_avatar_{symbol}")
         with t3:
             st.metric(
                 "启用专家数",
@@ -242,21 +233,13 @@ def _render_team_editor(symbol: str) -> dict:
 
         a1, a2 = st.columns([1, 1])
         with a1:
-            if st.button(
-                "新增专家", use_container_width=True, key=f"expert_add_{symbol}"
-            ):
-                data.setdefault("members", []).append(
-                    _new_expert_template(len(data.get("members", [])) + 1)
-                )
+            if st.button("新增专家", use_container_width=True, key=f"expert_add_{symbol}"):
+                data.setdefault("members", []).append(_new_expert_template(len(data.get("members", [])) + 1))
                 st.session_state[f"expert_team_config_{symbol}"] = data
                 st.rerun()
         with a2:
-            if st.button(
-                "恢复默认专家团", use_container_width=True, key=f"expert_reset_{symbol}"
-            ):
-                st.session_state[f"expert_team_config_{symbol}"] = (
-                    team_to_editable_dict(load_default_team())
-                )
+            if st.button("恢复默认专家团", use_container_width=True, key=f"expert_reset_{symbol}"):
+                st.session_state[f"expert_team_config_{symbol}"] = team_to_editable_dict(load_default_team())
                 st.rerun()
 
         for i, member in enumerate(list(data.get("members", []))):
@@ -301,9 +284,7 @@ def _render_team_editor(symbol: str) -> dict:
                     member["card_style"] = st.selectbox(
                         "卡片样式",
                         list(CARD_STYLES.keys()),
-                        index=list(CARD_STYLES.keys()).index(
-                            member.get("card_style", "default")
-                        )
+                        index=list(CARD_STYLES.keys()).index(member.get("card_style", "default"))
                         if member.get("card_style", "default") in CARD_STYLES
                         else 0,
                         key=f"expert_style_{symbol}_{i}",
@@ -374,14 +355,10 @@ def render(symbol: str, stock_name: str, stock_brief: str):
     """
     st.markdown("#### 🎓 专家团圆桌")
     team_data = _ensure_team_state(symbol)
-    st.caption(
-        "完整专家人设、数量、模型和 API Key 设置已集中到「AI 设置中心」。这里保留轻量查看和运行入口。"
-    )
+    st.caption("完整专家人设、数量、模型和 API Key 设置已集中到「AI 设置中心」。这里保留轻量查看和运行入口。")
     team_cfg = editable_dict_to_team(team_data)
     active_count = sum(1 for m in team_cfg.members if getattr(m, "enabled", True))
-    st.caption(
-        f"{active_count} 位可自定义风格化投顾并行输出三段式 JSON，与 Tab2 的职能型 Agent 互为补充。"
-    )
+    st.caption(f"{active_count} 位可自定义风格化投顾并行输出三段式 JSON，与 Tab2 的职能型 Agent 互为补充。")
 
     if not symbol or not stock_name:
         st.info("请先在侧边栏选择股票")
@@ -407,9 +384,7 @@ def render(symbol: str, stock_name: str, stock_brief: str):
             key=f"rt_clear_{symbol}",
         )
     with cb3:
-        st.caption(
-            f"目标股票: **{stock_name}** ({symbol}) · {active_count} 路并行，预计 8-30 秒完成"
-        )
+        st.caption(f"目标股票: **{stock_name}** ({symbol}) · {active_count} 路并行，预计 8-30 秒完成")
 
     if clear_btn:
         st.session_state.pop(cache_key, None)
@@ -453,9 +428,7 @@ def render(symbol: str, stock_name: str, stock_brief: str):
     elapsed = result.get("elapsed", 0)
 
     order = (
-        result.get("member_order")
-        or [m.id for m in team_cfg.members if getattr(m, "enabled", True)]
-        or EXPERT_ORDER
+        result.get("member_order") or [m.id for m in team_cfg.members if getattr(m, "enabled", True)] or EXPERT_ORDER
     )
     cols_per_row = min(3, max(1, len(order)))
     for row_start in range(0, len(order), cols_per_row):
@@ -478,14 +451,10 @@ def render(symbol: str, stock_name: str, stock_brief: str):
     st.markdown("")
     ec1, ec2, ec3 = st.columns([2, 2, 5])
     with ec1:
-        if st.button(
-            "📥 导出纪要", use_container_width=True, key=f"rt_export_{symbol}"
-        ):
+        if st.button("📥 导出纪要", use_container_width=True, key=f"rt_export_{symbol}"):
             try:
                 md_text = export_md(opinions, summary, stock_name, symbol)
-                arc = save_roundtable(
-                    stock_name, symbol, opinions, summary, md_text, dedupe_minutes=1
-                )
+                arc = save_roundtable(stock_name, symbol, opinions, summary, md_text, dedupe_minutes=1)
                 st.session_state[f"rt_last_archive_{symbol}"] = arc
             except Exception as e:
                 st.error(f"导出失败: {e}")

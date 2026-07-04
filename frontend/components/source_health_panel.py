@@ -51,9 +51,7 @@ def render_source_health_panel():
                     "degraded": "🟡",
                     "unhealthy": "🔴",
                 }.get(p["status"], "⚪")
-                latency = (
-                    f"{p['avg_latency_ms']:.0f}ms" if p["avg_latency_ms"] > 0 else "N/A"
-                )
+                latency = f"{p['avg_latency_ms']:.0f}ms" if p["avg_latency_ms"] > 0 else "N/A"
                 origin = origin_map.get(p["name"], "unknown")
                 origin_icon = "📦" if origin == "builtin" else "🔧"
                 rows.append(
@@ -72,9 +70,7 @@ def render_source_health_panel():
             st.info("暂无 Provider 注册")
 
         # ---- 重新加载按钮 ----
-        if st.button(
-            "🔄 重新加载 Provider", help="重新扫描 providers/ 和 custom_providers/ 目录"
-        ):
+        if st.button("🔄 重新加载 Provider", help="重新扫描 providers/ 和 custom_providers/ 目录"):
             registry.reload()
             st.success(f"Provider 已重新加载, 共 {len(registry.list_providers())} 个")
             st.rerun()
@@ -100,9 +96,7 @@ def render_source_health_panel():
             df = pd.DataFrame([dict(r) for r in rows])
             # 格式化延迟
             if "latency_ms" in df.columns:
-                df["latency_ms"] = df["latency_ms"].apply(
-                    lambda x: f"{x:.0f}ms" if x else "N/A"
-                )
+                df["latency_ms"] = df["latency_ms"].apply(lambda x: f"{x:.0f}ms" if x else "N/A")
             st.dataframe(df, use_container_width=True, hide_index=True)
         else:
             st.info("暂无采集日志 (调度器未运行或尚未采集数据)")
@@ -122,16 +116,10 @@ def render_source_health_panel():
             st.markdown("#### 📈 采集统计")
             df_stats = pd.DataFrame([dict(r) for r in stats])
             if "avg_latency" in df_stats.columns:
-                df_stats["avg_latency"] = df_stats["avg_latency"].apply(
-                    lambda x: f"{x:.0f}ms" if x else "N/A"
-                )
+                df_stats["avg_latency"] = df_stats["avg_latency"].apply(lambda x: f"{x:.0f}ms" if x else "N/A")
             if "success_rate" not in df_stats.columns and "total" in df_stats.columns:
                 df_stats["success_rate"] = df_stats.apply(
-                    lambda r: (
-                        f"{r['success'] / max(r['total'], 1) * 100:.0f}%"
-                        if r.get("total")
-                        else "N/A"
-                    ),
+                    lambda r: f"{r['success'] / max(r['total'], 1) * 100:.0f}%" if r.get("total") else "N/A",
                     axis=1,
                 )
             st.dataframe(df_stats, use_container_width=True, hide_index=True)
@@ -147,9 +135,7 @@ def render_source_health_panel():
         store = VectorStore()
         stats = store.get_collection_stats()
         if stats:
-            rows = [
-                {"Collection": name, "文档数": count} for name, count in stats.items()
-            ]
+            rows = [{"Collection": name, "文档数": count} for name, count in stats.items()]
             df = pd.DataFrame(rows)
             st.dataframe(df, use_container_width=True, hide_index=True)
             total = sum(stats.values())

@@ -102,9 +102,7 @@ def search_funds(
     results = _MOCK_FUNDS
     if q:
         q_lower = q.lower()
-        results = [
-            f for f in results if q_lower in f["name"].lower() or q_lower in f["symbol"]
-        ]
+        results = [f for f in results if q_lower in f["name"].lower() or q_lower in f["symbol"]]
     if risk:
         results = [f for f in results if f["risk"] == risk]
     if fund_type:
@@ -146,16 +144,10 @@ def simulate_dca(req: DCASimRequest) -> dict[str, Any]:
     )
 
     # Lump sum comparison
-    total_invested = req.amount_per_period * (
-        len(prices) // simulator._get_step(req.frequency)
-    )
+    total_invested = req.amount_per_period * (len(prices) // simulator._get_step(req.frequency))
     lump_shares = total_invested / prices[0] if prices[0] > 0 else 0
     lump_value = lump_shares * prices[-1]
-    lump_return = (
-        (lump_value - total_invested) / total_invested * 100
-        if total_invested > 0
-        else 0
-    )
+    lump_return = (lump_value - total_invested) / total_invested * 100 if total_invested > 0 else 0
 
     return {
         "success": True,
@@ -174,9 +166,7 @@ def simulate_dca(req: DCASimRequest) -> dict[str, Any]:
     }
 
 
-def _generate_synthetic_prices(
-    initial: float, periods: int, annual_growth: float, volatility: float
-) -> list[float]:
+def _generate_synthetic_prices(initial: float, periods: int, annual_growth: float, volatility: float) -> list[float]:
     """Generate synthetic NAV prices using geometric Brownian motion."""
     dt = 1 / 12  # monthly
     prices = [initial]

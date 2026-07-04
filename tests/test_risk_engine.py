@@ -32,9 +32,7 @@ def _force_configured_provider():
     """Pin has_configured_provider() True so the orchestrator integration tests
     run the real agent path (LLM mocked per-test) instead of the zero-key demo
     fallback in key-less environments such as CI."""
-    with patch(
-        "backend.agents.demo_fallback.has_configured_provider", return_value=True
-    ):
+    with patch("backend.agents.demo_fallback.has_configured_provider", return_value=True):
         yield
 
 
@@ -55,23 +53,13 @@ def test_blacklist_st_vetoes():
     assert f is None
 
     # disabled → 不检查
-    assert (
-        check_blacklist({"name": "ST 股"}, {"enabled": False, "name_patterns": ["ST"]})
-        is None
-    )
+    assert check_blacklist({"name": "ST 股"}, {"enabled": False, "name_patterns": ["ST"]}) is None
 
 
 def test_position_warns_when_over_limit():
-    f = check_position(
-        {}, {"suggested_position_pct": 45}, {"enabled": True, "limit": 30}
-    )
+    f = check_position({}, {"suggested_position_pct": 45}, {"enabled": True, "limit": 30})
     assert f is not None and f.severity == WARN
-    assert (
-        check_position(
-            {}, {"suggested_position_pct": 20}, {"enabled": True, "limit": 30}
-        )
-        is None
-    )
+    assert check_position({}, {"suggested_position_pct": 20}, {"enabled": True, "limit": 30}) is None
     # 研报无建议仓位时跳过
     assert check_position({}, {}, {"enabled": True, "limit": 30}) is None
 
@@ -185,26 +173,18 @@ def test_orchestrator_st_stock_report_is_vetoed_with_banner():
 
     with (
         patch("backend.agent_store.list_agents", return_value=managed),
-        patch(
-            "backend.runtime.context_builder.build_market_brief", return_value="brief"
-        ),
+        patch("backend.runtime.context_builder.build_market_brief", return_value="brief"),
         patch("backend.runtime.context_builder.fetch_evidence_pool", return_value=[]),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
-        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.critic.run_batch_critic",
             return_value={"agents": {}, "divergence": {"level": "无"}, "ok": False},
         ),
         patch("backend.agents.chairman.summarize_with_chairman", return_value="总结"),
-        patch(
-            "backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent
-        ),
+        patch("backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent),
     ):
-        result = orchestrator.run_agents_with_mode(
-            {"symbol": "600", "name": "*ST 康美"}, mode=AnalysisMode.DEEP
-        )
+        result = orchestrator.run_agents_with_mode({"symbol": "600", "name": "*ST 康美"}, mode=AnalysisMode.DEEP)
 
     gate = result["risk_gate"]
     assert gate is not None and gate["vetoed"] is True
@@ -214,9 +194,7 @@ def test_orchestrator_st_stock_report_is_vetoed_with_banner():
     assert "买入" not in result["summary"]["final"]
     # 永不输出买卖指令: gate findings 里没有 buy/sell 动作
     assert all(
-        "买入" not in f["message"] and "卖出" not in f["message"]
-        for f in gate["findings"]
-        if f["severity"] == CRITICAL
+        "买入" not in f["message"] and "卖出" not in f["message"] for f in gate["findings"] if f["severity"] == CRITICAL
     )
 
 
@@ -244,26 +222,18 @@ def test_orchestrator_clean_stock_not_vetoed():
 
     with (
         patch("backend.agent_store.list_agents", return_value=managed),
-        patch(
-            "backend.runtime.context_builder.build_market_brief", return_value="brief"
-        ),
+        patch("backend.runtime.context_builder.build_market_brief", return_value="brief"),
         patch("backend.runtime.context_builder.fetch_evidence_pool", return_value=[]),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
-        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.critic.run_batch_critic",
             return_value={"agents": {}, "divergence": {"level": "无"}, "ok": False},
         ),
         patch("backend.agents.chairman.summarize_with_chairman", return_value="总结"),
-        patch(
-            "backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent
-        ),
+        patch("backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent),
     ):
-        result = orchestrator.run_agents_with_mode(
-            {"symbol": "600519", "name": "贵州茅台"}, mode=AnalysisMode.DEEP
-        )
+        result = orchestrator.run_agents_with_mode({"symbol": "600519", "name": "贵州茅台"}, mode=AnalysisMode.DEEP)
 
     assert result["risk_gate"] is not None
     assert result["risk_gate"]["vetoed"] is False

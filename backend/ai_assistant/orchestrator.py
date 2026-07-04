@@ -231,9 +231,7 @@ _STOCK_NAMES: List[str] = [
 ]
 
 
-def detect_intent(
-    user_input: str, stock_data: Optional[Dict[str, Any]] = None
-) -> IntentType:
+def detect_intent(user_input: str, stock_data: Optional[Dict[str, Any]] = None) -> IntentType:
     """检测用户意图（基于关键词匹配，零 LLM 成本）。
 
     Args:
@@ -297,9 +295,7 @@ def _count_stock_mentions(text: str) -> int:
     return len(mentions)
 
 
-def suggest_mode(
-    intent: IntentType, stock_data: Optional[Dict[str, Any]] = None
-) -> AnalysisMode:
+def suggest_mode(intent: IntentType, stock_data: Optional[Dict[str, Any]] = None) -> AnalysisMode:
     """根据意图推荐最合适的分析模式。
 
     Args:
@@ -492,30 +488,20 @@ class ChatOrchestrator:
                 if stock_data or suggested_mode in (AnalysisMode.FREE,):
                     mode = suggested_mode
                     auto_routed = True
-                    logger.info(
-                        "自动路由: FREE -> %s (intent=%s)", mode.value, intent.value
-                    )
+                    logger.info("自动路由: FREE -> %s (intent=%s)", mode.value, intent.value)
 
         mode_str = mode.value
 
         # 路由到对应的处理函数
         try:
             if mode == AnalysisMode.FREE:
-                result = self._handle_free_mode(
-                    conversation_id, user_input, stock_data, conv
-                )
+                result = self._handle_free_mode(conversation_id, user_input, stock_data, conv)
             elif mode in (AnalysisMode.STANDARD, AnalysisMode.DEEP):
-                result = self._handle_agent_mode(
-                    conversation_id, user_input, stock_data, mode, conv
-                )
+                result = self._handle_agent_mode(conversation_id, user_input, stock_data, mode, conv)
             elif mode == AnalysisMode.EXPERT:
-                result = self._handle_expert_mode(
-                    conversation_id, user_input, stock_data, expert_team_id, conv
-                )
+                result = self._handle_expert_mode(conversation_id, user_input, stock_data, expert_team_id, conv)
             elif mode == AnalysisMode.VISION:
-                result = self._handle_vision_mode(
-                    user_input, stock_data, image_base64, image_mime_type
-                )
+                result = self._handle_vision_mode(user_input, stock_data, image_base64, image_mime_type)
             else:
                 result = {"mode": mode_str, "content": "不支持的分析模式"}
         except Exception as e:
@@ -595,8 +581,7 @@ class ChatOrchestrator:
             if (
                 stored_messages
                 and stored_messages[-1].get("role") == "user"
-                and (stored_messages[-1].get("content") or "").strip()
-                == user_input.strip()
+                and (stored_messages[-1].get("content") or "").strip() == user_input.strip()
             ):
                 stored_messages = stored_messages[:-1]
             for message in stored_messages:
@@ -644,9 +629,7 @@ class ChatOrchestrator:
                 "content": "请先选择一只股票后再进行分析。可以在左侧输入股票代码。",
             }
 
-        run_agents_with_mode, build_market_brief, AgentAnalysisMode = (
-            _import_llm_agents()
-        )
+        run_agents_with_mode, build_market_brief, AgentAnalysisMode = _import_llm_agents()
 
         # 注入用户问题到 stock_data
         enhanced_data = dict(stock_data)
@@ -661,16 +644,10 @@ class ChatOrchestrator:
                 enhanced_data["related_news_brief"] = user_focus
 
         # 确定 Agent 模式
-        agent_mode = (
-            AgentAnalysisMode.STANDARD
-            if mode == AnalysisMode.STANDARD
-            else AgentAnalysisMode.DEEP
-        )
+        agent_mode = AgentAnalysisMode.STANDARD if mode == AnalysisMode.STANDARD else AgentAnalysisMode.DEEP
 
         # 运行分析
-        result = run_agents_with_mode(
-            enhanced_data, mode=agent_mode, global_ai_settings=None
-        )
+        result = run_agents_with_mode(enhanced_data, mode=agent_mode, global_ai_settings=None)
 
         # 格式化输出
         agents = result.get("agents", {})
@@ -693,9 +670,7 @@ class ChatOrchestrator:
             signal = agent_result.get("signal", "hold")
             confidence = agent_result.get("confidence", 0)
             reason = agent_result.get("reason", agent_result.get("summary", ""))[:150]
-            content_parts.append(
-                f"- **{agent_key}**: {signal} (置信度 {confidence}%) - {reason}"
-            )
+            content_parts.append(f"- **{agent_key}**: {signal} (置信度 {confidence}%) - {reason}")
 
         # 证据链
         evidence = []
@@ -753,9 +728,7 @@ class ChatOrchestrator:
 
         response = {
             "mode": "vision",
-            "content": "\n".join(content_parts)
-            if content_parts
-            else "无法分析此图片。",
+            "content": "\n".join(content_parts) if content_parts else "无法分析此图片。",
             "needs_more_info": result.needs_more_info,
             "missing_info": result.missing_info or [],
         }
@@ -846,9 +819,7 @@ class ChatOrchestrator:
             expert_name = getattr(opinion, "expert_name", expert_key)
 
             content_parts.append(f"### {expert_name}")
-            content_parts.append(
-                f"- **操作建议**: {action} | 仓位: {position}% | 置信度: {confidence}%"
-            )
+            content_parts.append(f"- **操作建议**: {action} | 仓位: {position}% | 置信度: {confidence}%")
             content_parts.append(f"- **观点**: {view}")
             content_parts.append("")
 
@@ -858,9 +829,7 @@ class ChatOrchestrator:
         reduce = summary.get("reduce", 0)
         sell = summary.get("sell", 0)
         avg_pos = summary.get("avg_position", 0)
-        content_parts.append(
-            f"**投票汇总**: 买入 {buy} / 观望 {hold} / 减持 {reduce} / 卖出 {sell}"
-        )
+        content_parts.append(f"**投票汇总**: 买入 {buy} / 观望 {hold} / 减持 {reduce} / 卖出 {sell}")
         content_parts.append(f"**平均建议仓位**: {avg_pos:.0f}%")
 
         # 收集证据
@@ -898,9 +867,7 @@ class ChatOrchestrator:
         messages = self._store.get_messages(conversation_id)
         return {"conversation": conv, "messages": messages}
 
-    def list_conversations(
-        self, stock_symbol: Optional[str] = None, limit: int = 50
-    ) -> List[dict]:
+    def list_conversations(self, stock_symbol: Optional[str] = None, limit: int = 50) -> List[dict]:
         """列出最近对话"""
         return self._store.list_conversations(stock_symbol=stock_symbol, limit=limit)
 

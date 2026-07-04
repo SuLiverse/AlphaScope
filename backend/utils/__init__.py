@@ -1,4 +1,5 @@
 """Backend utility modules."""
+
 import logging
 from typing import Any, Callable, Optional
 
@@ -17,4 +18,3 @@ def safe_call(fn: Callable, *args: Any, **kwargs: Any) -> Optional[Any]:
     except Exception as e:
         _logger.debug("safe_call: %s raised %s: %s", getattr(fn, "__name__", fn), type(e).__name__, e)
         return None
-

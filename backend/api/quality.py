@@ -16,9 +16,7 @@ router = APIRouter(prefix="/api/quality", tags=["quality"])
 
 class ReportGateRequest(BaseModel):
     text: str = Field(default="", max_length=200_000, description="待检查的报告正文")
-    evidence_chain: dict | None = Field(
-        default=None, description="证据链(可选,evidence_chain.build 输出)"
-    )
+    evidence_chain: dict | None = Field(default=None, description="证据链(可选,evidence_chain.build 输出)")
     critic: dict | None = Field(default=None, description="LLM 审稿结果(可选)")
     mode: str | None = Field(default=None)
 
@@ -28,7 +26,5 @@ async def report_gate(req: ReportGateRequest):
     """对报告文本运行确定性质量门控,返回是否通过 + 各级 issues。"""
     from backend.quality.report_gate import run_gate
 
-    result = run_gate(
-        req.text, evidence_chain=req.evidence_chain, critic=req.critic, mode=req.mode
-    )
+    result = run_gate(req.text, evidence_chain=req.evidence_chain, critic=req.critic, mode=req.mode)
     return ApiResponse(success=True, data=result)

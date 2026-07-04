@@ -48,8 +48,6 @@ def test_export_conversation_markdown(monkeypatch):
 
 
 def test_export_missing_conversation(monkeypatch):
-    monkeypatch.setattr(
-        cs.ConversationStore, "get_conversation", lambda self, cid: None
-    )
+    monkeypatch.setattr(cs.ConversationStore, "get_conversation", lambda self, cid: None)
     resp = client.get("/api/export/conversation/nope.md")
     assert resp.status_code == 404

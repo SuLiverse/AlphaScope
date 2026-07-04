@@ -46,9 +46,7 @@ _OVERALL_LABEL = {
     STATUS_UNKNOWN: "状态未知",
 }
 
-_DISCLAIMER = (
-    "本面板仅反映系统自身运行状态(数据源/引擎/成本/调用),不构成任何投资建议或预测。"
-)
+_DISCLAIMER = "本面板仅反映系统自身运行状态(数据源/引擎/成本/调用),不构成任何投资建议或预测。"
 
 
 # ============== 纯函数:状态分级 ==============
@@ -94,11 +92,7 @@ def compute_overall_status(components: list[dict[str, Any]]) -> str:
     good → good。``unknown`` 组件不参与判定(未知不等于异常); 若全部未知 →
     unknown。
     """
-    known = [
-        str(c.get("status"))
-        for c in components
-        if str(c.get("status")) != STATUS_UNKNOWN
-    ]
+    known = [str(c.get("status")) for c in components if str(c.get("status")) != STATUS_UNKNOWN]
     if not known:
         return STATUS_UNKNOWN
     if STATUS_POOR in known:
@@ -162,9 +156,7 @@ def _collect_data_sources(now: float) -> dict[str, Any]:
             poor += 1
 
     if total == 0:
-        return _component(
-            "data_sources", STATUS_UNKNOWN, "无已注册数据源", metrics={"total": 0}
-        )
+        return _component("data_sources", STATUS_UNKNOWN, "无已注册数据源", metrics={"total": 0})
     avg_quality = round(sum(quals) / len(quals), 1)
     return _component(
         "data_sources",
@@ -224,8 +216,7 @@ def _collect_llm_cost(now: float) -> dict[str, Any]:
     return _component(
         "llm_cost",
         STATUS_GOOD,
-        f"今日 {today.get('calls', 0)} 次 · ${today.get('cost_usd', 0)} · "
-        f"累计 ${total.get('cost_usd', 0)}",
+        f"今日 {today.get('calls', 0)} 次 · ${today.get('cost_usd', 0)} · 累计 ${total.get('cost_usd', 0)}",
         metrics={
             "today": today,
             "last_7d": windows.get("last_7d", {}),
@@ -296,9 +287,7 @@ def build_system_snapshot(now: float | None = None) -> dict[str, Any]:
         try:
             components.append(fn(now))
         except Exception as exc:  # noqa: BLE001 - 失败安全, 任一组件不拖垮整体
-            components.append(
-                _component(key, STATUS_UNKNOWN, "采集失败", detail=str(exc))
-            )
+            components.append(_component(key, STATUS_UNKNOWN, "采集失败", detail=str(exc)))
 
     overall = compute_overall_status(components)
     counts = {STATUS_GOOD: 0, STATUS_WARN: 0, STATUS_POOR: 0, STATUS_UNKNOWN: 0}

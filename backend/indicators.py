@@ -75,9 +75,7 @@ def calc_ma(bars: list[dict], periods: list[int] | None = None) -> list[dict]:
 # ============== MACD ==============
 
 
-def calc_macd(
-    bars: list[dict], fast: int = 12, slow: int = 26, signal: int = 9
-) -> list[dict]:
+def calc_macd(bars: list[dict], fast: int = 12, slow: int = 26, signal: int = 9) -> list[dict]:
     """计算 MACD（DIF/DEA/MACD柱）。"""
     closes = _closes(bars)
     ema_fast = _ema(closes, fast)
@@ -220,19 +218,9 @@ def calc_support_resistance(bars: list[dict], lookback: int = 20) -> dict[str, A
     swing_highs = []
     swing_lows = []
     for i in range(2, len(highs) - 2):
-        if (
-            highs[i] > highs[i - 1]
-            and highs[i] > highs[i - 2]
-            and highs[i] > highs[i + 1]
-            and highs[i] > highs[i + 2]
-        ):
+        if highs[i] > highs[i - 1] and highs[i] > highs[i - 2] and highs[i] > highs[i + 1] and highs[i] > highs[i + 2]:
             swing_highs.append(round(highs[i], 2))
-        if (
-            lows[i] < lows[i - 1]
-            and lows[i] < lows[i - 2]
-            and lows[i] < lows[i + 1]
-            and lows[i] < lows[i + 2]
-        ):
+        if lows[i] < lows[i - 1] and lows[i] < lows[i - 2] and lows[i] < lows[i + 1] and lows[i] < lows[i + 2]:
             swing_lows.append(round(lows[i], 2))
 
     return {

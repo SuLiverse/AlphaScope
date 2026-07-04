@@ -90,9 +90,7 @@ def search_news(query: str, limit: int = 20) -> list[dict[str, Any]]:
     with db.transaction() as conn:
         pattern = f"%{query}%"
         rows = conn.execute(
-            "SELECT * FROM news_items "
-            "WHERE title LIKE ? OR summary LIKE ? "
-            "ORDER BY published_at DESC LIMIT ?",
+            "SELECT * FROM news_items WHERE title LIKE ? OR summary LIKE ? ORDER BY published_at DESC LIMIT ?",
             (pattern, pattern, limit),
         ).fetchall()
     return [_row_to_news(r) for r in rows]

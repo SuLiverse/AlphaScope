@@ -123,9 +123,7 @@ def _candidate_models(
     return candidates
 
 
-def run_one_agent(
-    agent_key: str, market_brief: str, api_key: Optional[str] = None
-) -> Dict[str, Any]:
+def run_one_agent(agent_key: str, market_brief: str, api_key: Optional[str] = None) -> Dict[str, Any]:
     """
     运行单个 Agent,含 fallback 与稳健 JSON 解析。
     支持细粒度 API Key。
@@ -140,9 +138,7 @@ def run_one_agent(
     ]
 
     last_err = None
-    for vd, md, base_url, key_override in _candidate_models(
-        vendor, model, api_key=api_key
-    ):
+    for vd, md, base_url, key_override in _candidate_models(vendor, model, api_key=api_key):
         try:
             mtokens = 3072 if vd == "mimo" else 2048
             text = _call_with(
@@ -195,9 +191,7 @@ def run_one_agent(
                 "risks": valid["risks"],
                 "vendor": VENDORS.get(vd, {}).get("label", vd),
                 "model": md,
-                "primary_vendor": VENDORS.get(primary_vendor, {}).get(
-                    "label", primary_vendor
-                ),
+                "primary_vendor": VENDORS.get(primary_vendor, {}).get("label", primary_vendor),
                 "fallback_used": vd != primary_vendor,
                 "structured_fallback": bool(data.get("structured_fallback")),
                 "ok": True,
@@ -242,9 +236,7 @@ def run_all_agents(
     stock_name = stock_data.get("name", "")
     evidence_ctx = fetch_evidence_context(symbol, stock_name)
     factor_ctx = fetch_factor_context(symbol, stock_name)
-    brief = build_market_brief(
-        stock_data, evidence_context=evidence_ctx, factor_context=factor_ctx
-    )
+    brief = build_market_brief(stock_data, evidence_context=evidence_ctx, factor_context=factor_ctx)
     api_keys = api_keys or {}
 
     keys = ["fundamental", "technical", "sentiment", "risk"]
@@ -307,8 +299,8 @@ def run_custom_agent(
 ) -> Dict[str, Any]:
     """运行单个页面自定义 Agent。"""
     cfg = _agent_config_from_dict(agent_raw)
-    resolved_provider, resolved_model, resolved_key, resolved_base_url = (
-        _resolve_agent_ai_config(cfg, global_ai_settings)
+    resolved_provider, resolved_model, resolved_key, resolved_base_url = _resolve_agent_ai_config(
+        cfg, global_ai_settings
     )
     if api_key:
         resolved_key = api_key
@@ -339,9 +331,7 @@ def run_custom_agent(
     ):
         try:
             mtokens = 3072 if vd == "mimo" else 2048
-            call_messages = (
-                _strict_json_messages(messages) if vd == "mimo" else messages
-            )
+            call_messages = _strict_json_messages(messages) if vd == "mimo" else messages
             text = _call_with(
                 vd,
                 md,
@@ -391,9 +381,7 @@ def run_custom_agent(
                 "risks": valid["risks"],
                 "vendor": VENDORS.get(vd, {}).get("label", vd),
                 "model": md,
-                "primary_vendor": VENDORS.get(primary_vendor, {}).get(
-                    "label", primary_vendor
-                ),
+                "primary_vendor": VENDORS.get(primary_vendor, {}).get("label", primary_vendor),
                 "fallback_used": vd != primary_vendor,
                 "structured_fallback": bool(data.get("structured_fallback")),
                 "ok": True,
@@ -457,11 +445,7 @@ def run_custom_agents(
         except Exception:
             memory_context = ""
     api_keys = api_keys or {}
-    active = [
-        _agent_config_from_dict(a)
-        for a in agent_configs
-        if bool(a.get("enabled", True))
-    ]
+    active = [_agent_config_from_dict(a) for a in agent_configs if bool(a.get("enabled", True))]
     if not active:
         return {
             "agents": {},

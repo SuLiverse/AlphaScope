@@ -87,9 +87,7 @@ class WebSearchProvider:
             logger.warning(f"Tavily 搜索失败: {e}")
             return []
 
-    def search_financial(
-        self, query: str, stock_code: str = "", max_results: int = 5
-    ) -> List[SearchResult]:
+    def search_financial(self, query: str, stock_code: str = "", max_results: int = 5) -> List[SearchResult]:
         """金融相关搜索（自动添加金融关键词）"""
         enhanced_query = query
         if stock_code:

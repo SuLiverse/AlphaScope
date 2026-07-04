@@ -55,9 +55,7 @@ async def get_errors(limit: int = Query(50, ge=1, le=500)):
     from backend.diagnostics_store import get_health_history, list_tool_calls
 
     tc_errors = [t for t in list_tool_calls(limit=limit) if t.get("status") != "ok"]
-    health_errors = [
-        h for h in get_health_history(limit=limit) if h.get("status") == "error"
-    ]
+    health_errors = [h for h in get_health_history(limit=limit) if h.get("status") == "error"]
     return ApiResponse(
         success=True,
         data={"tool_call_errors": tc_errors, "health_errors": health_errors},

@@ -170,9 +170,7 @@ def list_templates() -> List[Dict[str, Any]]:
     ]
 
 
-def get_template_prompt(
-    template_id: str, stock_name: str = "", user_input: str = ""
-) -> str:
+def get_template_prompt(template_id: str, stock_name: str = "", user_input: str = "") -> str:
     """生成基于模板的完整 prompt"""
     t = TEMPLATES.get(template_id)
     if not t:

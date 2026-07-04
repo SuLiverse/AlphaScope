@@ -112,9 +112,7 @@ class CostTracker:
         self._records.append(record)
         self._append_to_log(record)
 
-    def _estimate_cost(
-        self, model: str, input_tokens: int, output_tokens: int
-    ) -> float:
+    def _estimate_cost(self, model: str, input_tokens: int, output_tokens: int) -> float:
         """估算成本（美元）"""
         rates = COST_PER_1K_TOKENS.get(model, {"input": 0.001, "output": 0.002})
         return (input_tokens * rates["input"] + output_tokens * rates["output"]) / 1000
@@ -174,11 +172,7 @@ class CostTracker:
 
     def get_today_cost(self) -> Dict[str, Any]:
         """获取今日成本统计（按本地时区零点划分）"""
-        today_start = (
-            datetime.datetime.now()
-            .replace(hour=0, minute=0, second=0, microsecond=0)
-            .timestamp()
-        )
+        today_start = datetime.datetime.now().replace(hour=0, minute=0, second=0, microsecond=0).timestamp()
         today_records = [r for r in self._records if r.timestamp >= today_start]
 
         total_cost = sum(r.cost_usd for r in today_records)
