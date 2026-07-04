@@ -8,7 +8,7 @@
 
 #define MyAppName "AlphaScope"
 #define MyAppNameCN "研策中枢 AlphaScope"
-#define MyAppVersion "1.9.46"
+#define MyAppVersion "1.9.47"
 #define MyAppPublisher "TIANWEN"
 #define MyAppURL "https://github.com/TIANWEN-cpu/AlphaScope"
 #define MyAppExeName "AlphaScope.exe"

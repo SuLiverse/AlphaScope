@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.9.47 - 2026-07-04
+
+> **CI 测试层修复(验收轮之二)**: v1.9.46 打通格式门禁后, CI 测试步骤 81 个提交以来首次真正执行, 在 Linux/精简依赖环境抓出 15 个失败 — 其中两处是真实产品 bug(引擎缺失降级路径崩溃、归档路径跨平台契约断裂), 全部修复。
+
+### 真 bug 修复
+- **回测 adapter 捆绑 import 守卫**(backtrader/bt/pybroker 三处): 引擎与 pandas 绑在同一 try 块, 引擎未装时 pd 被连坐置 None, 纯函数全部退化返 None; 且 backtrader/pybroker 降级路径调 `build_assumptions(note=...)` 但签名不收该参数, 引擎缺失时 run_backtest 直接 TypeError。拆分守卫 + 签名加 `note`, 恢复"纯函数不依赖引擎"设计。
+- **归档路径跨平台契约断裂**: `save_report`/`save_roundtable` 返回绝对路径, Linux 上以 `/` 开头被 `/api/archive/report/{path}` 路径遍历防护 400 拒绝 — 创建接口返回的路径读取接口永远无法消费(Windows `D:\` 前缀侥幸绕过, docker 部署真坏)。改为相对 REPORTS_DIR 的 POSIX 路径, `_resolve_archive_path` 锚定 REPORTS_DIR 解析相对路径, 旧索引绝对路径条目仍兼容。
+
+### 测试确定性
+- MLOps/组合优化可用性测试改为断言 `is_available()` 与底层库实际探测一致, CI 精简依赖环境(575dfbb 拆分后无 mlflow/skfolio 等)不再必挂。
+
+### 验证
+- 本地全量 **1777 passed, 5 skipped**(19m01s, 0 回归); 引擎 import 拦截模拟 CI 环境 143 passed。
+- `ruff check` / `ruff format --check` 通过。
+
 ## v1.9.46 - 2026-07-04
 
 > **CI 格式门禁修复(验收轮)**: 验收核查发现自 575dfbb(7/1)之后 81 个提交 CI 全红 — 真因是持续交付期间未跑 `ruff format`, 漂移累计 288 个文件, `ruff format --check` 一直挡在 CI 测试步骤之前(lint 后测试从未执行)。本轮全量重排一次性归零。
