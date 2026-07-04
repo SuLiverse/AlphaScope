@@ -43,11 +43,26 @@ def _safe_filename_part(value: str, default: str = "report") -> str:
 
 
 def _resolve_archive_path(path: str) -> Path:
-    p = Path(path).expanduser().resolve()
+    raw = Path(str(path)).expanduser()
+    # 相对路径锚定 REPORTS_DIR (新索引格式, URL 可往返); 绝对路径分支兼容旧索引条目
+    p = raw.resolve() if raw.is_absolute() else (REPORTS_DIR / raw).resolve()
     allowed_roots = [ARCHIVE_ROOT.resolve(), ROUNDTABLE_ROOT.resolve()]
     if not any(p == root or root in p.parents for root in allowed_roots):
         raise ValueError("报告路径不在允许的归档目录内")
     return p
+
+
+def _to_index_path(fpath: Path) -> str:
+    """索引/API 返回相对 REPORTS_DIR 的 POSIX 路径。
+
+    绝对路径在 Linux 以 "/" 开头, 会被 /api/archive/report/{path} 的路径遍历防护
+    400 拒绝 (创建接口返回的路径读取接口永远无法消费); 相对 POSIX 路径两个平台
+    都能安全放进 URL 往返。转换失败时退回绝对路径 (旧行为)。
+    """
+    try:
+        return fpath.resolve().relative_to(REPORTS_DIR.resolve()).as_posix()
+    except Exception:
+        return str(fpath)
 
 
 def _ensure_dirs():
@@ -185,13 +200,13 @@ def save_report(
         "failed_count": sum(1 for v in agent_models.values() if not v["ok"]),
         # v0.9: critic 总览(每个 agent 的具体 review 已经在 agent_models[k]['review'] 里)
         "critic": _summarize_critic((llm_result or {}).get("critic"), agent_models),
-        "path": str(fpath),
+        "path": _to_index_path(fpath),
         "filename": fname,
     }
     idx.insert(0, meta)  # 最新在前
     _save_index(idx)
 
-    return {"saved": True, "path": str(fpath), "reason": "已存档"}
+    return {"saved": True, "path": _to_index_path(fpath), "reason": "已存档"}
 
 
 # ============== v0.7：专家圆桌纪要落盘 ==============
@@ -307,13 +322,13 @@ def save_roundtable(
         "agent_models": {},
         "combo_signature": "",
         "primary_combo_signature": "",
-        "path": str(fpath),
+        "path": _to_index_path(fpath),
         "filename": fname,
     }
     idx.insert(0, meta)
     _save_index(idx)
 
-    return {"saved": True, "path": str(fpath), "reason": "圆桌纪要已存档"}
+    return {"saved": True, "path": _to_index_path(fpath), "reason": "圆桌纪要已存档"}
 
 
 def _summarize_critic(critic_block, agent_models: dict):
