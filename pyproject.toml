@@ -1,6 +1,6 @@
 [project]
 name = "alphascope"
-version = "1.9.45"
+version = "1.9.46"
 description = "AlphaScope multi-agent financial analysis workbench"
 readme = "README.md"
 license = "MIT"
