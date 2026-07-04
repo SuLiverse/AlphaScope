@@ -10,6 +10,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import logging
+import re
 from datetime import datetime, timedelta
 
 import akshare as ak
@@ -54,9 +55,27 @@ def _looks_like_hk_symbol(symbol: str) -> bool:
     return ".HK" in raw or raw.startswith("HK") or len(digits) == 5
 
 
+def _normalize_us_symbol(symbol: str) -> str:
+    s = str(symbol or "").strip().upper()
+    s = s.removesuffix(".US")
+    # 东财风格 "105.AAPL" → 去掉市场号前缀
+    if "." in s:
+        head, _, tail = s.partition(".")
+        if head.isdigit() and tail:
+            s = tail
+    return s
+
+
+def _looks_like_us_symbol(symbol: str) -> bool:
+    s = _normalize_us_symbol(symbol)
+    if not s or re.match(r"^(SH|SZ|BJ)\d", s):
+        return False
+    return bool(re.fullmatch(r"[A-Z][A-Z0-9.]{0,9}", s))
+
+
 class AkShareProvider(BaseProvider):
     name = "akshare"
-    markets = ["CN", "ALL"]
+    markets = ["CN", "HK", "US", "ALL"]
     data_types = [
         "news",
         "reports",
@@ -235,6 +254,8 @@ class AkShareProvider(BaseProvider):
         market = str(query.get("market") or "").upper()
         if market == "HK" or _looks_like_hk_symbol(symbol):
             return self._get_hk_prices(query)
+        if market == "US" or _looks_like_us_symbol(symbol):
+            return self._get_us_prices(query)
 
         frequency = str(query.get("frequency") or "").lower()
         period = query.get("period") or {"1w": "weekly", "1mo": "monthly"}.get(frequency, "daily")
@@ -350,6 +371,73 @@ class AkShareProvider(BaseProvider):
         except Exception as e:
             logger.debug("AkShare HK prices failed: %s", e)
             self._record_failure(f"hk prices: {e}")
+            return []
+
+    def _get_us_prices(self, query: dict) -> list[dict]:
+        symbol = _normalize_us_symbol(query.get("symbol", ""))
+        if not symbol:
+            return []
+        start_date = str(query.get("start_date") or "").replace("-", "")
+        end_date = str(query.get("end_date") or "").replace("-", "")
+        adjust = query.get("adjust", "")
+        limit = int(query.get("limit", 120) or 120)
+
+        try:
+            df = _safe(ak.stock_us_daily, symbol=symbol, adjust=adjust)
+            if df is None or len(df) == 0:
+                return []
+            df = df.copy()
+            # sina 美股日线的 date 可能在列或在索引, 两种形态都容
+            if "date" not in df.columns:
+                df = df.reset_index()
+                if "date" not in df.columns and "index" in df.columns:
+                    df = df.rename(columns={"index": "date"})
+            if "date" in df.columns:
+                df["date"] = df["date"].astype(str).str[:10]
+                df = df.sort_values("date")
+                if start_date:
+                    start_text = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:8]}"
+                    df = df[df["date"] >= start_text]
+                if end_date:
+                    end_text = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:8]}"
+                    df = df[df["date"] <= end_text]
+            df = df.tail(max(1, min(limit, 500)))
+            results = []
+            prev_close = 0.0
+            for _, row in df.iterrows():
+                open_price = _float_value(row.get("open", 0))
+                high = _float_value(row.get("high", 0))
+                low = _float_value(row.get("low", 0))
+                close = _float_value(row.get("close", 0))
+                volume = _float_value(row.get("volume", 0))
+                amount = _float_value(row.get("amount", 0))
+                base = prev_close or open_price or close
+                change_pct = ((close - base) / base * 100) if base else 0.0
+                amplitude = ((high - low) / base * 100) if base else 0.0
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "market": "US",
+                        "date": str(row.get("date", "")),
+                        "open": open_price,
+                        "high": high,
+                        "low": low,
+                        "close": close,
+                        "volume": volume,
+                        "amount": amount,
+                        "turnover": 0.0,
+                        "amplitude": round(amplitude, 4),
+                        "change_pct": round(change_pct, 4),
+                        "adjust": adjust,
+                        "frequency": "1d",
+                        "source": "akshare:stock_us_daily",
+                    }
+                )
+                prev_close = close
+            return results
+        except Exception as e:
+            logger.debug("AkShare US prices failed: %s", e)
+            self._record_failure(f"us prices: {e}")
             return []
 
     def _get_prices_from_tencent(
