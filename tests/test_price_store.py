@@ -62,6 +62,22 @@ class TestNormalizeSymbol:
 
         assert normalize_symbol("00700.HK") == "00700"
 
+    def test_hk_four_digit_padded(self):
+        from backend.price_store import normalize_symbol
+
+        # 港股 4 位常见写法(9988/0700)统一补零到 5 位
+        assert normalize_symbol("9988") == "09988"
+        assert normalize_symbol("0700.HK") == "00700"
+
+    def test_us_ticker_preserved(self):
+        from backend.price_store import normalize_symbol
+
+        # 美股字母代码保留(此前返回空串致市场误判)
+        assert normalize_symbol("AAPL") == "AAPL"
+        assert normalize_symbol("aapl") == "AAPL"
+        assert normalize_symbol("BRK.B") == "BRK.B"
+        assert normalize_symbol("MSFT.US") == "MSFT"
+
     def test_mixed_case(self):
         from backend.price_store import normalize_symbol
 
@@ -94,6 +110,18 @@ class TestGetMarket:
         from backend.price_store import get_market
 
         assert get_market("00700") == "HK"
+
+    def test_hk_four_digit(self):
+        from backend.price_store import get_market
+
+        assert get_market("9988") == "HK"
+
+    def test_us(self):
+        from backend.price_store import get_market
+
+        assert get_market("AAPL") == "US"
+        assert get_market("BRK.B") == "US"
+        assert get_market("TSLA.US") == "US"
 
 
 # ============== validate_price_bar 测试 ==============
