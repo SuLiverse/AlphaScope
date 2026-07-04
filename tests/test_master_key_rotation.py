@@ -16,15 +16,9 @@ def _make_db(db_path: Path):
     from backend.security.key_vault import encrypt_key
 
     con = sqlite3.connect(str(db_path))
-    con.execute(
-        "CREATE TABLE model_providers (id TEXT PRIMARY KEY, name TEXT, encrypted_api_key TEXT)"
-    )
-    con.execute(
-        "CREATE TABLE datasource_credentials (name TEXT PRIMARY KEY, encrypted_key TEXT)"
-    )
-    con.execute(
-        "CREATE TABLE notifier_channels (channel TEXT PRIMARY KEY, config_encrypted TEXT)"
-    )
+    con.execute("CREATE TABLE model_providers (id TEXT PRIMARY KEY, name TEXT, encrypted_api_key TEXT)")
+    con.execute("CREATE TABLE datasource_credentials (name TEXT PRIMARY KEY, encrypted_key TEXT)")
+    con.execute("CREATE TABLE notifier_channels (channel TEXT PRIMARY KEY, config_encrypted TEXT)")
     cipher = encrypt_key("sk-secret-12345")
     con.execute(
         "INSERT INTO model_providers (id, name, encrypted_api_key) VALUES (?, ?, ?)",
@@ -64,9 +58,7 @@ class TestRotate:
         from backend.security.key_vault import decrypt_key
 
         con = sqlite3.connect(str(db))
-        cipher = con.execute(
-            "SELECT encrypted_api_key FROM model_providers WHERE id='p1'"
-        ).fetchone()[0]
+        cipher = con.execute("SELECT encrypted_api_key FROM model_providers WHERE id='p1'").fetchone()[0]
         con.close()
         assert decrypt_key(cipher) == "sk-secret-12345"
 
@@ -84,10 +76,7 @@ class TestRotate:
         assert old_key in env.read_text()  # .env 未变
         con = sqlite3.connect(str(db))
         assert (
-            con.execute(
-                "SELECT encrypted_api_key FROM model_providers WHERE id='p1'"
-            ).fetchone()[0]
-            == cipher
+            con.execute("SELECT encrypted_api_key FROM model_providers WHERE id='p1'").fetchone()[0] == cipher
         )  # db 密文未变
         con.close()
 

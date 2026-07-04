@@ -51,8 +51,7 @@ def test_static_registered_tools_match_runtime_probe():
 
     probed = set(list_tool_names())
     assert probed == set(REGISTERED_TOOLS), (
-        f"静态 REGISTERED_TOOLS 与运行时 probe 不一致: "
-        f"probe={sorted(probed)} static={sorted(REGISTERED_TOOLS)}"
+        f"静态 REGISTERED_TOOLS 与运行时 probe 不一致: probe={sorted(probed)} static={sorted(REGISTERED_TOOLS)}"
     )
     # describe() 不调 probe, 但 tools 字段应等于 probe 结果
     assert set(describe()["tools"]) == probed

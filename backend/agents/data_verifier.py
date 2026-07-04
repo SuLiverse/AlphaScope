@@ -151,9 +151,7 @@ class DataVerification:
         只有存在缺失/过期/异常时才输出非空内容——数据齐全时返回空串, 不污染简报。
         这段文字是「反幻觉」的关键:明确告诉下游 Agent 哪些维度没有数据、不得编造。
         """
-        problem_dims = [
-            d for d in self.dimensions if d.status in (MISSING, STALE, ANOMALY)
-        ]
+        problem_dims = [d for d in self.dimensions if d.status in (MISSING, STALE, ANOMALY)]
         if not problem_dims and not self.anomalies:
             return ""
 
@@ -228,9 +226,7 @@ def _check_fundamental(sd: Dict[str, Any]) -> DimensionResult:
 
 
 def _check_fund_flow(sd: Dict[str, Any]) -> DimensionResult:
-    if _is_present(sd.get("stock_fund_brief")) or _is_present(
-        sd.get("market_fund_brief")
-    ):
+    if _is_present(sd.get("stock_fund_brief")) or _is_present(sd.get("market_fund_brief")):
         return DimensionResult("fund_flow", OK)
     return DimensionResult("fund_flow", MISSING, "无主力/大盘资金流数据")
 
@@ -323,12 +319,8 @@ def verify_data(
         if price_missing:
             overall = INSUFFICIENT
         else:
-            core_ok = all(
-                d.status in (OK, STALE) for d in dims if d.dimension in _CORE_DIMS
-            )
-            supp_ok = sum(
-                1 for d in dims if d.dimension not in _CORE_DIMS and d.status == OK
-            )
+            core_ok = all(d.status in (OK, STALE) for d in dims if d.dimension in _CORE_DIMS)
+            supp_ok = sum(1 for d in dims if d.dimension not in _CORE_DIMS and d.status == OK)
             if core_ok and supp_ok >= 2:
                 overall = COMPLETE
             else:

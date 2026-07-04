@@ -37,19 +37,13 @@ class ResearchDecision(BaseModel):
     # 结论 (与 backend.runtime.rating 对齐)
     verdict: DecisionVerdict = Field(description="五档评级结论")
     score: float = Field(ge=0, le=100, description="确定性评分 0-100")
-    rating_breakdown: dict[str, Any] = Field(
-        default_factory=dict, description="评分可审计明细"
-    )
+    rating_breakdown: dict[str, Any] = Field(default_factory=dict, description="评分可审计明细")
     confidence: float = Field(ge=0, le=100, description="平均置信度")
 
     # 推理链
     thesis: str = Field(description="一句话核心结论")
-    supporting_evidence_ids: list[str] = Field(
-        default_factory=list, description="支持证据"
-    )
-    opposing_evidence_ids: list[str] = Field(
-        default_factory=list, description="反方证据"
-    )
+    supporting_evidence_ids: list[str] = Field(default_factory=list, description="支持证据")
+    opposing_evidence_ids: list[str] = Field(default_factory=list, description="反方证据")
     risk_flags: list[str] = Field(default_factory=list, description="风险提示")
     backtest_refs: list[str] = Field(default_factory=list, description="回测参考")
 

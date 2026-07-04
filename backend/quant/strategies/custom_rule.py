@@ -125,29 +125,19 @@ def compute_fields(bars: List[dict]) -> Dict[str, List[float]]:
     f: Dict[str, List[float]] = {
         "close": closes,
         "pct_change": [
-            _NAN
-            if i == 0 or closes[i - 1] == 0
-            else (closes[i] / closes[i - 1] - 1) * 100
-            for i in range(n)
+            _NAN if i == 0 or closes[i - 1] == 0 else (closes[i] / closes[i - 1] - 1) * 100 for i in range(n)
         ],
         "rsi": _rsi_series(closes, 14),
-        "macd_hist": [
-            (dif[i] - dea[i]) * 2 if i < len(dea) else _NAN for i in range(n)
-        ],
+        "macd_hist": [(dif[i] - dea[i]) * 2 if i < len(dea) else _NAN for i in range(n)],
         "dif": dif,
         "dea": dea,
-        "vol_ratio": [
-            _NAN if math.isnan(vol_ma5[i]) or vol_ma5[i] == 0 else vols[i] / vol_ma5[i]
-            for i in range(n)
-        ],
+        "vol_ratio": [_NAN if math.isnan(vol_ma5[i]) or vol_ma5[i] == 0 else vols[i] / vol_ma5[i] for i in range(n)],
         "close_vs_ma5_pct": [_safe_div_pct(closes[i], ma5[i]) for i in range(n)],
         "close_vs_ma20_pct": [_safe_div_pct(closes[i], ma20[i]) for i in range(n)],
         "close_vs_ma60_pct": [_safe_div_pct(closes[i], ma60[i]) for i in range(n)],
         "ma5_vs_ma20_pct": [_safe_div_pct(ma5[i], ma20[i]) for i in range(n)],
         "ma10_vs_ma20_pct": [_safe_div_pct(ma10[i], ma20[i]) for i in range(n)],
-        "drawdown_from_high_pct": [
-            _safe_div_pct(closes[i], run_max[i]) for i in range(n)
-        ],
+        "drawdown_from_high_pct": [_safe_div_pct(closes[i], run_max[i]) for i in range(n)],
     }
     return f
 
@@ -191,9 +181,7 @@ class CustomRuleStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         buy_rules = self.params.get("buy_rules") or []
         sell_rules = self.params.get("sell_rules") or []
         if not buy_rules and not sell_rules:

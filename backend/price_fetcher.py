@@ -155,6 +155,4 @@ if __name__ == "__main__":
     price = get_price_after("600519", "2024-01-02", 5)
     print(f"600519 after 5 trading days from 2024-01-02: {price}")
     series = get_price_range("600519", "2024-01-02", 10)
-    print(
-        f"600519 range (10 days): {len(series)} samples, last={series[-1] if series else None}"
-    )
+    print(f"600519 range (10 days): {len(series)} samples, last={series[-1] if series else None}")

@@ -275,9 +275,7 @@ def upgrade_schema(conn) -> List[str]:
     try:
         # 获取现有表
         existing = set()
-        rows = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         for row in rows:
             existing.add(row[0])
 
@@ -286,9 +284,7 @@ def upgrade_schema(conn) -> List[str]:
 
         # 获取升级后的表
         after = set()
-        rows = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        ).fetchall()
+        rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         for row in rows:
             after.add(row[0])
 
@@ -310,7 +306,5 @@ def get_table_count(conn) -> int:
 
 def get_all_tables(conn) -> List[str]:
     """获取所有表名"""
-    rows = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-    ).fetchall()
+    rows = conn.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").fetchall()
     return [row[0] for row in rows]

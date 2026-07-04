@@ -92,12 +92,8 @@ class GenerationStat:
     def to_dict(self) -> dict[str, Any]:
         return {
             "generation": self.generation,
-            "best_fitness": round(self.best_fitness, 6)
-            if math.isfinite(self.best_fitness)
-            else None,
-            "avg_fitness": round(self.avg_fitness, 6)
-            if math.isfinite(self.avg_fitness)
-            else None,
+            "best_fitness": round(self.best_fitness, 6) if math.isfinite(self.best_fitness) else None,
+            "avg_fitness": round(self.avg_fitness, 6) if math.isfinite(self.avg_fitness) else None,
             "best_genome": self.best_genome,
         }
 
@@ -121,9 +117,7 @@ class EvolutionReport:
     def improvement(self) -> float | None:
         if self.best is None or self.baseline is None:
             return None
-        if not (
-            math.isfinite(self.best.fitness) and math.isfinite(self.baseline.fitness)
-        ):
+        if not (math.isfinite(self.best.fitness) and math.isfinite(self.baseline.fitness)):
             return None
         return round(self.best.fitness - self.baseline.fitness, 6)
 
@@ -266,15 +260,11 @@ def _mutate_one(rng: random.Random, spec: dict[str, Any], value: Any) -> Any:
     return round(_clamp(float(value) + rng.gauss(0, sigma), lo, hi), 6)
 
 
-def _crossover(
-    rng: random.Random, a: dict[str, Any], b: dict[str, Any]
-) -> dict[str, Any]:
+def _crossover(rng: random.Random, a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     return {k: (a[k] if rng.random() < 0.5 else b[k]) for k in a}
 
 
-def _mutate(
-    rng: random.Random, space: dict[str, Any], genome: dict[str, Any]
-) -> dict[str, Any]:
+def _mutate(rng: random.Random, space: dict[str, Any], genome: dict[str, Any]) -> dict[str, Any]:
     out = dict(genome)
     for name, spec in space.items():
         if rng.random() < _MUT_RATE:
@@ -412,17 +402,13 @@ def run_evolution(
             message=f"行情样本不足({len(bars) if bars else 0} < {_MIN_BARS} 根),无法寻优。",
         )
 
-    space = (
-        _sanitize_space(param_space) if param_space else infer_param_space(strategy_id)
-    )
+    space = _sanitize_space(param_space) if param_space else infer_param_space(strategy_id)
     defaults = dict(getattr(cls, "default_params", {}) or {})
     if base_params:
         defaults.update(base_params)
 
     # 基线:默认参数跑一遍, 作为「寻优是否真的更好」的对照。
-    baseline = _safe_eval(
-        strategy_id, {}, defaults, bars, symbol, initial_capital, metric
-    )
+    baseline = _safe_eval(strategy_id, {}, defaults, bars, symbol, initial_capital, metric)
 
     if not space:
         return EvolutionReport(
@@ -455,16 +441,12 @@ def run_evolution(
         cached = cache.get(key)
         if cached is not None:
             return cached
-        ind = _safe_eval(
-            strategy_id, genome, defaults, bars, symbol, initial_capital, metric
-        )
+        ind = _safe_eval(strategy_id, genome, defaults, bars, symbol, initial_capital, metric)
         cache[key] = ind
         return ind
 
     # 初始种群: 默认值投影进空间(给搜索一个「靠谱起点」)+ 随机个体。
-    seed_genome = {
-        name: _project(defaults.get(name), spec) for name, spec in space.items()
-    }
+    seed_genome = {name: _project(defaults.get(name), spec) for name, spec in space.items()}
     genomes = [seed_genome] + [_sample(rng, space) for _ in range(pop_size - 1)]
     population = [evaluate(g) for g in genomes]
 
@@ -473,9 +455,7 @@ def run_evolution(
 
     for gen in range(1, gens + 1):
         ranked = sorted(population, key=lambda ind: ind.fitness, reverse=True)
-        next_genomes: list[dict[str, Any]] = [
-            dict(ind.genome) for ind in ranked[:_ELITE]
-        ]
+        next_genomes: list[dict[str, Any]] = [dict(ind.genome) for ind in ranked[:_ELITE]]
         while len(next_genomes) < pop_size:
             parent_a = _tournament_select(rng, population)
             parent_b = _tournament_select(rng, population)

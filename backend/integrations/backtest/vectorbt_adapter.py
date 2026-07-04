@@ -80,9 +80,7 @@ def bars_to_close_series(bars: list[dict[str, Any]]) -> "pd.Series":
     return s.sort_index()
 
 
-def build_ma_cross_signals(
-    close: "pd.Series", fast: int, slow: int
-) -> tuple["pd.Series", "pd.Series"]:
+def build_ma_cross_signals(close: "pd.Series", fast: int, slow: int) -> tuple["pd.Series", "pd.Series"]:
     """从收盘价序列生成 ma_cross 的 entries/exits 信号 (vectorBT 口径)。
 
     fast 日均线上穿 slow 日均线 → entry (买入); 下穿 → exit (卖出)。
@@ -142,8 +140,7 @@ def build_assumptions(
         data_source="调用方注入 (bars=)",
         note=(
             "vectorBT 向量化回测: 未模拟 A 股 T+1 / 印花税 / 涨跌停 / 停牌; "
-            "结果偏乐观, 仅适合快速参数扫描初筛, 严肃验证须切回 AlphaScope 原生引擎。"
-            + (f" {note}" if note else "")
+            "结果偏乐观, 仅适合快速参数扫描初筛, 严肃验证须切回 AlphaScope 原生引擎。" + (f" {note}" if note else "")
         ),
     )
 
@@ -267,9 +264,7 @@ class VectorbtAdapter(BacktestEngineAdapter):
         不抛破坏性异常。
         """
         if not _VBT_AVAILABLE:
-            return self._unavailable_result(
-                strategy_id, symbols, start, end, assumptions
-            )
+            return self._unavailable_result(strategy_id, symbols, start, end, assumptions)
 
         bars = kw.get("bars") or []
         close = bars_to_close_series(bars)
@@ -284,9 +279,7 @@ class VectorbtAdapter(BacktestEngineAdapter):
         assump = assumptions or build_assumptions(self.NAME, fees=fees)
 
         if len(close) <= slow:
-            return self._insufficient_result(
-                strategy_id, symbol, start, end, assump, init_cash
-            )
+            return self._insufficient_result(strategy_id, symbol, start, end, assump, init_cash)
 
         entries, exits = build_ma_cross_signals(close, fast, slow)
         pf = vbt.Portfolio.from_signals(
@@ -320,9 +313,7 @@ class VectorbtAdapter(BacktestEngineAdapter):
             benchmark=benchmark,
             assumptions=assump,
             metrics=metrics,
-            equity_curve=[
-                {"date": str(d), "value": v} for d, v in zip(close.index, equity)
-            ]
+            equity_curve=[{"date": str(d), "value": v} for d, v in zip(close.index, equity)]
             if len(equity) == len(close.index)
             else [{"value": v} for v in equity],
             trades=_safe_serialize(trades),
@@ -388,13 +379,9 @@ class VectorbtAdapter(BacktestEngineAdapter):
                 )
         # 排序键: 默认按 sharpe 降序; max_drawdown 升序 (小回撤优先); 其余按 total_return 降序
         reverse = metric != "max_drawdown"
-        key_field = (
-            metric if metric in ("sharpe", "max_drawdown", "total_return") else "sharpe"
-        )
+        key_field = metric if metric in ("sharpe", "max_drawdown", "total_return") else "sharpe"
         results.sort(
-            key=lambda r: (
-                r.get(key_field) if r.get(key_field) is not None else float("-inf")
-            ),
+            key=lambda r: r.get(key_field) if r.get(key_field) is not None else float("-inf"),
             reverse=reverse,
         )
         return results[: max(0, int(top_n))]
@@ -409,9 +396,7 @@ class VectorbtAdapter(BacktestEngineAdapter):
         end: str,
         assumptions: BacktestAssumptions | None,
     ) -> NormalizedBacktestResult:
-        assump = assumptions or build_assumptions(
-            self.NAME, fees=0.0, note="vectorbt 不可用"
-        )
+        assump = assumptions or build_assumptions(self.NAME, fees=0.0, note="vectorbt 不可用")
         return NormalizedBacktestResult(
             engine_name=self.NAME,
             strategy_id=strategy_id,

@@ -100,9 +100,7 @@ class HybridRetriever:
                     text=r.get("text", ""),
                     source=r.get("metadata", {}).get("source", ""),
                     doc_type=r.get("metadata", {}).get("doc_type", "other"),
-                    published_at=self._parse_timestamp(
-                        r.get("metadata", {}).get("published_at", "")
-                    ),
+                    published_at=self._parse_timestamp(r.get("metadata", {}).get("published_at", "")),
                     trust_score=r.get("metadata", {}).get("trust_score", 0.5),
                     vector_score=r.get("distance", 0),
                     combined_score=1.0 - min(r.get("distance", 1.0), 1.0),

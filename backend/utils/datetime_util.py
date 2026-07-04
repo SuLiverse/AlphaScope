@@ -34,9 +34,7 @@ _DT_FORMATS = [
 ]
 
 
-def parse_dt(
-    value: Optional[str | datetime], assume_tz: timezone = _CST
-) -> Optional[datetime]:
+def parse_dt(value: Optional[str | datetime], assume_tz: timezone = _CST) -> Optional[datetime]:
     """Parse a datetime string or pass-through a datetime to a tz-aware datetime.
 
     Returns None if *value* is empty / unparseable.
@@ -76,9 +74,7 @@ def parse_dt(
     return None
 
 
-def normalize_dt_str(
-    value: Optional[str | datetime], assume_tz: timezone = _CST
-) -> str:
+def normalize_dt_str(value: Optional[str | datetime], assume_tz: timezone = _CST) -> str:
     """Parse then re-emit as ISO-8601 with offset.  Returns '' on failure."""
     dt = parse_dt(value, assume_tz)
     if dt is None:

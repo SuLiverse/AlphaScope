@@ -57,9 +57,7 @@ class TestNormalizeBars:
 
 class TestBuildScreenSql:
     def test_valid_filters(self):
-        where, params = dl.build_screen_sql(
-            [{"field": "close", "op": ">", "value": 100}]
-        )
+        where, params = dl.build_screen_sql([{"field": "close", "op": ">", "value": 100}])
         assert where == "close > ?" and params == [100.0]
 
     def test_op_aliases(self):
@@ -109,9 +107,7 @@ class TestIsSelectOnly:
 
     def test_rejects_file_read_functions(self):
         """DuckDB 文件读取表函数可读服务器任意文件, 必须拦截(审计 C5 PoC)。"""
-        assert dl.is_select_only(
-            "SELECT * FROM read_csv_auto('C:/Windows/System32/drivers/etc/hosts')"
-        ) is False
+        assert dl.is_select_only("SELECT * FROM read_csv_auto('C:/Windows/System32/drivers/etc/hosts')") is False
         assert dl.is_select_only("SELECT * FROM read_json_auto('/etc/passwd')") is False
         assert dl.is_select_only("SELECT * FROM read_parquet('/secret/data.parquet')") is False
         # read_csv / read_text 同族也要拦
@@ -141,10 +137,7 @@ class TestIsSelectOnly:
 def test_degraded_when_unavailable(monkeypatch):
     """duckdb 不可用时所有 duckdb-gated 入口优雅降级, 绝不抛出。"""
     monkeypatch.setattr(dl, "is_available", lambda: False)
-    assert (
-        dl.ingest_prices("x", [{"date": "2026-01-01", "close": 1}])["available"]
-        is False
-    )
+    assert dl.ingest_prices("x", [{"date": "2026-01-01", "close": 1}])["available"] is False
     assert dl.query("SELECT 1")["available"] is False
     assert dl.screen([])["available"] is False
     assert dl.stats()["available"] is False

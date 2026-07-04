@@ -44,9 +44,7 @@ def _degraded_response(
             "error": error,
         }
     )
-    return ApiResponse(
-        success=True, data=payload, error=error, error_code="FUND_FLOW_DEGRADED"
-    )
+    return ApiResponse(success=True, data=payload, error=error, error_code="FUND_FLOW_DEGRADED")
 
 
 def _source_meta(df, default_source: str = "eastmoney") -> dict[str, Any]:
@@ -117,9 +115,7 @@ def get_fund_flow(symbol: str, days: int = 30):
             raw_date = row.get("日期")
             records.append(
                 {
-                    "date": str(raw_date.date())
-                    if hasattr(raw_date, "date")
-                    else str(raw_date or ""),
+                    "date": str(raw_date.date()) if hasattr(raw_date, "date") else str(raw_date or ""),
                     "close": _as_float(row.get("收盘价")),
                     "change_pct": _as_float(row.get("涨跌幅")),
                     "main_net_yi": _as_float(row.get("主力净流入-净额")) / 1e8,
@@ -201,9 +197,7 @@ def get_market_fund_flow(days: int = 30):
             raw_date = row.get("日期")
             records.append(
                 {
-                    "date": str(raw_date.date())
-                    if hasattr(raw_date, "date")
-                    else str(raw_date or ""),
+                    "date": str(raw_date.date()) if hasattr(raw_date, "date") else str(raw_date or ""),
                     "close": _as_float(row.get("上证-收盘价")),
                     "main_net_yi": _as_float(row.get("主力净流入-净额")) / 1e8,
                 }

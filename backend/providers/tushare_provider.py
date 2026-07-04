@@ -65,15 +65,11 @@ class TushareProvider(BaseProvider):
                         "upstream": "tushare",
                         "title": str(row.get("title", "")).strip(),
                         "institution": str(row.get("org_name", "")).strip(),
-                        "authors": [str(row.get("author", ""))]
-                        if row.get("author")
-                        else [],
+                        "authors": [str(row.get("author", ""))] if row.get("author") else [],
                         "report_type": str(row.get("report_type", "")).strip(),
                         "industry": str(row.get("industry_name", "")).strip(),
                         "rating": str(row.get("rating_name", "")).strip(),
-                        "symbols": [str(row.get("stock_code", ""))]
-                        if row.get("stock_code")
-                        else [],
+                        "symbols": [str(row.get("stock_code", ""))] if row.get("stock_code") else [],
                         "datetime": str(row.get("pub_date", "")).strip(),
                         "pdf_url": str(row.get("url", "")).strip(),
                     }

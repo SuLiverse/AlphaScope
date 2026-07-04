@@ -209,8 +209,7 @@ def describe() -> dict[str, Any]:
         "mode": "pandera" if _PA_AVAILABLE else "field_presence_only",
         "schema": "OhlcvSchema (date/open/high/low/close/volume, 全部 ge=0)",
         "note": (
-            "pandera 未装时仅做字段存在性检查, 不做类型/值域校验。"
-            " pip install pandera 启用完整契约校验。"
+            "pandera 未装时仅做字段存在性检查, 不做类型/值域校验。 pip install pandera 启用完整契约校验。"
             if not _PA_AVAILABLE
             else "pandera 就绪, 校验 OHLCV 字段类型/非负/存在性。"
         ),

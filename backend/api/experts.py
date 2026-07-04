@@ -50,9 +50,7 @@ def list_experts():
 
 
 class TeamFromPersonasRequest(BaseModel):
-    member_ids: list[str] = Field(
-        default_factory=list, description="投资人 persona key 列表"
-    )
+    member_ids: list[str] = Field(default_factory=list, description="投资人 persona key 列表")
     name: str = Field(default="自定义投资人团", max_length=60)
 
 
@@ -73,9 +71,7 @@ def create_team_from_personas(req: TeamFromPersonasRequest):
         data = yaml.safe_load(EXPERTS_YAML_PATH.read_text(encoding="utf-8")) or {}
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("[experts] 读取 experts.yaml 失败: %s", exc)
-        return ApiResponse(
-            success=False, error="读取投资人配置失败", error_code="EXPERTS_READ_FAILED"
-        )
+        return ApiResponse(success=False, error="读取投资人配置失败", error_code="EXPERTS_READ_FAILED")
 
     by_key = {e.get("key"): e for e in (data.get("experts") or []) if e.get("key")}
     valid_ids: list[str] = []
@@ -94,9 +90,7 @@ def create_team_from_personas(req: TeamFromPersonasRequest):
         valid_ids.append(key)
 
     if not valid_ids:
-        return ApiResponse(
-            success=False, error="没有有效的投资人", error_code="NO_VALID_PERSONAS"
-        )
+        return ApiResponse(success=False, error="没有有效的投资人", error_code="NO_VALID_PERSONAS")
 
     team_id = f"persona-team-{int(time.time())}"
     team = save_team(
@@ -105,6 +99,4 @@ def create_team_from_personas(req: TeamFromPersonasRequest):
         description=f"由投资人库组建({len(valid_ids)} 位)",
         member_ids=valid_ids,
     )
-    return ApiResponse(
-        success=True, data={"team": team, "team_id": team_id, "members": valid_ids}
-    )
+    return ApiResponse(success=True, data={"team": team, "team_id": team_id, "members": valid_ids})

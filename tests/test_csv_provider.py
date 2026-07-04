@@ -101,9 +101,7 @@ def test_provider_get_prices_from_file(tmp_path, monkeypatch):
     csv_dir = tmp_path / "csv"
     csv_dir.mkdir()
     (csv_dir / "600519.csv").write_text(
-        "date,open,high,low,close,volume\n"
-        "2026-01-02,1680,1700,1670,1690,12000\n"
-        "2026-01-01,1660,1685,1650,1675,11000\n",
+        "date,open,high,low,close,volume\n2026-01-02,1680,1700,1670,1690,12000\n2026-01-01,1660,1685,1650,1675,11000\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(cp, "_csv_dir", lambda: csv_dir)

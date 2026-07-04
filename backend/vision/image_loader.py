@@ -62,9 +62,7 @@ def load_image(file_path: str) -> Optional[LoadedImage]:
     )
 
 
-def load_image_from_bytes(
-    data: bytes, filename: str = "upload.png"
-) -> Optional[LoadedImage]:
+def load_image_from_bytes(data: bytes, filename: str = "upload.png") -> Optional[LoadedImage]:
     """从字节数据加载图片"""
     if len(data) > MAX_FILE_SIZE:
         return None

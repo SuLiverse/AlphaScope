@@ -66,9 +66,7 @@ class TestReportTemplates:
     def test_stock_deep_rating_low_score(self):
         from backend.ai_assistant.report_templates import generate_report
 
-        report = generate_report(
-            "stock_deep_rating", {"symbol": "000001", "fundamental_score": 15}
-        )
+        report = generate_report("stock_deep_rating", {"symbol": "000001", "fundamental_score": 15})
         assert report is not None
         assert "回避" in report
 

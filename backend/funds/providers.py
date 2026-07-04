@@ -29,9 +29,7 @@ class FundDataProvider:
         """获取基金基本信息"""
         raise NotImplementedError
 
-    async def get_nav_history(
-        self, code: str, start_date: str = "", end_date: str = ""
-    ) -> list[dict[str, Any]]:
+    async def get_nav_history(self, code: str, start_date: str = "", end_date: str = "") -> list[dict[str, Any]]:
         """获取历史净值"""
         raise NotImplementedError
 
@@ -83,16 +81,12 @@ class AkShareFundProvider(FundDataProvider):
             logger.warning(f"获取基金信息失败 {code}: {e}")
             return None
 
-    async def get_nav_history(
-        self, code: str, start_date: str = "", end_date: str = ""
-    ) -> list[dict[str, Any]]:
+    async def get_nav_history(self, code: str, start_date: str = "", end_date: str = "") -> list[dict[str, Any]]:
         try:
             import akshare as ak
 
             df = await _run_blocking(
-                lambda: ak.fund_open_fund_info_em(
-                    symbol=code, indicator="单位净值走势"
-                ),
+                lambda: ak.fund_open_fund_info_em(symbol=code, indicator="单位净值走势"),
                 name="fund-nav",
             )
             if df.empty:
@@ -103,9 +97,7 @@ class AkShareFundProvider(FundDataProvider):
                     {
                         "date": str(row.get("净值日期", "")),
                         "nav": float(row.get("单位净值", 0)),
-                        "daily_return": float(row.get("日增长率", 0)) / 100
-                        if "日增长率" in row
-                        else None,
+                        "daily_return": float(row.get("日增长率", 0)) / 100 if "日增长率" in row else None,
                     }
                 )
             if start_date:
@@ -137,9 +129,7 @@ class CachedFundProvider(FundDataProvider):
             self._cache[cache_key] = result
         return result
 
-    async def get_nav_history(
-        self, code: str, start_date: str = "", end_date: str = ""
-    ) -> list[dict[str, Any]]:
+    async def get_nav_history(self, code: str, start_date: str = "", end_date: str = "") -> list[dict[str, Any]]:
         cache_key = f"nav:{code}:{start_date}:{end_date}"
         if cache_key in self._cache:
             return self._cache[cache_key]

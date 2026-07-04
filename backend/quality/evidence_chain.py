@@ -77,9 +77,7 @@ def build_evidence_chain(
     }
 
 
-def _group_by_claim(
-    items: list[dict], ranker: SourceRanker, now: float
-) -> list[dict[str, Any]]:
+def _group_by_claim(items: list[dict], ranker: SourceRanker, now: float) -> list[dict[str, Any]]:
     """按 claim 关键词分组，计算每组置信度"""
     groups: dict[str, list[dict]] = defaultdict(list)
 
@@ -121,9 +119,7 @@ def _group_by_claim(
         )
 
         # 代表性 claim（取最长的）
-        best_claim = max(group_items, key=lambda x: len(x.get("claim", ""))).get(
-            "claim", key
-        )
+        best_claim = max(group_items, key=lambda x: len(x.get("claim", ""))).get("claim", key)
 
         bundles.append(
             {
@@ -187,9 +183,7 @@ def _detect_contradictions(bundles: list[dict]) -> list[str]:
                 signals.add("sell")
 
         if "buy" in signals and "sell" in signals:
-            contradictions.append(
-                f"信号矛盾: {bundle['claim']} — 同时存在买入和卖出信号"
-            )
+            contradictions.append(f"信号矛盾: {bundle['claim']} — 同时存在买入和卖出信号")
             bundle["contradictions"].append("买入/卖出信号冲突")
 
     return contradictions

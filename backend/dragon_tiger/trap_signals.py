@@ -87,9 +87,7 @@ def _default_search_fn() -> Optional[SearchFn]:
                 out.append(
                     {
                         "title": r.get("title", ""),
-                        "body": r.get("summary")
-                        or r.get("body")
-                        or r.get("content", ""),
+                        "body": r.get("summary") or r.get("body") or r.get("content", ""),
                         "url": r.get("url", ""),
                     }
                 )
@@ -182,8 +180,6 @@ def scan_trap_signals(
         "signals_hit_count": n,
         "signals_hit_detail": hit_signals,
         "recommendation": rec,
-        "high_risk_kw": ", ".join(s["name"] for s in hit_signals[:3])
-        if hit_signals
-        else "未发现",
+        "high_risk_kw": ", ".join(s["name"] for s in hit_signals[:3]) if hit_signals else "未发现",
         "snippets": snippets,
     }

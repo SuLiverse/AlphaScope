@@ -346,15 +346,11 @@ class TestEngineFrictions:
             execution_price="open",
         )
         zero = BacktestEngine(
-            cost_model=TradingCostModel(
-                slippage_rate=0.0, commission_rate=0.0, stamp_duty_rate=0.0
-            ),
+            cost_model=TradingCostModel(slippage_rate=0.0, commission_rate=0.0, stamp_duty_rate=0.0),
             **common,
         ).run(_RoundTrip(), bars, "TEST")
         costly = BacktestEngine(
-            cost_model=TradingCostModel(
-                slippage_rate=0.002, commission_rate=0.0003, stamp_duty_rate=0.0005
-            ),
+            cost_model=TradingCostModel(slippage_rate=0.002, commission_rate=0.0003, stamp_duty_rate=0.0005),
             **common,
         ).run(_RoundTrip(), bars, "TEST")
 
@@ -428,11 +424,6 @@ class TestBackwardCompat:
         # new call with explicit commission + stamp duty
         p2 = Portfolio(initial_capital=100000)
         assert p2.execute_buy("600519", 100, 10.0, "2025-01-01", commission=5.0) is True
-        assert (
-            p2.execute_sell(
-                "600519", 100, 11.0, "2025-01-02", commission=5.0, stamp_duty=0.55
-            )
-            is True
-        )
+        assert p2.execute_sell("600519", 100, 11.0, "2025-01-02", commission=5.0, stamp_duty=0.55) is True
         sell_trade = [t for t in p2.trades if t.side == "sell"][0]
         assert abs(sell_trade.pnl - ((11.0 - 10.0) * 100 - 5.0 - 0.55)) < 1e-9

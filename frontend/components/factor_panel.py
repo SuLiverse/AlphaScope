@@ -23,11 +23,7 @@ def render_factor_panel(symbol: str, stock_name: str = "") -> None:
         gen = get_factor_generator()
         report = gen.generate(symbol, stock_name, days=30, include_signals=True)
 
-        if (
-            report.news_count == 0
-            and report.event_count == 0
-            and report.report_count == 0
-        ):
+        if report.news_count == 0 and report.event_count == 0 and report.report_count == 0:
             st.info("暂无足够数据生成因子分析 (需要先采集新闻/公告/研报)")
             return
 
@@ -52,9 +48,7 @@ def render_factor_panel(symbol: str, stock_name: str = "") -> None:
                 for sig in report.signals:
                     sig_type = sig.get("type", "")
                     if sig_type == "news":
-                        st.write(
-                            f"📰 **[新闻]** {sig.get('title', '')} — 情绪: {sig.get('sentiment', 0):+.2f}"
-                        )
+                        st.write(f"📰 **[新闻]** {sig.get('title', '')} — 情绪: {sig.get('sentiment', 0):+.2f}")
                     elif sig_type == "event":
                         st.write(
                             f"📋 **[公告:{sig.get('category', '')}]** {sig.get('title', '')} — 得分: {sig.get('score', 0):+.2f}"

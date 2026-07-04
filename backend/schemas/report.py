@@ -37,9 +37,7 @@ class ResearchReport(BaseModel):
     def model_post_init(self, __context) -> None:
         if not self.id:
             raw = f"{self.source}_{self.title}_{self.institution}_{self.published_at}"
-            self.id = (
-                f"report_{self.source}_{hashlib.md5(raw.encode()).hexdigest()[:12]}"
-            )
+            self.id = f"report_{self.source}_{hashlib.md5(raw.encode()).hexdigest()[:12]}"
 
 
 class ReportQuery(BaseModel):

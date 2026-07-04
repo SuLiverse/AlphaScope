@@ -100,10 +100,7 @@ class TestValueStock:
     def test_value_stock_shape(self):
         out = value_stock(BASE, peers=[{"name": "A", "pe": 30}])
         assert set(out) >= {"dcf", "comps", "lbo", "three_statement", "summary"}
-        assert (
-            out["summary"]["dcf_intrinsic_per_share"]
-            == out["dcf"]["intrinsic_per_share"]
-        )
+        assert out["summary"]["dcf_intrinsic_per_share"] == out["dcf"]["intrinsic_per_share"]
 
     def test_value_stock_no_peers(self):
         out = value_stock(BASE)
@@ -143,9 +140,7 @@ class TestAdapter:
             is_self=False,
         )
         monkeypatch.setattr(F, "fetch_financial_summary", lambda s, periods=4: [period])
-        monkeypatch.setattr(
-            F, "fetch_industry_peers", lambda s, top_k=8: ("白酒", [self_row, peer_row])
-        )
+        monkeypatch.setattr(F, "fetch_industry_peers", lambda s, top_k=8: ("白酒", [self_row, peer_row]))
 
         feats, peers = features_from_fundamentals("600519")
         assert feats["revenue_latest_yi"] == 52.0

@@ -30,9 +30,7 @@ class EvidenceBundle(BaseModel):
 
     claim: str = Field(description="投资观点/结论")
     evidence_ids: list[str] = Field(default_factory=list, description="证据ID列表")
-    evidence_items: list[EvidenceItem] = Field(
-        default_factory=list, description="证据详情"
-    )
+    evidence_items: list[EvidenceItem] = Field(default_factory=list, description="证据详情")
     confidence: float = Field(default=0.5, ge=0.0, le=1.0, description="综合置信度")
     risk_note: str = Field(default="", description="风险提示")
     source_count: int = Field(default=0, description="来源数量")

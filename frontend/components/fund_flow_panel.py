@@ -61,9 +61,7 @@ def render(stock_name: str, symbol: str):
             st.cache_data.clear()
             st.rerun()
     with col_i:
-        st.caption(
-            "数据缓存 5 分钟。资金面是 A 股最关键的同步指标，主力连续流出常领先股价。"
-        )
+        st.caption("数据缓存 5 分钟。资金面是 A 股最关键的同步指标，主力连续流出常领先股价。")
 
     sub_f1, sub_f2 = st.tabs([f"🎯 {stock_name} 个股资金", "🌐 大盘资金"])
 
@@ -509,9 +507,7 @@ def _render_main_force_judgment(s: dict):
                 f"散户净流出 {small_5d_yi:+.2f} 亿，典型主力底部吸筹特征。"
             )
         else:
-            judge_detail = (
-                f"超大单近 5 日净流入 {super_5d_yi:+.2f} 亿（>5000万），机构主导买入。"
-            )
+            judge_detail = f"超大单近 5 日净流入 {super_5d_yi:+.2f} 亿（>5000万），机构主导买入。"
     elif super_5d_yi < -0.5:
         judge_label = "🟩 主力出货"
         judge_color = "#26a69a"
@@ -525,10 +521,7 @@ def _render_main_force_judgment(s: dict):
     else:
         judge_label = "🟨 主力观望"
         judge_color = "#ff9800"
-        judge_detail = (
-            f"超大单近 5 日净额 {super_5d_yi:+.2f} 亿（±5000万 内），"
-            f"主力暂未明确选择方向。"
-        )
+        judge_detail = f"超大单近 5 日净额 {super_5d_yi:+.2f} 亿（±5000万 内），主力暂未明确选择方向。"
 
     st.html(f"""
     <div style='background:#f8f9fb; border-left:5px solid {judge_color};

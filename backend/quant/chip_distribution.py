@@ -129,9 +129,7 @@ def _day_turnover(bar: dict[str, Any], avg_volume: float) -> tuple[float, bool]:
     return _PROXY_MIN, False
 
 
-def _triangular_day_weights(
-    low: float, high: float, close: float, edges: list[float], n: int
-) -> list[float]:
+def _triangular_day_weights(low: float, high: float, close: float, edges: list[float], n: int) -> list[float]:
     """把当日一份筹码按三角分布(峰在均价)铺到价位桶,返回长度 n、和为 1 的权重。"""
     weights = [0.0] * n
     if high <= low:
@@ -170,9 +168,7 @@ def _bucket_index(price: float, edges: list[float], n: int) -> int:
     return max(0, min(n - 1, idx))
 
 
-def _band_for_mass(
-    chips: list[float], centers: list[float], target: float
-) -> tuple[float, float]:
+def _band_for_mass(chips: list[float], centers: list[float], target: float) -> tuple[float, float]:
     """找包住 target(如 0.9)质量的最窄连续价格带,返回 (low, high)。"""
     n = len(chips)
     total = sum(chips)
@@ -228,8 +224,7 @@ def compute_chip_distribution(
             symbol=symbol,
             status=INSUFFICIENT,
             model=MODEL_VOLUME_PROXY,
-            current_price=current_price
-            or (_to_float(rows[-1].get("close")) if rows else 0.0),
+            current_price=current_price or (_to_float(rows[-1].get("close")) if rows else 0.0),
             avg_cost=0.0,
             profit_ratio=0.0,
             concentration_70=0.0,
@@ -296,11 +291,7 @@ def compute_chip_distribution(
         )
     chips = [c / total for c in chips]
 
-    cur = (
-        current_price
-        if (current_price and current_price > 0)
-        else _to_float(rows[-1].get("close"))
-    )
+    cur = current_price if (current_price and current_price > 0) else _to_float(rows[-1].get("close"))
     avg_cost = sum(centers[i] * chips[i] for i in range(n))
     profit_ratio = sum(chips[i] for i in range(n) if centers[i] <= cur) * 100.0
 
@@ -316,11 +307,7 @@ def compute_chip_distribution(
     resistance_price = max(above, key=lambda x: x[0])[1] if above else 0.0
 
     # 输出非零价位(压缩载荷),百分比保留两位
-    levels = [
-        {"price": round(centers[i], 3), "pct": round(chips[i] * 100.0, 4)}
-        for i in range(n)
-        if chips[i] > 1e-6
-    ]
+    levels = [{"price": round(centers[i], 3), "pct": round(chips[i] * 100.0, 4)} for i in range(n) if chips[i] > 1e-6]
 
     return ChipDistribution(
         symbol=symbol,
@@ -340,8 +327,6 @@ def compute_chip_distribution(
         bars_used=len(rows),
         levels=levels,
         note=(
-            "使用真实换手率建模。"
-            if any_real_turnover
-            else "无真实换手率,使用量能代理估算换手(model=volume_proxy)。"
+            "使用真实换手率建模。" if any_real_turnover else "无真实换手率,使用量能代理估算换手(model=volume_proxy)。"
         ),
     )

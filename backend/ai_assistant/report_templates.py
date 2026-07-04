@@ -119,9 +119,7 @@ class StockDeepRatingTemplate(ReportTemplate):
         lines = ["| 指标 | 最新值 | 同比变化 |", "|------|--------|----------|"]
         for k, v in data.items():
             if isinstance(v, dict):
-                lines.append(
-                    f"| {k} | {v.get('value', 'N/A')} | {v.get('yoy', 'N/A')} |"
-                )
+                lines.append(f"| {k} | {v.get('value', 'N/A')} | {v.get('yoy', 'N/A')} |")
             else:
                 lines.append(f"| {k} | {v} | N/A |")
         return "\n".join(lines)
@@ -343,9 +341,7 @@ class BlackSwanWarningTemplate(ReportTemplate):
         if isinstance(signals[0], dict):
             lines = ["| 信号 | 来源 | 置信度 |", "|------|------|--------|"]
             for s in signals:
-                lines.append(
-                    f"| {s.get('signal', '')} | {s.get('source', '')} | {s.get('confidence', '')} |"
-                )
+                lines.append(f"| {s.get('signal', '')} | {s.get('source', '')} | {s.get('confidence', '')} |")
             return "\n".join(lines)
         return "\n".join(f"- {s}" for s in signals)
 

@@ -72,9 +72,7 @@ def test_bars_to_close_series_skips_garbage():
 
 def test_build_ma_cross_signals_insufficient_data():
     """数据长度 <= slow 时不产生任何信号 (失败安全)。"""
-    entries, exits = build_ma_cross_signals(
-        bars_to_close_series(_bars(5)), fast=3, slow=20
-    )
+    entries, exits = build_ma_cross_signals(bars_to_close_series(_bars(5)), fast=3, slow=20)
     assert not entries.any()
     assert not exits.any()
 
@@ -120,9 +118,7 @@ def test_build_assumptions_honestly_discloses_unmodeled_as_frictions():
 
 def test_map_vbt_stats_to_metrics_from_dict():
     """stats 是 dict 时也能容错抽取。"""
-    m = map_vbt_stats_to_metrics(
-        {"Total Return [%]": 12.3, "Sharpe Ratio": 1.5, "Max Drawdown [%]": -8.0}
-    )
+    m = map_vbt_stats_to_metrics({"Total Return [%]": 12.3, "Sharpe Ratio": 1.5, "Max Drawdown [%]": -8.0})
     assert m.total_return == 12.3
     assert m.sharpe == 1.5
     assert m.max_drawdown == -8.0
@@ -192,9 +188,7 @@ try:
 except Exception:
     _HAS_VBT = False
 
-_vbt_required = pytest.mark.skipif(
-    not _HAS_VBT, reason="vectorbt 未安装, 跳过执行路径用例"
-)
+_vbt_required = pytest.mark.skipif(not _HAS_VBT, reason="vectorbt 未安装, 跳过执行路径用例")
 
 
 @_vbt_required

@@ -46,9 +46,7 @@ class TicketLine(BaseModel):
     rationale: str = Field(description="调仓理由 (附证据链/Agent 共识)")
     evidence_ids: list[str] = Field(default_factory=list, description="支撑证据 ID")
     risk_flags: list[str] = Field(default_factory=list, description="相关风险提示")
-    confidence: Optional[float] = Field(
-        default=None, ge=0, le=100, description="置信度"
-    )
+    confidence: Optional[float] = Field(default=None, ge=0, le=100, description="置信度")
 
 
 class ManualReviewTicket(BaseModel):
@@ -69,9 +67,7 @@ class ManualReviewTicket(BaseModel):
     evidence_ids: list[str] = Field(default_factory=list, description="全局证据引用")
     backtest_refs: list[str] = Field(default_factory=list, description="回测参考 ID")
     risk_warnings: list[str] = Field(default_factory=list, description="风险提示")
-    agent_disagreement: Optional[str] = Field(
-        default=None, description="Agent 分歧摘要"
-    )
+    agent_disagreement: Optional[str] = Field(default=None, description="Agent 分歧摘要")
 
     # 流程
     status: TicketStatus = Field(default=TicketStatus.DRAFT)
@@ -88,6 +84,4 @@ class ManualReviewTicket(BaseModel):
     def assert_manual_only(self) -> None:
         """守卫: ManualReviewTicket 永远是研究产物, 不应进入任何 broker 调用。"""
         if not self.manual_only:
-            raise ValueError(
-                "ManualReviewTicket.manual_only 必须为 True; 人工确认单不可自动执行。"
-            )
+            raise ValueError("ManualReviewTicket.manual_only 必须为 True; 人工确认单不可自动执行。")

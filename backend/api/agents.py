@@ -30,9 +30,7 @@ class TeamSaveRequest(BaseModel):
     id: str = Field(description="专家团 ID")
     name: str = Field(description="显示名称")
     description: str = Field(default="", description="描述")
-    member_ids: list[str] = Field(
-        default_factory=list, description="成员 Agent ID 列表"
-    )
+    member_ids: list[str] = Field(default_factory=list, description="成员 Agent ID 列表")
 
 
 # ============== Agent Endpoints ==============

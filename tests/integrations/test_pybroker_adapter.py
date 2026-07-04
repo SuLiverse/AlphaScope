@@ -177,9 +177,7 @@ try:
 except Exception:
     _HAS_PB = False
 
-_pb_required = pytest.mark.skipif(
-    not _HAS_PB, reason="lib-pybroker 未安装, 跳过执行路径用例"
-)
+_pb_required = pytest.mark.skipif(not _HAS_PB, reason="lib-pybroker 未安装, 跳过执行路径用例")
 
 
 @_pb_required

@@ -113,9 +113,7 @@ def _cached_stock_news_em(symbol: str, limit: int = 20):
 def _cached_topic_news_em(keywords_tuple, limit_each: int = 8, total_limit: int = 30):
     if not _NEWS_AVAILABLE:
         return []
-    return fetch_topic_news_em(
-        list(keywords_tuple or ()), limit_each=limit_each, total_limit=total_limit
-    )
+    return fetch_topic_news_em(list(keywords_tuple or ()), limit_each=limit_each, total_limit=total_limit)
 
 
 @st.cache_data(ttl=3600)
@@ -274,15 +272,11 @@ def render(stock_name: str, symbol: str):
                         related.append(n)
 
             if not related:
-                st.info(
-                    f"近期未发现与「{stock_name}」直接相关的资讯，建议查看大盘快讯或研报。"
-                )
+                st.info(f"近期未发现与「{stock_name}」直接相关的资讯，建议查看大盘快讯或研报。")
             else:
                 from news_data import _expand_stock_keywords
 
-                stock_kws = _expand_stock_keywords(
-                    stock_name, symbol, products=main_biz.get("products")
-                )
+                stock_kws = _expand_stock_keywords(stock_name, symbol, products=main_biz.get("products"))
                 n_specific = len(stock_specific or [])
                 n_total = len(related)
                 n_kw = max(0, n_total - n_specific)
@@ -306,24 +300,17 @@ def render(stock_name: str, symbol: str):
                 ann_list = merge_announcements(cninfo_ann, em_ann_for_stock)
 
             if not ann_list:
-                st.info(
-                    f"近 30 天内未发现 {stock_name}({symbol}) 的公告。可能是接口暂时不可用，稍后刷新重试。"
-                )
+                st.info(f"近 30 天内未发现 {stock_name}({symbol}) 的公告。可能是接口暂时不可用，稍后刷新重试。")
             else:
                 cat_counts = {}
                 for a in ann_list:
-                    cat_counts[a.get("category", "其他")] = (
-                        cat_counts.get(a.get("category", "其他"), 0) + 1
-                    )
+                    cat_counts[a.get("category", "其他")] = cat_counts.get(a.get("category", "其他"), 0) + 1
 
                 def _ann_chip(c, n):
                     cc = ANN_COLORS.get(c, "#6b7280")
                     return f"<span style='color:{cc};'>{c} {n}</span>"
 
-                summary_chips = " · ".join(
-                    _ann_chip(c, n)
-                    for c, n in sorted(cat_counts.items(), key=lambda x: -x[1])
-                )
+                summary_chips = " · ".join(_ann_chip(c, n) for c, n in sorted(cat_counts.items(), key=lambda x: -x[1]))
                 st.markdown(
                     f"<div style='color:#6b7280; font-size:0.9rem; margin-bottom:10px;'>"
                     f"近 30 天 <b>{len(ann_list)}</b> 条公告 · {summary_chips}</div>",
@@ -382,30 +369,16 @@ def render(stock_name: str, symbol: str):
                 )
                 with st.spinner("正在筛选并搜索概念相关新闻..."):
                     excluded = {n.get("title", "").strip() for n in (related or [])}
-                    pool_concept_news = get_concept_news(
-                        concepts, all_news, limit=30, exclude_titles=excluded
-                    )
-                    topic_concept_news = _cached_topic_news_em(
-                        tuple(concept_kws[:8]), limit_each=6, total_limit=24
-                    )
-                    topic_concept_news = [
-                        n
-                        for n in topic_concept_news
-                        if n.get("title", "").strip() not in excluded
-                    ]
-                    concept_news = merge_news_items(
-                        pool_concept_news, topic_concept_news, limit=30
-                    )
+                    pool_concept_news = get_concept_news(concepts, all_news, limit=30, exclude_titles=excluded)
+                    topic_concept_news = _cached_topic_news_em(tuple(concept_kws[:8]), limit_each=6, total_limit=24)
+                    topic_concept_news = [n for n in topic_concept_news if n.get("title", "").strip() not in excluded]
+                    concept_news = merge_news_items(pool_concept_news, topic_concept_news, limit=30)
                 if concept_kws:
                     st.caption("匹配词: " + " · ".join(concept_kws))
                 if not concept_news:
-                    st.caption(
-                        "近期未在快讯池或东财主题搜索中发现这些概念的直接相关新闻。"
-                    )
+                    st.caption("近期未在快讯池或东财主题搜索中发现这些概念的直接相关新闻。")
                 else:
-                    st.caption(
-                        f"快讯池命中 {len(pool_concept_news)} 条 + 主题搜索补充 {len(topic_concept_news)} 条"
-                    )
+                    st.caption(f"快讯池命中 {len(pool_concept_news)} 条 + 主题搜索补充 {len(topic_concept_news)} 条")
                     for n in concept_news:
                         _render_concept_news_card(n)
 
@@ -415,9 +388,7 @@ def render(stock_name: str, symbol: str):
             if not industry:
                 concepts_for_industry = _cached_stock_concepts(symbol, stock_name) or []
                 if concepts_for_industry:
-                    industry = fetch_industry_name(
-                        symbol, concepts=concepts_for_industry
-                    )
+                    industry = fetch_industry_name(symbol, concepts=concepts_for_industry)
             if not industry:
                 st.info("未能识别该股票的行业，无法生成行业新闻。")
             else:
@@ -442,14 +413,8 @@ def render(stock_name: str, symbol: str):
                         concepts=concepts,
                         limit=8,
                     )
-                    topic_ind_news = _cached_topic_news_em(
-                        tuple(topic_kws), limit_each=6, total_limit=24
-                    )
-                    topic_ind_news = [
-                        n
-                        for n in topic_ind_news
-                        if n.get("title", "").strip() not in excluded
-                    ]
+                    topic_ind_news = _cached_topic_news_em(tuple(topic_kws), limit_each=6, total_limit=24)
+                    topic_ind_news = [n for n in topic_ind_news if n.get("title", "").strip() not in excluded]
                     ind_news = merge_news_items(pool_ind_news, topic_ind_news, limit=30)
                 if not ind_news:
                     st.caption(f"近期未发现「{industry}」行业的快讯或主题搜索新闻。")
@@ -538,9 +503,7 @@ def _render_news_card(n: dict):
     dt = n.get("datetime", "")
     url = n.get("url", "")
     title_html = (
-        f"<a href='{url}' target='_blank' style='color:#1f2937; text-decoration:none;'>{title}</a>"
-        if url
-        else title
+        f"<a href='{url}' target='_blank' style='color:#1f2937; text-decoration:none;'>{title}</a>" if url else title
     )
     st.html(f"""
     <div style='background:white; border-left:3px solid {src_color}; padding:12px 16px; margin-bottom:10px; border-radius:6px; box-shadow:0 1px 3px rgba(0,0,0,0.04);'>
@@ -578,9 +541,7 @@ def _render_concept_news_card(n: dict):
         for t in tags[:3]
     )
     title_html = (
-        f"<a href='{url}' target='_blank' style='color:#1f2937; text-decoration:none;'>{title}</a>"
-        if url
-        else title
+        f"<a href='{url}' target='_blank' style='color:#1f2937; text-decoration:none;'>{title}</a>" if url else title
     )
     st.html(f"""
     <div style='background:white; border-left:3px solid {src_color}; padding:10px 14px;
@@ -621,9 +582,7 @@ def _render_industry_news_card(n: dict):
         for t in tags[:3]
     )
     title_html = (
-        f"<a href='{url}' target='_blank' style='color:#1f2937; text-decoration:none;'>{title}</a>"
-        if url
-        else title
+        f"<a href='{url}' target='_blank' style='color:#1f2937; text-decoration:none;'>{title}</a>" if url else title
     )
     st.html(f"""
     <div style='background:white; border-left:3px solid {src_color}; padding:10px 14px;
@@ -702,11 +661,7 @@ def _render_research_reports(reports: list):
             "rating": "评级",
             "title": "报告",
         }
-        show_df = (
-            rdf[show_cols].rename(columns=rename)
-            if all(c in rdf.columns for c in show_cols)
-            else rdf
-        )
+        show_df = rdf[show_cols].rename(columns=rename) if all(c in rdf.columns for c in show_cols) else rdf
 
         def color_rating(v):
             c = rating_colors_map.get(str(v).strip(), "#666")
@@ -735,9 +690,7 @@ def _render_research_reports(reports: list):
             rating = "未评级"
         rc = rating_colors_map.get(rating, "#9e9e9e")
         pdf_link = (
-            f"<a href='{r.get('pdf', '')}' target='_blank' style='color:#667eea;'>📄 PDF</a>"
-            if r.get("pdf")
-            else ""
+            f"<a href='{r.get('pdf', '')}' target='_blank' style='color:#667eea;'>📄 PDF</a>" if r.get("pdf") else ""
         )
         eps = r.get("eps_2026")
         pe = r.get("pe_2026")

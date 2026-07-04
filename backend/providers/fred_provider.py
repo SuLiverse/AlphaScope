@@ -78,10 +78,7 @@ class FredProvider(BaseProvider):
             observations = raw.get("observations", [])
             return {
                 "series_id": series_id,
-                "observations": [
-                    {"date": obs.get("date"), "value": obs.get("value")}
-                    for obs in observations
-                ],
+                "observations": [{"date": obs.get("date"), "value": obs.get("value")} for obs in observations],
             }
         except Exception as e:
             logger.warning("FRED series %s failed: %s", series_id, e)

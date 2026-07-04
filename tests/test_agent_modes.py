@@ -71,13 +71,9 @@ class TestAgentModeConfig:
     def _make_config(self, mode=AnalysisMode.DEEP, agents=None):
         if agents is None:
             agents = [
-                AgentModeEntry(
-                    key="fundamental", provider="claude", model="claude-sonnet-4-5"
-                ),
+                AgentModeEntry(key="fundamental", provider="claude", model="claude-sonnet-4-5"),
                 AgentModeEntry(key="technical", provider="gpt", model="gpt-5.2"),
-                AgentModeEntry(
-                    key="sentiment", provider="deepseek", model="deepseek-chat"
-                ),
+                AgentModeEntry(key="sentiment", provider="deepseek", model="deepseek-chat"),
             ]
         return AgentModeConfig(
             mode=mode,

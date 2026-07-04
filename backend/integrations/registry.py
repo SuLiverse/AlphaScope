@@ -76,9 +76,7 @@ class IntegrationRegistry:
 
         # 断言 1: 交易边界
         if meta.allow_live_order is not False:
-            raise ValueError(
-                f"adapter {meta.name!r} 违反交易边界: allow_live_order 必须 False"
-            )
+            raise ValueError(f"adapter {meta.name!r} 违反交易边界: allow_live_order 必须 False")
 
         # 断言 2: 能力黑名单
         for cap in meta.capabilities:
@@ -86,8 +84,7 @@ class IntegrationRegistry:
             for tok in _FORBIDDEN_CAPABILITY_TOKENS:
                 if tok in cap_low:
                     raise ValueError(
-                        f"adapter {meta.name!r} 暴露禁止能力 {cap.name!r} (含 {tok!r}): "
-                        f"AlphaScope 不接实盘下单链路。"
+                        f"adapter {meta.name!r} 暴露禁止能力 {cap.name!r} (含 {tok!r}): AlphaScope 不接实盘下单链路。"
                     )
 
         # 断言 3: 许可证防火墙
@@ -133,9 +130,7 @@ class IntegrationRegistry:
             try:
                 out[n] = self.get(n).healthcheck()
             except Exception as e:
-                out[n] = IntegrationHealth(
-                    name=n, status=HealthStatus.DOWN, message=f"healthcheck 抛错: {e}"
-                )
+                out[n] = IntegrationHealth(name=n, status=HealthStatus.DOWN, message=f"healthcheck 抛错: {e}")
         return out
 
     def clear(self) -> None:
@@ -252,13 +247,9 @@ def assert_boundary_invariant() -> None:
     reg = get_registry()
     for meta in reg.all_metadata():
         if meta.allow_live_order is not False:
-            raise AssertionError(
-                f"integration {meta.name!r} allow_live_order 必须 False (Phase 0 边界)"
-            )
+            raise AssertionError(f"integration {meta.name!r} allow_live_order 必须 False (Phase 0 边界)")
         for cap in meta.capabilities:
             low = cap.name.lower()
             for tok in _FORBIDDEN_CAPABILITY_TOKENS:
                 if tok in low:
-                    raise AssertionError(
-                        f"integration {meta.name!r} 暴露禁止能力 {cap.name!r}"
-                    )
+                    raise AssertionError(f"integration {meta.name!r} 暴露禁止能力 {cap.name!r}")

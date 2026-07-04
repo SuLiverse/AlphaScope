@@ -111,9 +111,7 @@ _EXTERNAL_ENGINES: list[dict[str, Any]] = [
     {
         "name": "jesse",
         "display_name": "Jesse (crypto 回测)",
-        "description": (
-            "crypto 研究回测框架。规划 §9.9: 避免实盘交易链路, 只接 backtest (Mode C)。"
-        ),
+        "description": ("crypto 研究回测框架。规划 §9.9: 避免实盘交易链路, 只接 backtest (Mode C)。"),
         "homepage": "https://github.com/jesse-ai/jesse",
         "probe": "jesse",
         "docker": None,
@@ -125,8 +123,7 @@ _EXTERNAL_ENGINES: list[dict[str, Any]] = [
         "name": "vnpy",
         "display_name": "vn.py (仅参考/外部进程)",
         "description": (
-            "国内量化一站式框架。规划 §9.10/§12: 不接真实交易 Gateway, 只做参考或外部服务 "
-            "(Mode C, 严格隔离交易)。"
+            "国内量化一站式框架。规划 §9.10/§12: 不接真实交易 Gateway, 只做参考或外部服务 (Mode C, 严格隔离交易)。"
         ),
         "homepage": "https://github.com/vnpy/vnpy",
         "probe": None,
@@ -138,9 +135,7 @@ _EXTERNAL_ENGINES: list[dict[str, Any]] = [
     {
         "name": "quantaxis",
         "display_name": "QUANTAXIS (国内量化)",
-        "description": (
-            "国内量化分析框架。规划 §9.11: 架构可借鉴, 走外部进程 (Mode C)。"
-        ),
+        "description": ("国内量化分析框架。规划 §9.11: 架构可借鉴, 走外部进程 (Mode C)。"),
         "homepage": "https://github.com/yutiansut/QUANTAXIS",
         "probe": None,
         "docker": "quantaxis/qa",
@@ -151,9 +146,7 @@ _EXTERNAL_ENGINES: list[dict[str, Any]] = [
     {
         "name": "stocksharp",
         "display_name": "StockSharp (C# 生态)",
-        "description": (
-            "C#/.NET 交易算法框架。规划 §9.13: 建议只做参考或外部服务 (Mode C)。"
-        ),
+        "description": ("C#/.NET 交易算法框架。规划 §9.13: 建议只做参考或外部服务 (Mode C)。"),
         "homepage": "https://github.com/StockSharp/StockSharp",
         "probe": None,
         "docker": None,
@@ -196,9 +189,7 @@ def _build_metadata(adapter_cls: type, spec: dict[str, Any]) -> IntegrationMetad
         homepage=spec["homepage"],
         package=None,  # 外部进程, 无 pip 包名
         capabilities=[
-            CapabilitySpec(
-                name="run_backtest", description="通过子进程/Docker 调用外部引擎回测"
-            )
+            CapabilitySpec(name="run_backtest", description="通过子进程/Docker 调用外部引擎回测")
             for _ in [0]  # 单元素
         ],
         license_name=spec["license_name"],
@@ -227,11 +218,7 @@ def _make_healthcheck(spec: dict[str, Any]):
             status=HealthStatus.UNAVAILABLE,
             message=(
                 f"{spec['display_name']} 未检测到。外部进程模式: "
-                + (
-                    f"docker pull {docker}"
-                    if docker
-                    else "pip install 在独立 venv (不进主环境)"
-                )
+                + (f"docker pull {docker}" if docker else "pip install 在独立 venv (不进主环境)")
                 + f" 或访问 {spec['homepage']}"
             ),
         )
@@ -297,9 +284,7 @@ def _make_run_backtest(spec: dict[str, Any]):
 
 def _register_external_engine(spec: dict[str, Any]) -> type:
     """为单个外部引擎规格生成并注册一个 BacktestEngineAdapter 子类。"""
-    cls_name = (
-        "".join(p.capitalize() for p in spec["name"].split("_")) + "ExternalAdapter"
-    )
+    cls_name = "".join(p.capitalize() for p in spec["name"].split("_")) + "ExternalAdapter"
 
     # 构造类属性与方法
     attrs: dict[str, Any] = {

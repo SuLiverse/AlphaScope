@@ -92,10 +92,7 @@ class TestApplyFieldMap:
         assert len(bars) == 1 and bars[0]["close"] == 5.0
 
     def test_limit(self):
-        records = [
-            {"t": f"2026-01-{i:02d}", "o": 1, "h": 1, "l": 1, "c": 1}
-            for i in range(1, 11)
-        ]
+        records = [{"t": f"2026-01-{i:02d}", "o": 1, "h": 1, "l": 1, "c": 1} for i in range(1, 11)]
         fm = {"date": "t", "open": "o", "high": "h", "low": "l", "close": "c"}
         bars = hj.apply_field_map(records, fm, limit=3)
         assert len(bars) == 3 and bars[-1]["date"] == "2026-01-10"
@@ -103,9 +100,7 @@ class TestApplyFieldMap:
 
 class TestInferFieldMap:
     def test_dict_sample(self):
-        fm = hj.infer_field_map(
-            {"日期": "x", "开盘": 1, "收盘": 2, "最高": 3, "最低": 4}
-        )
+        fm = hj.infer_field_map({"日期": "x", "开盘": 1, "收盘": 2, "最高": 3, "最低": 4})
         assert fm["date"] == "日期" and fm["close"] == "收盘"
 
     def test_list_sample_empty(self):
@@ -153,9 +148,7 @@ def _good_fetcher(payload):
 
 class TestRegistry:
     def test_save_list_get_delete(self, store):
-        saved = store.save_source(
-            {"name": "测试源", "url": "https://x/{symbol}", "symbol": "600519"}
-        )
+        saved = store.save_source({"name": "测试源", "url": "https://x/{symbol}", "symbol": "600519"})
         assert saved is not None
         sid = saved["id"]
         assert len(store.list_sources()) == 1
@@ -217,11 +210,7 @@ class TestRefreshAndQuery:
 
     def test_refresh_failure_keeps_cache(self, store):
         self._save(store)
-        ok_payload = {
-            "data": {
-                "klines": [{"t": "2026-01-01", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}]
-            }
-        }
+        ok_payload = {"data": {"klines": [{"t": "2026-01-01", "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}]}}
         store.refresh_source("src1", fetcher=_good_fetcher(ok_payload))
         assert len(store.materialized_bars("600519")) == 1
 
@@ -294,14 +283,8 @@ class TestRefreshAndQuery:
 
 class TestPreviewFetch:
     def test_preview_returns_sample_and_map(self, store):
-        payload = {
-            "data": [
-                {"日期": "2026-01-01", "开盘": 1, "收盘": 2, "最高": 3, "最低": 0.5}
-            ]
-        }
-        res = store.preview_fetch(
-            "https://x", records_path="data", fetcher=_good_fetcher(payload)
-        )
+        payload = {"data": [{"日期": "2026-01-01", "开盘": 1, "收盘": 2, "最高": 3, "最低": 0.5}]}
+        res = store.preview_fetch("https://x", records_path="data", fetcher=_good_fetcher(payload))
         assert res["ok"] is True
         assert res["record_count"] == 1
         assert res["inferred_field_map"]["close"] == "收盘"

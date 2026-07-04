@@ -155,21 +155,12 @@ def _allow_local_base_url() -> bool:
 
 
 def _is_unsafe_ip_address(ip: ipaddress._BaseAddress) -> bool:
-    return (
-        ip.is_private
-        or ip.is_loopback
-        or ip.is_link_local
-        or ip.is_multicast
-        or ip.is_reserved
-        or ip.is_unspecified
-    )
+    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified
 
 
 def _reject_unsafe_ip(ip: ipaddress._BaseAddress) -> None:
     if _is_unsafe_ip_address(ip):
-        raise ValueError(
-            "默认禁止连接内网或本机自定义 Base URL;如需本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1"
-        )
+        raise ValueError("默认禁止连接内网或本机自定义 Base URL;如需本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1")
 
 
 def _reject_unsafe_resolved_addresses(host: str, port: Optional[int]) -> None:
@@ -177,8 +168,7 @@ def _reject_unsafe_resolved_addresses(host: str, port: Optional[int]) -> None:
         addrinfo = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
     except socket.gaierror as exc:
         raise ValueError(
-            "自定义 Base URL 主机名 DNS 解析失败，默认禁止连接;"
-            "如需离线或本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1"
+            "自定义 Base URL 主机名 DNS 解析失败，默认禁止连接;如需离线或本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1"
         ) from exc
     for info in addrinfo:
         sockaddr = info[4]
@@ -202,9 +192,7 @@ def validate_custom_base_url(base_url: str) -> str:
     if not host:
         raise ValueError("自定义 Base URL 缺少有效主机名")
     if host == "localhost" or host.endswith(".localhost"):
-        raise ValueError(
-            "默认禁止连接 localhost 自定义 Base URL;如需本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1"
-        )
+        raise ValueError("默认禁止连接 localhost 自定义 Base URL;如需本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1")
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
@@ -260,25 +248,19 @@ VENDORS = {
     },
     "claude": {
         "api_key": os.getenv("CLAUDE_API_KEY"),
-        "base_url": (os.getenv("CLAUDE_BASE_URL", "") + "/v1")
-        if os.getenv("CLAUDE_BASE_URL")
-        else None,
+        "base_url": (os.getenv("CLAUDE_BASE_URL", "") + "/v1") if os.getenv("CLAUDE_BASE_URL") else None,
         "supports_json_mode": False,
         "label": "Claude",
     },
     "gpt": {
         "api_key": os.getenv("GPT_API_KEY"),
-        "base_url": (os.getenv("GPT_BASE_URL", "") + "/v1")
-        if os.getenv("GPT_BASE_URL")
-        else None,
+        "base_url": (os.getenv("GPT_BASE_URL", "") + "/v1") if os.getenv("GPT_BASE_URL") else None,
         "supports_json_mode": True,
         "label": "GPT",
     },
     "mimo": {
         "api_key": os.getenv("MIMO_API_KEY"),
-        "base_url": (os.getenv("MIMO_BASE_URL", "") + "/v1")
-        if os.getenv("MIMO_BASE_URL")
-        else None,
+        "base_url": (os.getenv("MIMO_BASE_URL", "") + "/v1") if os.getenv("MIMO_BASE_URL") else None,
         "supports_json_mode": False,
         "label": "Mimo",
     },
@@ -315,9 +297,7 @@ def _models_from_config_json(config_json: Any) -> list[str]:
     if not config_json:
         return []
     try:
-        parsed = (
-            json.loads(config_json) if isinstance(config_json, str) else config_json
-        )
+        parsed = json.loads(config_json) if isinstance(config_json, str) else config_json
     except Exception:
         return []
     if not isinstance(parsed, dict):
@@ -346,9 +326,7 @@ def _default_model_from_config_json(config_json: Any) -> str:
     if not config_json:
         return ""
     try:
-        parsed = (
-            json.loads(config_json) if isinstance(config_json, str) else config_json
-        )
+        parsed = json.loads(config_json) if isinstance(config_json, str) else config_json
     except Exception:
         return ""
     if not isinstance(parsed, dict):
@@ -446,9 +424,7 @@ def _sync_persisted_providers_once() -> None:
 # ============== 客户端管理 ==============
 
 
-def get_vendor_config(
-    vendor: str, api_key: Optional[str] = None, base_url: Optional[str] = None
-) -> Dict[str, Any]:
+def get_vendor_config(vendor: str, api_key: Optional[str] = None, base_url: Optional[str] = None) -> Dict[str, Any]:
     """
     获取供应商配置。
     如果提供了 api_key/base_url，则创建临时配置（细粒度 Key / 自定义 OpenAI-compatible Base URL）。
@@ -458,9 +434,7 @@ def get_vendor_config(
     if not base:
         return None
     if api_key or base_url:
-        normalized_base_url = normalize_openai_base_url(
-            base_url or base.get("base_url") or ""
-        )
+        normalized_base_url = normalize_openai_base_url(base_url or base.get("base_url") or "")
         if base_url:
             normalized_base_url = validate_custom_base_url(normalized_base_url)
         return {
@@ -499,11 +473,7 @@ def get_configured_provider(preferred: Optional[str] = None) -> tuple[str, str]:
         cfg = VENDORS.get(provider)
         if not cfg or not cfg.get("api_key") or not cfg.get("base_url"):
             continue
-        model = (
-            os.getenv("AI_CHAT_MODEL")
-            if provider == (os.getenv("AI_CHAT_PROVIDER") or "").strip()
-            else ""
-        )
+        model = os.getenv("AI_CHAT_MODEL") if provider == (os.getenv("AI_CHAT_PROVIDER") or "").strip() else ""
         model = model or _model_from_provider_config(provider, cfg)
         return provider, model
     fallback = (preferred or os.getenv("AI_CHAT_PROVIDER") or "deepseek").strip()
@@ -511,9 +481,7 @@ def get_configured_provider(preferred: Optional[str] = None) -> tuple[str, str]:
     return fallback, _model_from_provider_config(fallback, cfg)
 
 
-def create_client(
-    vendor: str, api_key: Optional[str] = None, base_url: Optional[str] = None
-) -> OpenAI:
+def create_client(vendor: str, api_key: Optional[str] = None, base_url: Optional[str] = None) -> OpenAI:
     """创建 OpenAI 兼容客户端，支持细粒度 API Key 与自定义 Base URL"""
     cfg = get_vendor_config(vendor, api_key, base_url)
     if not cfg or not cfg["api_key"] or not cfg["base_url"]:
@@ -529,9 +497,7 @@ _client_cache: Dict[str, OpenAI] = {}
 _client_cache_lock = threading.Lock()
 
 
-def get_client(
-    vendor: str, api_key: Optional[str] = None, base_url: Optional[str] = None
-) -> OpenAI:
+def get_client(vendor: str, api_key: Optional[str] = None, base_url: Optional[str] = None) -> OpenAI:
     """
     获取客户端。
     如果提供了 api_key/base_url，则创建独立客户端（不走缓存，避免 Key/URL 混淆）。
@@ -600,9 +566,7 @@ def _record_cost(
             from backend.models.model_registry import get_model_registry
 
             cost_est = tracker._estimate_cost(model, input_tokens, output_tokens)
-            get_model_registry().record_usage(
-                model, input_tokens, output_tokens, cost_est
-            )
+            get_model_registry().record_usage(model, input_tokens, output_tokens, cost_est)
         except Exception:
             pass
     except Exception:
@@ -724,12 +688,7 @@ def _extract_json(text: str) -> dict:
 
     def _loads(candidate: str) -> dict:
         candidate = (candidate or "").strip()
-        candidate = (
-            candidate.replace("“", '"')
-            .replace("”", '"')
-            .replace("‘", "'")
-            .replace("’", "'")
-        )
+        candidate = candidate.replace("“", '"').replace("”", '"').replace("‘", "'").replace("’", "'")
         candidate = re.sub(r",\s*([}\]])", r"\1", candidate)
         return json.loads(candidate)
 
@@ -776,9 +735,7 @@ def _provider_model_items_from_config_json(config_json: Any) -> list[dict[str, A
     if not config_json:
         return []
     try:
-        parsed = (
-            json.loads(config_json) if isinstance(config_json, str) else config_json
-        )
+        parsed = json.loads(config_json) if isinstance(config_json, str) else config_json
     except Exception:
         return []
     if not isinstance(parsed, dict):
@@ -786,8 +743,7 @@ def _provider_model_items_from_config_json(config_json: Any) -> list[dict[str, A
     raw_models = parsed.get("models") or []
     if isinstance(raw_models, dict):
         raw_models = [
-            {"id": str(model_id), **(meta if isinstance(meta, dict) else {})}
-            for model_id, meta in raw_models.items()
+            {"id": str(model_id), **(meta if isinstance(meta, dict) else {})} for model_id, meta in raw_models.items()
         ]
     if not isinstance(raw_models, list):
         return []
@@ -817,9 +773,7 @@ def get_provider_models(provider_id: str) -> list:
     _sync_persisted_providers_once()
     cfg = VENDORS.get(provider_id)
     if cfg and cfg.get("enabled", True) and cfg.get("api_key") and cfg.get("base_url"):
-        persisted_models = _provider_model_items_from_config_json(
-            cfg.get("config_json")
-        )
+        persisted_models = _provider_model_items_from_config_json(cfg.get("config_json"))
         if persisted_models:
             return persisted_models
     prov = _PROVIDER_CONFIG.get(provider_id)

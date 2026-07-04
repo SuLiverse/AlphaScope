@@ -43,12 +43,8 @@ class NorthboundProvider(BaseProvider):
                     {
                         "date": str(row.get("date", row.get("日期", ""))),
                         "net_flow": float(row.get("value", row.get("当日净流入", 0))),
-                        "buy_volume": float(row.get("当日买入", 0))
-                        if "当日买入" in row.index
-                        else 0,
-                        "sell_volume": float(row.get("当日卖出", 0))
-                        if "当日卖出" in row.index
-                        else 0,
+                        "buy_volume": float(row.get("当日买入", 0)) if "当日买入" in row.index else 0,
+                        "sell_volume": float(row.get("当日卖出", 0)) if "当日卖出" in row.index else 0,
                         "source": "northbound",
                         "type": "northbound_flow",
                     }
@@ -73,12 +69,8 @@ class NorthboundProvider(BaseProvider):
                     {
                         "symbol": str(row.get("代码", "")),
                         "name": str(row.get("名称", "")),
-                        "holding_ratio": float(row.get("持股占比", 0))
-                        if "持股占比" in row.index
-                        else 0,
-                        "net_flow": float(row.get("当日净买入", 0))
-                        if "当日净买入" in row.index
-                        else 0,
+                        "holding_ratio": float(row.get("持股占比", 0)) if "持股占比" in row.index else 0,
+                        "net_flow": float(row.get("当日净买入", 0)) if "当日净买入" in row.index else 0,
                         "source": "northbound",
                     }
                 )

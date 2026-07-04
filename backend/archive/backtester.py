@@ -140,9 +140,7 @@ class Backtester:
                 continue
 
             days_elapsed = (now - d.timestamp) / 86400
-            price_change = (
-                (current_price - d.price_at_decision) / d.price_at_decision * 100
-            )
+            price_change = (current_price - d.price_at_decision) / d.price_at_decision * 100
 
             if d.price_3d == 0 and days_elapsed >= 3:
                 d.price_3d = price_change
@@ -186,11 +184,7 @@ class Backtester:
         hold_decisions = [d for d in evaluated if d.signal == "观望"]
 
         def avg_return(decs, period):
-            vals = [
-                getattr(d, f"price_{period}d", 0)
-                for d in decs
-                if getattr(d, f"price_{period}d", 0) != 0
-            ]
+            vals = [getattr(d, f"price_{period}d", 0) for d in decs if getattr(d, f"price_{period}d", 0) != 0]
             return round(sum(vals) / len(vals), 2) if vals else 0
 
         return {
@@ -203,9 +197,7 @@ class Backtester:
                 "avg_return_10d": avg_return(buy_decisions, 10),
                 "avg_return_20d": avg_return(buy_decisions, 20),
                 "accuracy_5d": round(
-                    sum(1 for d in buy_decisions if d.price_5d > 0)
-                    / max(len(buy_decisions), 1)
-                    * 100,
+                    sum(1 for d in buy_decisions if d.price_5d > 0) / max(len(buy_decisions), 1) * 100,
                     1,
                 ),
             },
@@ -251,9 +243,7 @@ class Backtester:
             result[agent_key] = {
                 "accuracy": round(stats["correct"] / max(stats["total"], 1) * 100, 1),
                 "total_decisions": stats["total"],
-                "avg_return": round(
-                    sum(stats["returns"]) / max(len(stats["returns"]), 1), 2
-                ),
+                "avg_return": round(sum(stats["returns"]) / max(len(stats["returns"]), 1), 2),
             }
 
         return result

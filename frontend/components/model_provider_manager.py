@@ -22,9 +22,7 @@ def _get_providers() -> List[Dict[str, Any]]:
         return []
 
 
-def _test_connection(
-    vendor: str, api_key: str = "", base_url: str = ""
-) -> Dict[str, Any]:
+def _test_connection(vendor: str, api_key: str = "", base_url: str = "") -> Dict[str, Any]:
     """测试 Provider 连接"""
     try:
         from backend.models.provider_gateway import create_client
@@ -91,9 +89,7 @@ def render():
             provider_id = st.text_input("服务商 ID", placeholder="my-openai")
             provider_name = st.text_input("显示名称", placeholder="My OpenAI API")
         with col2:
-            base_url = st.text_input(
-                "Base URL", placeholder="https://api.example.com/v1"
-            )
+            base_url = st.text_input("Base URL", placeholder="https://api.example.com/v1")
             api_key = st.text_input("API Key", type="password")
 
         model_name = st.text_input("默认模型", placeholder="gpt-4.1")
@@ -106,9 +102,7 @@ def render():
         submitted = st.form_submit_button("添加服务商")
         if submitted:
             if provider_id and base_url and api_key:
-                st.info(
-                    "配置已记录。请将 API Key 添加到 .env 文件并在 config/providers.yaml 中配置。"
-                )
+                st.info("配置已记录。请将 API Key 添加到 .env 文件并在 config/providers.yaml 中配置。")
                 st.code(
                     f"""
 # .env

@@ -156,9 +156,7 @@ def test_bt_healthcheck_reports_availability():
 
 def test_run_backtest_failure_safe_when_unavailable():
     a = BtAdapter()
-    res = a.run_backtest(
-        "s1", ["SYM0"], "2024-01-01", "2024-06-30", bars=_bars_multi(30, 1)
-    )
+    res = a.run_backtest("s1", ["SYM0"], "2024-01-01", "2024-06-30", bars=_bars_multi(30, 1))
     assert res.engine_name == "bt"
     assert res.research_only is True
 

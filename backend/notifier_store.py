@@ -67,9 +67,7 @@ def list_channels() -> list[dict[str, Any]]:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        rows = conn.execute(
-            "SELECT channel, enabled, config_encrypted, updated_at FROM notifier_channels"
-        ).fetchall()
+        rows = conn.execute("SELECT channel, enabled, config_encrypted, updated_at FROM notifier_channels").fetchall()
     # 解密在锁外做(I/O 不应占着进程级 DB 锁)
     out = []
     for r in rows:
@@ -130,8 +128,6 @@ def delete_channel(channel: str) -> bool:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        cur = conn.execute(
-            "DELETE FROM notifier_channels WHERE channel=?", (channel,)
-        )
+        cur = conn.execute("DELETE FROM notifier_channels WHERE channel=?", (channel,))
         conn.commit()
         return cur.rowcount > 0

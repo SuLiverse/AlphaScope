@@ -22,9 +22,7 @@ def _force_configured_provider():
     """Pin has_configured_provider() True so these tests exercise the real
     multi-agent path (LLM mocked per-test) instead of the zero-key demo
     fallback in key-less environments such as CI."""
-    with patch(
-        "backend.agents.demo_fallback.has_configured_provider", return_value=True
-    ):
+    with patch("backend.agents.demo_fallback.has_configured_provider", return_value=True):
         yield
 
 
@@ -89,30 +87,18 @@ def test_standard_mode_binds_evidence_ids_to_each_agent():
 
     with (
         patch("backend.agent_store.list_agents", return_value=managed_agents),
-        patch(
-            "backend.runtime.context_builder.build_market_brief", return_value="brief"
-        ),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_pool", return_value=_pool()
-        ),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value="ctx"
-        ),
+        patch("backend.runtime.context_builder.build_market_brief", return_value="brief"),
+        patch("backend.runtime.context_builder.fetch_evidence_pool", return_value=_pool()),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value="ctx"),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.critic.run_batch_critic",
             return_value={"agents": {}, "divergence": {"level": "无"}, "ok": False},
         ),
-        patch(
-            "backend.agents.chairman.summarize_with_chairman", return_value="主席总结"
-        ),
-        patch(
-            "backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent
-        ),
+        patch("backend.agents.chairman.summarize_with_chairman", return_value="主席总结"),
+        patch("backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent),
     ):
-        result = orchestrator.run_agents_with_mode(
-            {"symbol": "600519", "name": "贵州茅台"}, mode=AnalysisMode.DEEP
-        )
+        result = orchestrator.run_agents_with_mode({"symbol": "600519", "name": "贵州茅台"}, mode=AnalysisMode.DEEP)
 
     agent = result["agents"]["fundamental"]
     assert agent["evidence_ids"] == ["ev-news-1"]  # [9] 被丢弃
@@ -143,21 +129,13 @@ def test_standard_mode_no_evidence_pool_yields_empty_ids():
 
     with (
         patch("backend.agent_store.list_agents", return_value=managed_agents),
-        patch(
-            "backend.runtime.context_builder.build_market_brief", return_value="brief"
-        ),
+        patch("backend.runtime.context_builder.build_market_brief", return_value="brief"),
         patch("backend.runtime.context_builder.fetch_evidence_pool", return_value=[]),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
-        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
-        patch(
-            "backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent
-        ),
+        patch("backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent),
     ):
-        result = orchestrator.run_agents_with_mode(
-            {"symbol": "600519", "name": "贵州茅台"}, mode=AnalysisMode.STANDARD
-        )
+        result = orchestrator.run_agents_with_mode({"symbol": "600519", "name": "贵州茅台"}, mode=AnalysisMode.STANDARD)
 
     # 无证据池时, evidence_ids 必须是空列表(非缺失键), 且 evidence_pool 为空
     assert result["agents"]["technical"]["evidence_ids"] == []
@@ -167,9 +145,7 @@ def test_standard_mode_no_evidence_pool_yields_empty_ids():
 def test_auto_mode_direct_prescreen_carries_empty_evidence_contract():
     """AUTO 模式预筛直接输出时也要带 evidence_pool=[] 与 evidence_ids=[]。"""
     with (
-        patch(
-            "backend.runtime.context_builder.build_market_brief", return_value="brief"
-        ),
+        patch("backend.runtime.context_builder.build_market_brief", return_value="brief"),
         patch(
             "backend.runtime.orchestrator._call_with",
             return_value='{"signal":"买入","confidence":90,"reason":"高置信"}',

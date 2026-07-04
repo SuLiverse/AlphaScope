@@ -292,9 +292,7 @@ class BacktraderAdapter(BacktestEngineAdapter):
         的空结果, 不抛破坏性异常。
         """
         if not _BT_AVAILABLE:
-            return self._unavailable_result(
-                strategy_id, symbols, start, end, assumptions
-            )
+            return self._unavailable_result(strategy_id, symbols, start, end, assumptions)
 
         bars = kw.get("bars") or []
         fast = int(kw.get("fast", 5))
@@ -303,15 +301,11 @@ class BacktraderAdapter(BacktestEngineAdapter):
         stake = int(kw.get("stake", 100))
         init_cash = float(kw.get("init_cash", 1_000_000.0))
         symbol = symbols[0] if symbols else "unknown"
-        assump = assumptions or build_assumptions(
-            engine_name=self.NAME, commission=commission, stake=stake
-        )
+        assump = assumptions or build_assumptions(engine_name=self.NAME, commission=commission, stake=stake)
 
         df = bars_to_feed_data(bars)
         if df is None or len(df) <= slow:
-            return self._insufficient_result(
-                strategy_id, symbol, start, end, assump, init_cash
-            )
+            return self._insufficient_result(strategy_id, symbol, start, end, assump, init_cash)
 
         try:
             cerebro = bt.Cerebro()  # type: ignore[union-attr]
@@ -327,9 +321,7 @@ class BacktraderAdapter(BacktestEngineAdapter):
 
             # analyzers (容错: 不同 backtrader 版本 analyzer 名略有差异)
             cerebro.addanalyzer(bt.analyzers.Returns, _name="returns")  # type: ignore[union-attr]
-            cerebro.addanalyzer(
-                bt.analyzers.SharpeRatio, _name="sharpe", timeframe=bt.TimeFrame.Days
-            )  # type: ignore[union-attr]
+            cerebro.addanalyzer(bt.analyzers.SharpeRatio, _name="sharpe", timeframe=bt.TimeFrame.Days)  # type: ignore[union-attr]
             cerebro.addanalyzer(bt.analyzers.DrawDown, _name="drawdown")  # type: ignore[union-attr]
             cerebro.addanalyzer(bt.analyzers.TradeAnalyzer, _name="trades")  # type: ignore[union-attr]
 
@@ -368,9 +360,7 @@ class BacktraderAdapter(BacktestEngineAdapter):
                 research_only=True,
             )
         except Exception:
-            return self._insufficient_result(
-                strategy_id, symbol, start, end, assump, init_cash
-            )
+            return self._insufficient_result(strategy_id, symbol, start, end, assump, init_cash)
 
     # ---------- 失败安全兜底 ----------
 
@@ -382,9 +372,7 @@ class BacktraderAdapter(BacktestEngineAdapter):
         end: str,
         assumptions: BacktestAssumptions | None,
     ) -> NormalizedBacktestResult:
-        assump = assumptions or build_assumptions(
-            engine_name=self.NAME, note="backtrader 不可用"
-        )
+        assump = assumptions or build_assumptions(engine_name=self.NAME, note="backtrader 不可用")
         return NormalizedBacktestResult(
             engine_name=self.NAME,
             strategy_id=strategy_id,

@@ -34,10 +34,7 @@ class ConcurrencyLimiter:
         if not acquired:
             with self._lock:
                 self._total_rejected += 1
-            raise TimeoutError(
-                f"并发限制: 等待 {timeout}s 后仍未获取到槽位"
-                f"（当前最大并发: {self._max_concurrent}）"
-            )
+            raise TimeoutError(f"并发限制: 等待 {timeout}s 后仍未获取到槽位（当前最大并发: {self._max_concurrent}）")
         with self._lock:
             self._active += 1
             self._total_acquired += 1

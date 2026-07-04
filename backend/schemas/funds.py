@@ -70,9 +70,7 @@ class FundMetrics(BaseModel):
     name: str = Field(default="", description="基金名称")
     total_return_1y: Optional[float] = Field(default=None, description="近1年收益率")
     total_return_3y: Optional[float] = Field(default=None, description="近3年收益率")
-    annual_return_3y: Optional[float] = Field(
-        default=None, description="近3年年化收益率"
-    )
+    annual_return_3y: Optional[float] = Field(default=None, description="近3年年化收益率")
     sharpe_ratio: Optional[float] = Field(default=None, description="夏普比率")
     max_drawdown: Optional[float] = Field(default=None, description="最大回撤")
     volatility: Optional[float] = Field(default=None, description="波动率")
@@ -90,9 +88,7 @@ class DCASimulationRequest(BaseModel):
 
     fund_code: str = Field(description="基金代码")
     amount: float = Field(description="每期金额")
-    frequency: DCAFrequency = Field(
-        default=DCAFrequency.MONTHLY, description="定投频率"
-    )
+    frequency: DCAFrequency = Field(default=DCAFrequency.MONTHLY, description="定投频率")
     start_date: str = Field(description="开始日期 YYYY-MM-DD")
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
 
@@ -145,9 +141,7 @@ class Portfolio(BaseModel):
     id: str = Field(description="组合ID")
     name: str = Field(description="组合名称")
     description: str = Field(default="", description="组合描述")
-    holdings: list[PortfolioHolding] = Field(
-        default_factory=list, description="持仓列表"
-    )
+    holdings: list[PortfolioHolding] = Field(default_factory=list, description="持仓列表")
     total_value: Optional[float] = Field(default=None, description="总市值")
     created_at: Optional[datetime] = Field(default=None, description="创建时间")
     updated_at: Optional[datetime] = Field(default=None, description="更新时间")
@@ -164,7 +158,5 @@ class RebalanceResult(BaseModel):
     """再平衡结果"""
 
     portfolio_id: str = Field(description="组合ID")
-    trades: list[dict[str, Any]] = Field(
-        default_factory=list, description="需要执行的交易"
-    )
+    trades: list[dict[str, Any]] = Field(default_factory=list, description="需要执行的交易")
     estimated_cost: float = Field(default=0.0, description="预估交易成本")

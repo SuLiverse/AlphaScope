@@ -165,9 +165,7 @@ try:
 except Exception:
     _HAS_OBB = False
 
-_obb_required = pytest.mark.skipif(
-    not _HAS_OBB, reason="openbb 未安装, 跳过执行路径用例"
-)
+_obb_required = pytest.mark.skipif(not _HAS_OBB, reason="openbb 未安装, 跳过执行路径用例")
 
 
 @_obb_required

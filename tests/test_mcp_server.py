@@ -98,9 +98,7 @@ def test_degraded_describe_reports_unavailable(degraded):
 def test_assert_no_forbidden_tools_detects_violation(monkeypatch):
     """若 server 注册了禁止工具, 边界守卫必须抛 AssertionError。"""
     # monkeypatch list_tool_names 返回含禁止工具的列表
-    monkeypatch.setattr(
-        mcp_server, "list_tool_names", lambda: ["get_market_data", "submit_order"]
-    )
+    monkeypatch.setattr(mcp_server, "list_tool_names", lambda: ["get_market_data", "submit_order"])
     with pytest.raises(AssertionError, match="禁止"):
         mcp_server.assert_no_forbidden_tools()
 

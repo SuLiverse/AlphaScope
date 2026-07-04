@@ -8,9 +8,7 @@ from datetime import datetime, timedelta
 import pytest
 
 
-def _make_bars(
-    n: int, start: float = 100.0, drift: float = 0.2, with_turnover: bool = True
-):
+def _make_bars(n: int, start: float = 100.0, drift: float = 0.2, with_turnover: bool = True):
     """确定性 OHLCV(+可选换手率)。固定基准日期,完全可复现。"""
     base = datetime(2024, 1, 1)
     bars = []
@@ -166,12 +164,8 @@ class TestRobustness:
         from backend.quant.chip_distribution import compute_chip_distribution, OK
 
         bars = _make_bars(120)
-        bars.insert(
-            5, {"date": "2024-01-05x", "close": 0, "high": 0, "low": 0, "volume": 0}
-        )
-        bars.insert(
-            9, {"date": "2024-01-09x", "close": "nan", "high": 1, "low": 1, "volume": 1}
-        )
+        bars.insert(5, {"date": "2024-01-05x", "close": 0, "high": 0, "low": 0, "volume": 0})
+        bars.insert(9, {"date": "2024-01-09x", "close": "nan", "high": 1, "low": 1, "volume": 1})
         r = compute_chip_distribution(bars, symbol="T")
         assert r.status == OK
         assert r.bars_used == 120  # 两条坏行被跳过
@@ -241,9 +235,7 @@ class TestApiPayload:
             _run_chip_distribution_local,
         )
 
-        body = ChipDistributionRequestBody(
-            symbol="600519", start_date="2024-01-01", end_date="2024-12-31"
-        )
+        body = ChipDistributionRequestBody(symbol="600519", start_date="2024-01-01", end_date="2024-12-31")
         cleaned = [
             {
                 "date": f"2024-02-{i + 1:02d}",
@@ -258,9 +250,7 @@ class TestApiPayload:
         with (
             patch("backend.price_store.get_prices", return_value=[]),  # 原始取数为空
             patch("backend.price_store.normalize_symbol", return_value="600519"),
-            patch(
-                "backend.api.quant._load_local_bars", return_value=(cleaned, "provider")
-            ) as mock_load,
+            patch("backend.api.quant._load_local_bars", return_value=(cleaned, "provider")) as mock_load,
         ):
             payload = _run_chip_distribution_local(body)
 

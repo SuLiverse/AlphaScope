@@ -151,9 +151,7 @@ class Tracer:
     ):
         """上下文管理器：自动计时的跨度"""
         t0 = time.time()
-        span_id = self.add_span(
-            trace_id, name, span_type, parent_id=parent_id, metadata=metadata
-        )
+        span_id = self.add_span(trace_id, name, span_type, parent_id=parent_id, metadata=metadata)
         try:
             yield span_id
             duration = (time.time() - t0) * 1000
@@ -174,9 +172,7 @@ class Tracer:
                         break
                 break
 
-    def _update_span_error(
-        self, trace_id: str, span_id: str, error: str, duration_ms: float
-    ):
+    def _update_span_error(self, trace_id: str, span_id: str, error: str, duration_ms: float):
         """更新跨度错误信息"""
         for t in self._traces:
             if t.trace_id == trace_id:
@@ -232,16 +228,10 @@ class Tracer:
     def get_stats(self) -> Dict[str, Any]:
         """获取追踪统计"""
         total_spans = sum(len(t.spans) for t in self._traces)
-        error_spans = sum(
-            1 for t in self._traces for s in t.spans if s.status == "error"
-        )
+        error_spans = sum(1 for t in self._traces for s in t.spans if s.status == "error")
         avg_duration = 0
         if self._traces:
-            durations = [
-                (t.end_time - t.start_time) * 1000
-                for t in self._traces
-                if t.end_time > 0
-            ]
+            durations = [(t.end_time - t.start_time) * 1000 for t in self._traces if t.end_time > 0]
             avg_duration = round(sum(durations) / max(len(durations), 1), 1)
 
         return {

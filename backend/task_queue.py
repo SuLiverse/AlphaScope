@@ -94,9 +94,7 @@ class TaskQueue:
             self._futures[task_id] = future
         return task_id
 
-    def _run_task(
-        self, task_id: str, func: Callable, args: tuple, kwargs: dict
-    ) -> None:
+    def _run_task(self, task_id: str, func: Callable, args: tuple, kwargs: dict) -> None:
         """执行任务并更新状态"""
         db = Database()
         try:
@@ -157,9 +155,7 @@ class TaskQueue:
         """查询任务状态"""
         db = Database()
         with db.transaction() as conn:
-            row = conn.execute(
-                "SELECT * FROM analysis_tasks WHERE id=?", (task_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM analysis_tasks WHERE id=?", (task_id,)).fetchone()
         if not row:
             return None
         return {
@@ -175,9 +171,7 @@ class TaskQueue:
             "created_at": row["created_at"],
         }
 
-    def list_tasks(
-        self, status: Optional[str] = None, limit: int = 50
-    ) -> list[dict[str, Any]]:
+    def list_tasks(self, status: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
         """列出任务"""
         db = Database()
         with db.transaction() as conn:

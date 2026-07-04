@@ -17,9 +17,7 @@ def _force_configured_provider():
     API key (e.g. CI). Without this they pass only when ambient keys happen to
     be present.
     """
-    with patch(
-        "backend.agents.demo_fallback.has_configured_provider", return_value=True
-    ):
+    with patch("backend.agents.demo_fallback.has_configured_provider", return_value=True):
         yield
 
 
@@ -82,9 +80,7 @@ def test_run_agents_with_mode_excludes_disabled_managed_agents():
             "backend.runtime.context_builder.build_market_brief",
             return_value="测试简报",
         ),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
-        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.agents.financial_agents.run_custom_agent",
@@ -143,9 +139,7 @@ def test_run_agents_with_mode_single_agent_crash_doesnt_kill_batch():
             "backend.runtime.context_builder.build_market_brief",
             return_value="测试简报",
         ),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
-        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.agents.financial_agents.run_custom_agent",
@@ -203,9 +197,7 @@ def test_auto_escalation_excludes_disabled_managed_agents():
             "backend.runtime.context_builder.build_market_brief",
             return_value="测试简报",
         ),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
-        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.runtime.orchestrator._call_with",
@@ -247,9 +239,7 @@ def test_run_agents_with_mode_falls_back_to_default_agents_without_managed_confi
             "backend.runtime.context_builder.build_market_brief",
             return_value="测试简报",
         ),
-        patch(
-            "backend.runtime.context_builder.fetch_evidence_context", return_value=""
-        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.agents.financial_agents.run_custom_agent",

@@ -44,9 +44,7 @@ def _upgrade_schema():
             new_tables = upgrade_schema(conn)
             after = get_table_count(conn)
         if new_tables:
-            logger.info(
-                f"[Startup] Schema 升级: {before} → {after} 表 (+{len(new_tables)})"
-            )
+            logger.info(f"[Startup] Schema 升级: {before} → {after} 表 (+{len(new_tables)})")
     except Exception as e:
         logger.warning(f"[Startup] Schema 升级失败: {e}")
 

@@ -13,9 +13,7 @@ class TestFetchJob:
     def test_should_not_run_when_disabled(self):
         from backend.ingestion.scheduler import FetchJob
 
-        job = FetchJob(
-            name="test", func=lambda: None, interval_seconds=60, enabled=False
-        )
+        job = FetchJob(name="test", func=lambda: None, interval_seconds=60, enabled=False)
         assert job.should_run() is False
 
     def test_execute_success(self):

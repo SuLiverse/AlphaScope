@@ -26,9 +26,7 @@ def test_store_upsert_list_remove():
     from backend import research_portfolio_store
 
     _clear_positions()
-    research_portfolio_store.upsert_position(
-        "600519", "贵州茅台", "白酒", 100, 1500.0
-    )
+    research_portfolio_store.upsert_position("600519", "贵州茅台", "白酒", 100, 1500.0)
     items = research_portfolio_store.list_positions()
     assert len(items) == 1
     assert items[0]["symbol"] == "600519"

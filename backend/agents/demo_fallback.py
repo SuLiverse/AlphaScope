@@ -32,10 +32,7 @@ def has_configured_provider() -> bool:
         from backend.settings_store import list_providers
 
         providers = list_providers()
-        if any(
-            p.get("enabled", True) and p.get("api_key_masked") not in ("", None, "—")
-            for p in providers
-        ):
+        if any(p.get("enabled", True) and p.get("api_key_masked") not in ("", None, "—") for p in providers):
             return True
     except Exception as exc:  # noqa: BLE001 - settings optional in some envs
         logger.debug("provider list unavailable: %s", exc)

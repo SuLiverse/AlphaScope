@@ -77,9 +77,7 @@ class AgentConfig(BaseModel):
 
     key: str = Field(description="Agent 唯一标识，如 fundamental/technical/sentiment")
     name: str = Field(description="显示名称")
-    role: str = Field(
-        default="analyst", description="角色: analyst/critic/chairman/expert"
-    )
+    role: str = Field(default="analyst", description="角色: analyst/critic/chairman/expert")
     instruction: str = Field(default="", description="系统提示词")
     provider: str = Field(default="deepseek", description="LLM 供应商")
     model: str = Field(default="deepseek-chat", description="模型名称")
@@ -91,9 +89,7 @@ class AgentConfig(BaseModel):
     card_style: str = Field(default="default", description="卡片样式")
     focus_dims: list[str] = Field(default_factory=list, description="关注维度")
     stop_loss_style: str = Field(default="", description="止损风格")
-    output_schema: dict[str, Any] = Field(
-        default_factory=dict, description="输出 JSON schema"
-    )
+    output_schema: dict[str, Any] = Field(default_factory=dict, description="输出 JSON schema")
 
 
 # ============================================================
@@ -132,20 +128,14 @@ class TeamConfig(BaseModel):
     name_en: str = Field(default="", description="团队名称（英文）")
     description: str = Field(default="", description="团队描述")
     avatar: str = Field(default="", description="头像标识")
-    workflow: WorkflowMode = Field(
-        default=WorkflowMode.PARALLEL_EXPERTS, description="工作流模式"
-    )
+    workflow: WorkflowMode = Field(default=WorkflowMode.PARALLEL_EXPERTS, description="工作流模式")
     max_rounds: int = Field(default=2, description="辩论最大轮次")
     require_citations: bool = Field(default=True, description="要求引用来源")
     require_risk_review: bool = Field(default=True, description="要求风控审核")
     enable_critic: bool = Field(default=True, description="启用 Critic")
     enable_chairman: bool = Field(default=True, description="启用 Chairman")
-    members: list[ExpertMemberConfig] = Field(
-        default_factory=list, description="成员列表"
-    )
-    output_schema: dict[str, Any] = Field(
-        default_factory=dict, description="输出 JSON schema"
-    )
+    members: list[ExpertMemberConfig] = Field(default_factory=list, description="成员列表")
+    output_schema: dict[str, Any] = Field(default_factory=dict, description="输出 JSON schema")
 
 
 # ============================================================
@@ -187,9 +177,5 @@ class AnalysisSummary(BaseModel):
     avg_confidence: float = Field(default=0.0, description="平均置信度")
     total_agents: int = Field(default=0, description="参与 Agent 数")
     score: float = Field(default=50.0, ge=0, le=100, description="确定性评级评分 0-100")
-    rating: str = Field(
-        default="中性", description="五档评级: 强烈推荐/推荐/中性/谨慎/回避"
-    )
-    rating_breakdown: dict[str, Any] = Field(
-        default_factory=dict, description="评分可审计明细(W/D/raw/conf_factor 等)"
-    )
+    rating: str = Field(default="中性", description="五档评级: 强烈推荐/推荐/中性/谨慎/回避")
+    rating_breakdown: dict[str, Any] = Field(default_factory=dict, description="评分可审计明细(W/D/raw/conf_factor 等)")

@@ -135,9 +135,7 @@ async def get_integration_health(name: str) -> ApiResponse:
 class RunRequest(BaseModel):
     """触发 adapter 的通用入参 (具体含义由 adapter 类型决定)。"""
 
-    capability: str = Field(
-        default="", description="能力名 (如 run_backtest / analyze)"
-    )
+    capability: str = Field(default="", description="能力名 (如 run_backtest / analyze)")
     params: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -189,9 +187,7 @@ def _default_capability(category: str) -> str:
     }.get(category, "")
 
 
-def _dispatch(
-    adapter: Any, category: str, capability: str, params: dict[str, Any]
-) -> Any:
+def _dispatch(adapter: Any, category: str, capability: str, params: dict[str, Any]) -> Any:
     """按类别调用 adapter 的对应方法, 返回可序列化结果。
 
     覆盖已落地的四类能力: backtest/run_backtest, backtest/param_sweep (vectorBT),
@@ -206,9 +202,7 @@ def _dispatch(
             symbols=params.get("symbols", []),
             start=params.get("start", ""),
             end=params.get("end", ""),
-            assumptions=BacktestAssumptions(
-                engine_name=adapter.NAME, **(assumptions or {})
-            ),
+            assumptions=BacktestAssumptions(engine_name=adapter.NAME, **(assumptions or {})),
             **_extra_backtest_kwargs(params),
         )
         return res.model_dump()

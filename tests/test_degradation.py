@@ -75,9 +75,7 @@ def test_get_configured_provider_prefers_available_vendor(monkeypatch):
     """默认 LLM 路由应跳过未配置 key 的 DeepSeek，使用可用 provider。"""
     from backend.models import provider_gateway
 
-    monkeypatch.setattr(
-        provider_gateway, "_sync_persisted_providers_once", lambda: None
-    )
+    monkeypatch.setattr(provider_gateway, "_sync_persisted_providers_once", lambda: None)
     monkeypatch.delenv("AI_CHAT_PROVIDER", raising=False)
     monkeypatch.delenv("DEFAULT_LLM_PROVIDER", raising=False)
     monkeypatch.setattr(
@@ -102,9 +100,7 @@ def test_get_configured_provider_respects_configured_preference(monkeypatch):
     """显式 provider 已配置时应优先使用显式配置。"""
     from backend.models import provider_gateway
 
-    monkeypatch.setattr(
-        provider_gateway, "_sync_persisted_providers_once", lambda: None
-    )
+    monkeypatch.setattr(provider_gateway, "_sync_persisted_providers_once", lambda: None)
     monkeypatch.setattr(
         provider_gateway,
         "VENDORS",
@@ -127,9 +123,7 @@ def test_get_configured_provider_prefers_saved_custom_provider(monkeypatch):
     """Saved UI providers should be usable even when their ID is arbitrary."""
     from backend.models import provider_gateway
 
-    monkeypatch.setattr(
-        provider_gateway, "_sync_persisted_providers_once", lambda: None
-    )
+    monkeypatch.setattr(provider_gateway, "_sync_persisted_providers_once", lambda: None)
     monkeypatch.delenv("AI_CHAT_PROVIDER", raising=False)
     monkeypatch.delenv("DEFAULT_LLM_PROVIDER", raising=False)
     monkeypatch.setattr(
@@ -156,9 +150,7 @@ def test_get_configured_provider_infers_sensenova_model_for_custom_url(monkeypat
     """Custom SenseNova-compatible endpoints should not fall back to deepseek-chat."""
     from backend.models import provider_gateway
 
-    monkeypatch.setattr(
-        provider_gateway, "_sync_persisted_providers_once", lambda: None
-    )
+    monkeypatch.setattr(provider_gateway, "_sync_persisted_providers_once", lambda: None)
     monkeypatch.setattr(
         provider_gateway,
         "VENDORS",

@@ -31,11 +31,7 @@ def list_alerts(
 
     return ApiResponse(
         success=True,
-        data={
-            "items": alert_store.list_alerts(
-                unacknowledged_only=unacknowledged_only, limit=limit
-            )
-        },
+        data={"items": alert_store.list_alerts(unacknowledged_only=unacknowledged_only, limit=limit)},
     )
 
 
@@ -44,9 +40,7 @@ def alert_count():
     """未确认告警数。"""
     from backend import alert_store
 
-    return ApiResponse(
-        success=True, data={"unacknowledged": alert_store.count_unacknowledged()}
-    )
+    return ApiResponse(success=True, data={"unacknowledged": alert_store.count_unacknowledged()})
 
 
 class CheckResponse(BaseModel):

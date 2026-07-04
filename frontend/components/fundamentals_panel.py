@@ -313,9 +313,7 @@ def _render_peers(data: FundamentalsData):
         return
 
     industry = data.industry_name or "未识别行业"
-    st.markdown(
-        f"**所属行业**: {industry}  · **对比口径**: 行业总市值前 8 + 本股(最多 9 行)"
-    )
+    st.markdown(f"**所属行业**: {industry}  · **对比口径**: 行业总市值前 8 + 本股(最多 9 行)")
 
     rows = []
     for p in data.peers:
@@ -336,9 +334,7 @@ def _render_peers(data: FundamentalsData):
 
     def _highlight(row):
         if row.get("_self"):
-            return [
-                "background-color: #fff3cd; font-weight: 700; color: #92400e"
-            ] * len(row)
+            return ["background-color: #fff3cd; font-weight: 700; color: #92400e"] * len(row)
         return [""] * len(row)
 
     show_df = df.drop(columns=["_self"])
@@ -352,9 +348,7 @@ def _render_peers(data: FundamentalsData):
             "净利同比(%)": "{:+.2f}",
         }
     )
-    st.dataframe(
-        styled, hide_index=True, use_container_width=True, height=42 * (len(df) + 1) + 4
-    )
+    st.dataframe(styled, hide_index=True, use_container_width=True, height=42 * (len(df) + 1) + 4)
 
 
 # ============== 主入口 ==============
@@ -370,9 +364,7 @@ def render(symbol: str, stock_name: str, info: dict | None = None):
     # 顶部刷新
     cr1, cr2 = st.columns([1, 5])
     with cr1:
-        if st.button(
-            "🔄 刷新基本面", use_container_width=True, key=f"refresh_fd_{symbol}"
-        ):
+        if st.button("🔄 刷新基本面", use_container_width=True, key=f"refresh_fd_{symbol}"):
             _cached_load.clear()
             st.rerun()
     with cr2:

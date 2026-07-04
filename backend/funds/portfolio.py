@@ -103,8 +103,7 @@ class PortfolioManager:
         try:
             with self._db.transaction() as conn:
                 row = conn.execute(
-                    "SELECT id, name, description, holdings, created_at, updated_at "
-                    "FROM fund_portfolios WHERE id = ?",
+                    "SELECT id, name, description, holdings, created_at, updated_at FROM fund_portfolios WHERE id = ?",
                     (portfolio_id,),
                 ).fetchone()
             if not row:
@@ -145,8 +144,7 @@ class PortfolioManager:
             try:
                 with self._db.transaction() as conn:
                     conn.execute(
-                        "UPDATE fund_portfolios SET name=?, description=?, holdings=?, "
-                        "updated_at=? WHERE id=?",
+                        "UPDATE fund_portfolios SET name=?, description=?, holdings=?, updated_at=? WHERE id=?",
                         (new_name, new_desc, holdings_json, now, portfolio_id),
                     )
                     conn.commit()
@@ -168,9 +166,7 @@ class PortfolioManager:
             return False
         try:
             with self._db.transaction() as conn:
-                cursor = conn.execute(
-                    "DELETE FROM fund_portfolios WHERE id = ?", (portfolio_id,)
-                )
+                cursor = conn.execute("DELETE FROM fund_portfolios WHERE id = ?", (portfolio_id,))
                 conn.commit()
                 return cursor.rowcount > 0
         except Exception as e:

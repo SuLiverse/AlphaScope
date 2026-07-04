@@ -20,9 +20,7 @@ class RSIStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         if len(bars) < self.params["period"] + 1:
             return []
 
@@ -33,9 +31,7 @@ class RSIStrategy(BaseStrategy):
         for i in range(len(rsi_values)):
             rsi = rsi_values[i]
             if math.isnan(rsi):
-                signals.append(
-                    Signal("hold", bars[i + 1].get("symbol", ""), reason="数据不足")
-                )
+                signals.append(Signal("hold", bars[i + 1].get("symbol", ""), reason="数据不足"))
                 continue
 
             if rsi < self.params["oversold"]:

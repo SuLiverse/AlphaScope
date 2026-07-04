@@ -77,9 +77,7 @@ class TestDnsRebinding:
 
     def test_allows_resolved_to_public(self, monkeypatch):
         monkeypatch.setattr(url_guard.socket, "getaddrinfo", _mock_getaddrinfo("93.184.216.34"))
-        assert (
-            url_guard.validate_public_http_url("http://example.com/x") == "http://example.com/x"
-        )
+        assert url_guard.validate_public_http_url("http://example.com/x") == "http://example.com/x"
 
     def test_rejects_unresolved(self, monkeypatch):
         def _raise(*a, **k):
@@ -93,15 +91,11 @@ class TestDnsRebinding:
 class TestAllowLocal:
     def test_allow_local_true_bypasses_localhost(self):
         assert (
-            url_guard.validate_public_http_url("http://localhost:8000/x", allow_local=True)
-            == "http://localhost:8000/x"
+            url_guard.validate_public_http_url("http://localhost:8000/x", allow_local=True) == "http://localhost:8000/x"
         )
 
     def test_allow_local_true_bypasses_private_ip(self):
-        assert (
-            url_guard.validate_public_http_url("http://127.0.0.1/x", allow_local=True)
-            == "http://127.0.0.1/x"
-        )
+        assert url_guard.validate_public_http_url("http://127.0.0.1/x", allow_local=True) == "http://127.0.0.1/x"
 
     def test_env_opt_in_allows_localhost(self, monkeypatch):
         monkeypatch.setenv("ALPHASCOPE_ALLOW_LOCAL_FETCH", "1")

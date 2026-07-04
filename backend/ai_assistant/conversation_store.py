@@ -44,12 +44,8 @@ def _ensure_ai_tables(conn) -> None:
             FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id)
         )
     """)
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_ai_messages_conv ON ai_messages(conversation_id)"
-    )
-    cur.execute(
-        "CREATE INDEX IF NOT EXISTS idx_ai_conversations_symbol ON ai_conversations(stock_symbol)"
-    )
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ai_messages_conv ON ai_messages(conversation_id)")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_ai_conversations_symbol ON ai_conversations(stock_symbol)")
     conn.commit()
 
 
@@ -139,9 +135,7 @@ class ConversationStore:
             self._conn.commit()
             return cur.lastrowid
 
-    def update_model(
-        self, conversation_id: str, provider: str = "", model: str = ""
-    ) -> None:
+    def update_model(self, conversation_id: str, provider: str = "", model: str = "") -> None:
         """更新对话使用的 Provider / Model。"""
         fields = []
         values = []
@@ -166,9 +160,7 @@ class ConversationStore:
 
     def get_conversation(self, conversation_id: str) -> Optional[dict]:
         """加载对话头信息"""
-        row = self._conn.execute(
-            "SELECT * FROM ai_conversations WHERE id = ?", (conversation_id,)
-        ).fetchone()
+        row = self._conn.execute("SELECT * FROM ai_conversations WHERE id = ?", (conversation_id,)).fetchone()
         if row is None:
             return None
         return self._row_to_dict(row)
@@ -183,9 +175,7 @@ class ConversationStore:
         ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
-    def list_conversations(
-        self, stock_symbol: Optional[str] = None, limit: int = 50
-    ) -> List[dict]:
+    def list_conversations(self, stock_symbol: Optional[str] = None, limit: int = 50) -> List[dict]:
         """列出最近对话"""
         if stock_symbol:
             rows = self._conn.execute(

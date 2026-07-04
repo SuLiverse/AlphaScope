@@ -58,9 +58,7 @@ class TradingCostModel:
         turnover = shares * fill_price
         return fill_price, turnover, self.commission(turnover)
 
-    def sell_proceeds(
-        self, shares: int, price: float
-    ) -> tuple[float, float, float, float]:
+    def sell_proceeds(self, shares: int, price: float) -> tuple[float, float, float, float]:
         """Return (fill_price, turnover, commission, stamp_duty) for a sell order.
 
         Slippage moves the executed price *down* for the seller (receives less).
@@ -140,9 +138,7 @@ class PriceLimitFilter:
         limit_price = self._round2(prev_close * (1.0 - self.band))
         return abs(bar.get("close", 0) - limit_price) <= self.tol
 
-    def tradable(
-        self, bar: dict[str, Any], prev_close: float | None, side: str
-    ) -> bool:
+    def tradable(self, bar: dict[str, Any], prev_close: float | None, side: str) -> bool:
         """Return False when the bar is limit-locked against ``side``.
 
         * limit-up  -> cannot buy (demand exceeds supply, fills unlikely)

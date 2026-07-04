@@ -16,9 +16,7 @@ from backend.quant.evolution import (
 )
 
 
-def _make_bars(
-    n: int, start_close: float = 100.0, drift: float = 0.3, wobble: float = 6.0
-):
+def _make_bars(n: int, start_close: float = 100.0, drift: float = 0.3, wobble: float = 6.0):
     """确定性 OHLCV:温和上行 + 正弦扰动, 固定 base date(可复现)。"""
     base = datetime(2024, 1, 1)
     bars = []
@@ -121,9 +119,7 @@ class TestEvolution:
         assert a.best is not None and b.best is not None
         assert a.best.genome == b.best.genome
         assert a.best.fitness == b.best.fitness
-        assert [h.best_fitness for h in a.history] == [
-            h.best_fitness for h in b.history
-        ]
+        assert [h.best_fitness for h in a.history] == [h.best_fitness for h in b.history]
 
     def test_best_not_worse_than_default(self):
         # 默认参数落在推断空间内 → 初始种群含「默认投影」个体, 精英保留 →
@@ -143,9 +139,7 @@ class TestEvolution:
         space = infer_param_space("ma_crossover")
         one_key = sorted(space.keys())[0]
         spec = space[one_key]
-        explicit = {
-            one_key: {"type": spec["type"], "min": spec["min"], "max": spec["max"]}
-        }
+        explicit = {one_key: {"type": spec["type"], "min": spec["min"], "max": spec["max"]}}
         report = run_evolution(
             "ma_crossover",
             _make_bars(200),

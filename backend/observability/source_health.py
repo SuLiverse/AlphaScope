@@ -71,9 +71,7 @@ def compute_quality_score(
         if age <= fresh_window_s:
             freshness_score = 100.0
         else:
-            freshness_score = max(
-                0.0, 100.0 * (1.0 - (age - fresh_window_s) / decay_window)
-            )
+            freshness_score = max(0.0, 100.0 * (1.0 - (age - fresh_window_s) / decay_window))
 
     # 3) 完整度: 以延迟代理(响应越快越完整可用)。>2s 大幅扣分; 0 延迟(未调用)中性给 50。
     if latency <= 0:
@@ -85,9 +83,7 @@ def compute_quality_score(
     else:
         completeness_score = max(0.0, 80.0 - (latency - 2000) / 50.0)
 
-    quality = round(
-        (success_rate * freshness_score * completeness_score) / (100.0 * 100.0), 1
-    )
+    quality = round((success_rate * freshness_score * completeness_score) / (100.0 * 100.0), 1)
     return {
         "quality_score": quality,
         "grade": _quality_grade(quality),
@@ -141,12 +137,8 @@ class SourceHealthMonitor:
         report = self.get_health_report()
         lines = [f"数据源状态: {report['healthy']}/{report['total']} 正常"]
         for p in report.get("providers", []):
-            status_icon = {"healthy": "✓", "degraded": "⚠", "unhealthy": "✗"}.get(
-                p["status"], "?"
-            )
-            latency = (
-                f"{p['avg_latency_ms']:.0f}ms" if p["avg_latency_ms"] > 0 else "N/A"
-            )
+            status_icon = {"healthy": "✓", "degraded": "⚠", "unhealthy": "✗"}.get(p["status"], "?")
+            latency = f"{p['avg_latency_ms']:.0f}ms" if p["avg_latency_ms"] > 0 else "N/A"
             lines.append(f"  {status_icon} {p['name']}: {p['status']} ({latency})")
         return "\n".join(lines)
 
@@ -178,8 +170,6 @@ class SourceHealthMonitor:
         base["quality_warn"] = warn
         base["quality_poor"] = poor
         base["avg_quality"] = (
-            round(sum(p["quality_score"] for p in providers) / len(providers), 1)
-            if providers
-            else 0.0
+            round(sum(p["quality_score"] for p in providers) / len(providers), 1) if providers else 0.0
         )
         return base

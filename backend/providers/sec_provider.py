@@ -104,9 +104,7 @@ class SECProvider(BaseProvider):
                         "upstream": "sec",
                         "symbol": symbol,
                         "company_name": company,
-                        "title": f"{forms[i]} - {desc}"
-                        if desc
-                        else f"{forms[i]} - {company}",
+                        "title": f"{forms[i]} - {desc}" if desc else f"{forms[i]} - {company}",
                         "category": self._form_to_category(forms[i]),
                         "datetime": dates[i],
                         "url": doc_url,

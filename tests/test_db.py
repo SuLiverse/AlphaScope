@@ -62,9 +62,7 @@ class TestDatabase:
             }
         )
         cur = tmp_db.conn.cursor()
-        cur.execute(
-            "SELECT title FROM research_reports WHERE id = ?", ("report_test_001",)
-        )
+        cur.execute("SELECT title FROM research_reports WHERE id = ?", ("report_test_001",))
         row = cur.fetchone()
         assert row[0] == "深度报告"
 
@@ -93,9 +91,7 @@ class TestDatabase:
             }
         )
         cur = tmp_db.conn.cursor()
-        cur.execute(
-            "SELECT source, items_count FROM source_fetch_logs ORDER BY id DESC LIMIT 1"
-        )
+        cur.execute("SELECT source, items_count FROM source_fetch_logs ORDER BY id DESC LIMIT 1")
         row = cur.fetchone()
         assert row[0] == "news"
         assert row[1] == 10

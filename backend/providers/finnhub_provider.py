@@ -33,10 +33,7 @@ class FinnhubProvider(BaseProvider):
         # FINNHUB_API_KEY, 再回退 FINNHUB_TOKEN (finnhub SDK 约定, 兼容旧 .env)。
         from backend.datasource_config import get_active_key
 
-        self._api_key = (
-            get_active_key("finnhub", "FINNHUB_API_KEY")
-            or os.getenv("FINNHUB_TOKEN", "")
-        )
+        self._api_key = get_active_key("finnhub", "FINNHUB_API_KEY") or os.getenv("FINNHUB_TOKEN", "")
 
     def _headers(self) -> Dict[str, str]:
         return {"X-Finnhub-Token": self._api_key}
@@ -45,9 +42,7 @@ class FinnhubProvider(BaseProvider):
         import requests
 
         url = f"{self.BASE_URL}{endpoint}"
-        resp = requests.get(
-            url, headers=self._headers(), params=params or {}, timeout=15
-        )
+        resp = requests.get(url, headers=self._headers(), params=params or {}, timeout=15)
         resp.raise_for_status()
         return resp.json()
 
@@ -61,9 +56,7 @@ class FinnhubProvider(BaseProvider):
 
             end = datetime.now().strftime("%Y-%m-%d")
             start = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
-            raw = self._get(
-                "/company-news", {"symbol": symbol, "from": start, "to": end}
-            )
+            raw = self._get("/company-news", {"symbol": symbol, "from": start, "to": end})
             if not isinstance(raw, list):
                 return []
             return [

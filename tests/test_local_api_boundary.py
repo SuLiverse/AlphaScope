@@ -66,9 +66,7 @@ def test_launcher_runtime_config_contains_per_run_local_token(tmp_path, monkeypa
     import launcher
 
     monkeypatch.setattr(launcher, "is_frozen", lambda: True)
-    launcher.write_runtime_config(
-        tmp_path, api_port=8123, local_api_token="runtime-secret"
-    )
+    launcher.write_runtime_config(tmp_path, api_port=8123, local_api_token="runtime-secret")
 
     config_text = (tmp_path / "runtime-config.js").read_text(encoding="utf-8")
     payload = json.loads(config_text.split(" = ", 1)[1].rstrip(";\n"))
@@ -118,9 +116,7 @@ async def test_sensitive_get_accepts_header_token(monkeypatch):
     main = _reload_api_main(monkeypatch, token=token)
     transport = ASGITransport(app=main.app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get(
-            "/api/conversations", headers={"X-AlphaScope-Local-Token": token}
-        )
+        resp = await client.get("/api/conversations", headers={"X-AlphaScope-Local-Token": token})
     assert resp.status_code != 401
 
 

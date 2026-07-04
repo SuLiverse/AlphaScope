@@ -87,9 +87,7 @@ class ModelRegistry:
         self._capabilities: Dict[str, ModelCapability] = {}
         self._key_pools: Dict[str, KeyPool] = {}
         self._budgets: Dict[str, TokenBudget] = {}
-        self._usage: Dict[str, Dict[str, int]] = defaultdict(
-            lambda: {"input": 0, "output": 0, "cost": 0}
-        )
+        self._usage: Dict[str, Dict[str, int]] = defaultdict(lambda: {"input": 0, "output": 0, "cost": 0})
 
         self._register_default_capabilities()
 
@@ -100,12 +98,8 @@ class ModelRegistry:
             "claude-sonnet-4-5": ModelCapability(
                 text=True, vision=True, tool_call=True, json_mode=True, reasoning=True
             ),
-            "claude-opus-4-7": ModelCapability(
-                text=True, vision=True, tool_call=True, json_mode=True, reasoning=True
-            ),
-            "gpt-5.2": ModelCapability(
-                text=True, vision=True, tool_call=True, json_mode=True, reasoning=True
-            ),
+            "claude-opus-4-7": ModelCapability(text=True, vision=True, tool_call=True, json_mode=True, reasoning=True),
+            "gpt-5.2": ModelCapability(text=True, vision=True, tool_call=True, json_mode=True, reasoning=True),
             "mimo-v2.5-pro": ModelCapability(text=True),
             "deepseek-v4-flash": ModelCapability(text=True, json_mode=True),
         }
@@ -184,9 +178,7 @@ class ModelRegistry:
             "remaining_cost": budget.cost_limit_usd - budget.cost_today_usd,
         }
 
-    def record_usage(
-        self, model: str, input_tokens: int, output_tokens: int, cost_usd: float = 0
-    ):
+    def record_usage(self, model: str, input_tokens: int, output_tokens: int, cost_usd: float = 0):
         """记录使用量"""
         self._usage[model]["input"] += input_tokens
         self._usage[model]["output"] += output_tokens

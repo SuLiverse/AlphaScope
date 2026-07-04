@@ -84,9 +84,7 @@ def get_document(doc_id: str) -> Optional[dict[str, Any]]:
     return _row_to_doc(row) if row else None
 
 
-def list_documents(
-    source_type: Optional[str] = None, limit: int = 50
-) -> list[dict[str, Any]]:
+def list_documents(source_type: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
@@ -96,9 +94,7 @@ def list_documents(
                 (source_type, limit),
             ).fetchall()
         else:
-            rows = conn.execute(
-                "SELECT * FROM documents ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM documents ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
     return [_row_to_doc(r) for r in rows]
 
 
@@ -106,9 +102,7 @@ def delete_document(doc_id: str) -> bool:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        existing = conn.execute(
-            "SELECT id FROM documents WHERE id=?", (doc_id,)
-        ).fetchone()
+        existing = conn.execute("SELECT id FROM documents WHERE id=?", (doc_id,)).fetchone()
         if not existing:
             return False
         conn.execute("DELETE FROM documents WHERE id=?", (doc_id,))
@@ -133,9 +127,7 @@ def _row_to_doc(row) -> dict[str, Any]:
 # ============== Chunk CRUD ==============
 
 
-def save_chunks(
-    doc_id: str, chunks: list[str], embedding_ids: list[str] | None = None
-) -> int:
+def save_chunks(doc_id: str, chunks: list[str], embedding_ids: list[str] | None = None) -> int:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
@@ -173,9 +165,7 @@ def delete_chunks(doc_id: str) -> int:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        cursor = conn.execute(
-            "DELETE FROM document_chunks WHERE document_id=?", (doc_id,)
-        )
+        cursor = conn.execute("DELETE FROM document_chunks WHERE document_id=?", (doc_id,))
         conn.commit()
         return cursor.rowcount
 

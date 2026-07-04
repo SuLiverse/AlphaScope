@@ -65,9 +65,7 @@ class SourceRanker:
             reverse=True,
         )
 
-    def merge_by_trust(
-        self, items: list[dict], source_key: str = "source"
-    ) -> list[dict]:
+    def merge_by_trust(self, items: list[dict], source_key: str = "source") -> list[dict]:
         """合并多源数据, 高可信度源优先
 
         对相同内容(需先去重)的数据, 保留可信度最高的版本。

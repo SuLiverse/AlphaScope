@@ -16,6 +16,7 @@
 
 注: ``backend/api/news.py`` 此前有等价实现, 已统一改用本模块(allow_local=False 保持原行为)。
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -73,9 +74,7 @@ def validate_public_http_url(url: str, *, allow_local: bool | None = None) -> st
     if allow_local:
         return cleaned  # opt-in 放行, 不校验内网
     if host in _LOCAL_HOSTS or host.endswith(".localhost"):
-        raise ValueError(
-            "Localhost URLs are not allowed (set ALPHASCOPE_ALLOW_LOCAL_FETCH=1 to allow)"
-        )
+        raise ValueError("Localhost URLs are not allowed (set ALPHASCOPE_ALLOW_LOCAL_FETCH=1 to allow)")
     # IP 直连: 分类拦截
     try:
         ip = ipaddress.ip_address(host)

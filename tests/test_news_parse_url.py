@@ -53,9 +53,7 @@ def client():
 async def test_parse_news_url_extracts_article_fields(client, monkeypatch):
     monkeypatch.setattr(
         "backend.security.url_guard.socket.getaddrinfo",
-        lambda host, port, type: [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))
-        ],
+        lambda host, port, type: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
     )
     monkeypatch.setattr("requests.get", lambda *args, **kwargs: FakeNewsResponse())
 

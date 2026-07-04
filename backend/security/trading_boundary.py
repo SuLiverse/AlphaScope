@@ -93,9 +93,7 @@ class TradingBoundary:
     def assert_no_live_order(self, action: str = "unknown") -> None:
         """运行期守卫: 任何接近实盘下单的代码路径应在入口处调用。"""
         if not self.live_order_blocked:
-            raise BoundaryViolation(
-                f"交易边界守卫触发 (action={action!r}): live-order 路径已被永久关闭。"
-            )
+            raise BoundaryViolation(f"交易边界守卫触发 (action={action!r}): live-order 路径已被永久关闭。")
         # live_order_blocked == True 表示边界正常; 这里 *不* 抛错,
         # 因为调用本函数代表「自证这条路径不是 live order」。真正越界的是
         # 边界本身被改坏 (上面那段会抛)。
@@ -129,9 +127,7 @@ def _load_boundary() -> TradingBoundary:
             raw = yaml.safe_load(_CONFIG_PATH.read_text(encoding="utf-8")) or {}
             for k, v in raw.items():
                 if k == "forbidden_symbol_names":
-                    forbidden = (
-                        tuple(str(v) for v in v) if isinstance(v, list) else forbidden
-                    )
+                    forbidden = tuple(str(v) for v in v) if isinstance(v, list) else forbidden
                 elif isinstance(v, bool):
                     flags[k] = v
     except (OSError, yaml.YAMLError):
@@ -160,14 +156,8 @@ def scan_forbidden_symbols(
     用于 tests/security/test_no_live_order_path.py 与 CI。
     """
     boundary = get_boundary()
-    forbidden_set = set(
-        forbidden if forbidden is not None else boundary.forbidden_symbol_names
-    )
-    base = (
-        Path(root).resolve()
-        if root
-        else Path(__file__).resolve().parents[2] / "backend"
-    )
+    forbidden_set = set(forbidden if forbidden is not None else boundary.forbidden_symbol_names)
+    base = Path(root).resolve() if root else Path(__file__).resolve().parents[2] / "backend"
 
     findings: list[tuple[Path, str, int]] = []
     if not base.exists():
@@ -180,10 +170,7 @@ def scan_forbidden_symbols(
             continue
         for node in ast.walk(tree):
             name = getattr(node, "name", None)
-            if (
-                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
-                and name in forbidden_set
-            ):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and name in forbidden_set:
                 findings.append((py, name, getattr(node, "lineno", 0)))
     return findings
 

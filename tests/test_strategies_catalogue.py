@@ -247,9 +247,7 @@ class TestNewStrategiesGenerateSignals:
 
         for item in StrategyRegistry.list_strategies():
             strategy = StrategyRegistry.create(item["name"])
-            result = BacktestEngine(initial_capital=100000).run(
-                strategy, _oscillating_bars(), "TEST"
-            )
+            result = BacktestEngine(initial_capital=100000).run(strategy, _oscillating_bars(), "TEST")
             assert result.strategy_name == item["name"]
             assert "total_return" in result.performance
             assert len(result.equity_curve) > 0

@@ -35,9 +35,7 @@ class NewsSearchRequest(BaseModel):
 class NewsUrlParseRequest(BaseModel):
     url: str = Field(min_length=8, max_length=2048, description="待解析的新闻 URL")
     symbol: str | None = Field(default=None, max_length=32, description="关联股票代码")
-    stock_name: str | None = Field(
-        default=None, max_length=80, description="关联股票名称"
-    )
+    stock_name: str | None = Field(default=None, max_length=80, description="关联股票名称")
 
 
 def _coerce_fetch_result(result: Any) -> tuple[str, str]:
@@ -133,16 +131,13 @@ async def list_announcements(
                 "local_news",
             ],
         },
-        error=fetch_error
-        or ("No announcements available from configured sources" if degraded else None),
+        error=fetch_error or ("No announcements available from configured sources" if degraded else None),
         error_code="ANNOUNCEMENTS_DEGRADED" if degraded else None,
     )
 
 
 @router.get("/events/{symbol}")
-async def get_event_summary(
-    symbol: str, days: int = Query(default=30, ge=1, le=MAX_EVENT_DAYS)
-):
+async def get_event_summary(symbol: str, days: int = Query(default=30, ge=1, le=MAX_EVENT_DAYS)):
     """事件摘要（类型分布+情绪）"""
     from backend.news_store import get_event_summary as _summary
 
@@ -234,9 +229,7 @@ async def search_news(req: NewsSearchRequest):
             "error": fetch_error,
         },
         error=fetch_error or None,
-        error_code="NEWS_SEARCH_DEGRADED"
-        if not items and fetch_status != "ok"
-        else None,
+        error_code="NEWS_SEARCH_DEGRADED" if not items and fetch_status != "ok" else None,
     )
 
 
@@ -291,9 +284,7 @@ def _fetch_and_store_news_sync(
                     limit=limit,
                 )
                 raw_items = (
-                    get_stock_related_news(
-                        "", market_items, limit=limit, symbol=symbol or ""
-                    )
+                    get_stock_related_news("", market_items, limit=limit, symbol=symbol or "")
                     if symbol
                     else market_items
                 )
@@ -324,9 +315,7 @@ async def _fetch_and_store_announcements(
 ) -> tuple[str, str]:
     """异步包装：阻塞调用丢线程池，避免冻结事件循环。"""
     try:
-        return await asyncio.to_thread(
-            _fetch_and_store_announcements_sync, symbol, limit
-        )
+        return await asyncio.to_thread(_fetch_and_store_announcements_sync, symbol, limit)
     except TimeoutError as exc:
         return "timeout", str(exc)
     except Exception as exc:
@@ -434,8 +423,7 @@ def _fetch_html(url: str) -> tuple[str, str]:
         safe_url,
         headers={
             "User-Agent": (
-                "AlphaScope/1.7 news parser "
-                "(research link preview; +https://github.com/TIANWEN-cpu/AlphaScope)"
+                "AlphaScope/1.7 news parser (research link preview; +https://github.com/TIANWEN-cpu/AlphaScope)"
             )
         },
         timeout=(3.0, 5.0),
@@ -446,9 +434,7 @@ def _fetch_html(url: str) -> tuple[str, str]:
         response.raise_for_status()
         final_url = _validate_public_http_url(str(response.url or safe_url))
         content_type = str(response.headers.get("content-type", "")).lower()
-        if content_type and not any(
-            token in content_type for token in ("html", "text")
-        ):
+        if content_type and not any(token in content_type for token in ("html", "text")):
             raise ValueError(f"Unsupported content type: {content_type}")
 
         chunks: list[bytes] = []
@@ -458,9 +444,7 @@ def _fetch_html(url: str) -> tuple[str, str]:
                 continue
             total += len(chunk)
             if total > MAX_PARSE_URL_BYTES:
-                chunks.append(
-                    chunk[: max(0, MAX_PARSE_URL_BYTES - (total - len(chunk)))]
-                )
+                chunks.append(chunk[: max(0, MAX_PARSE_URL_BYTES - (total - len(chunk)))])
                 break
             chunks.append(chunk)
         body = b"".join(chunks)
@@ -493,9 +477,7 @@ def _parse_external_news_url(url: str) -> dict[str, Any]:
         text = text[len(title) :].strip()
     summary = description or text[:260]
     body = text[:1600] or summary or title
-    source = _extract_meta(
-        content, "og:site_name", "application-name"
-    ) or _domain_from_url(final_url)
+    source = _extract_meta(content, "og:site_name", "application-name") or _domain_from_url(final_url)
     if not title:
         title = f"外部新闻链接解析：{_domain_from_url(final_url)}"
 
@@ -515,18 +497,11 @@ def _parse_external_news_url(url: str) -> dict[str, Any]:
 
 
 def _fallback_url_parse(url: str, status: str, error: str) -> dict[str, Any]:
-    source = (
-        _domain_from_url(url)
-        if urlsplit((url or "").strip()).scheme
-        else "external-link"
-    )
+    source = _domain_from_url(url) if urlsplit((url or "").strip()).scheme else "external-link"
     return {
         "title": f"外部新闻链接解析：{source}",
         "summary": "链接正文暂时无法自动抓取，已保留 URL 作为待核验证据。",
-        "content": (
-            f"用户提交外部新闻链接：{url}。解析状态：{status}。"
-            "建议打开原文核对来源、时间和关键数字。"
-        ),
+        "content": (f"用户提交外部新闻链接：{url}。解析状态：{status}。建议打开原文核对来源、时间和关键数字。"),
         "source": source,
         "source_url": url,
         "published_at": "",
@@ -551,8 +526,7 @@ def _to_news_row(
     if not symbols and symbol and symbol.isdigit():
         symbols = [symbol]
     return {
-        "id": item.get("id")
-        or _stable_id("news", title, published_at, source_url, symbol),
+        "id": item.get("id") or _stable_id("news", title, published_at, source_url, symbol),
         "title": title,
         "summary": str(item.get("summary", "")).strip(),
         "content": str(item.get("content", item.get("summary", ""))).strip(),
@@ -580,8 +554,7 @@ def _to_announcement_row(
     published_at = normalize_dt_str(item.get("datetime", item.get("published_at", "")))
     source_url = str(item.get("source_url", item.get("url", ""))).strip()
     return {
-        "id": item.get("id")
-        or _stable_id("ann", title, published_at, source_url, symbol),
+        "id": item.get("id") or _stable_id("ann", title, published_at, source_url, symbol),
         "symbol": item.get("symbol", symbol),
         "company_name": item.get("company_name", ""),
         "title": title,

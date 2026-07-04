@@ -27,6 +27,7 @@ def _loads(value) -> dict:
     except Exception:
         return {}
 
+
 router = APIRouter(prefix="/api/export", tags=["export"])
 
 
@@ -38,9 +39,7 @@ def _safe_filename(stem: str) -> str:
 
 
 @router.get("/conversation/{conversation_id}.md")
-def export_conversation_markdown(
-    conversation_id: str, gate: bool = Query(default=False)
-):
+def export_conversation_markdown(conversation_id: str, gate: bool = Query(default=False)):
     """把一段 AI 研究对话导出为 Markdown 文件(浏览器下载)。
 
     ``?gate=true`` 时附加 M3 研报质量门控结果(critical/warning)到文末。
@@ -62,9 +61,7 @@ def export_conversation_markdown(
         result = run_gate(markdown, mode=conv.get("mode"))
         markdown += "\n\n---\n\n## 质量门控\n\n```\n" + format_human(result) + "\n```\n"
 
-    stem = _safe_filename(
-        f"alphascope-{conv.get('stock_symbol') or conv.get('title') or conversation_id}"
-    )
+    stem = _safe_filename(f"alphascope-{conv.get('stock_symbol') or conv.get('title') or conversation_id}")
     return Response(
         content=markdown,
         media_type="text/markdown; charset=utf-8",
@@ -145,22 +142,16 @@ def export_report_markdown(task_id: str):
     input_data = _loads(task.get("input_json"))
     symbol = _safe_csv_like(result.get("symbol") or input_data.get("stock_symbol"))
     name = _safe_csv_like(result.get("name") or input_data.get("stock_name") or symbol)
-    template_key = _safe_csv_like(
-        result.get("report_template") or input_data.get("report_template") or "standard"
-    )
+    template_key = _safe_csv_like(result.get("report_template") or input_data.get("report_template") or "standard")
     tmpl = _REPORT_TEMPLATES.get(template_key, _REPORT_TEMPLATES["standard"])
 
     summary = result.get("summary")
     if not isinstance(summary, dict):
         summary = {}
     agents = result.get("agents") or result.get("result", {}).get("agents") or {}
-    chairman = _safe_csv_like(
-        result.get("chairman_summary") or result.get("result", {}).get("chairman_summary")
-    )
+    chairman = _safe_csv_like(result.get("chairman_summary") or result.get("result", {}).get("chairman_summary"))
     critic_block = result.get("critic") or result.get("result", {}).get("critic") or {}
-    research_report = _safe_csv_like(
-        result.get("research_report") or result.get("result", {}).get("research_report")
-    )
+    research_report = _safe_csv_like(result.get("research_report") or result.get("result", {}).get("research_report"))
 
     lines: list[str] = []
     lines.append(f"# {tmpl['title']}")
@@ -222,9 +213,7 @@ def export_report_markdown(task_id: str):
     if isinstance(critic_block, dict):
         if critic_block.get("ok"):
             div = critic_block.get("divergence") or {}
-            critic_text = _safe_csv_like(
-                div.get("summary") or div.get("main_axis")
-            )
+            critic_text = _safe_csv_like(div.get("summary") or div.get("main_axis"))
         elif critic_block.get("error"):
             critic_text = "风控复核未完成:" + _safe_csv_like(critic_block.get("error"))
     if critic_text:

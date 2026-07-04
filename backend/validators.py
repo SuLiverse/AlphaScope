@@ -108,9 +108,7 @@ def _normalize_evidence(value: Any, max_items: int = 6) -> List[Dict[str, str]]:
     for raw in value:
         if isinstance(raw, dict):
             etype = _safe_str(raw.get("type"), max_len=24).lower()
-            claim = _safe_str(
-                raw.get("claim") or raw.get("text") or raw.get("content"), max_len=400
-            )
+            claim = _safe_str(raw.get("claim") or raw.get("text") or raw.get("content"), max_len=400)
             data_date = _safe_str(raw.get("data_date") or raw.get("date"), max_len=16)
         else:
             etype = ""

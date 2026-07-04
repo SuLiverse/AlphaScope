@@ -44,9 +44,7 @@ class StocktwitsProvider(BaseProvider):
         if not symbol:
             return {}
         try:
-            raw = self._get(
-                f"/streams/symbol/{symbol}.json", {"limit": query.get("limit", 30)}
-            )
+            raw = self._get(f"/streams/symbol/{symbol}.json", {"limit": query.get("limit", 30)})
             messages = raw.get("messages", [])
             if not messages:
                 return {"symbol": symbol, "sentiment": 0.5, "message_count": 0}
@@ -86,19 +84,13 @@ class StocktwitsProvider(BaseProvider):
         if not symbol:
             return []
         try:
-            raw = self._get(
-                f"/streams/symbol/{symbol}.json", {"limit": query.get("limit", 10)}
-            )
+            raw = self._get(f"/streams/symbol/{symbol}.json", {"limit": query.get("limit", 10)})
             messages = raw.get("messages", [])
             result = []
             for msg in messages:
                 sentiment = msg.get("entities", {}).get("sentiment", {})
                 sentiment_val = (
-                    0.7
-                    if sentiment.get("basic") == "Bullish"
-                    else 0.3
-                    if sentiment.get("basic") == "Bearish"
-                    else 0.5
+                    0.7 if sentiment.get("basic") == "Bullish" else 0.3 if sentiment.get("basic") == "Bearish" else 0.5
                 )
                 result.append(
                     {

@@ -24,17 +24,11 @@ def normalize_frequency(frequency: str | None) -> str:
         return "1mo"
     if raw in INTRADAY_FREQUENCIES or lowered in INTRADAY_FREQUENCIES:
         return "intraday"
-    if raw in WEEKLY_FREQUENCIES or lowered in {
-        item.lower() for item in WEEKLY_FREQUENCIES
-    }:
+    if raw in WEEKLY_FREQUENCIES or lowered in {item.lower() for item in WEEKLY_FREQUENCIES}:
         return "1w"
-    if raw in MONTHLY_FREQUENCIES or lowered in {
-        item.lower() for item in MONTHLY_FREQUENCIES
-    }:
+    if raw in MONTHLY_FREQUENCIES or lowered in {item.lower() for item in MONTHLY_FREQUENCIES}:
         return "1mo"
-    if raw in YEARLY_FREQUENCIES or lowered in {
-        item.lower() for item in YEARLY_FREQUENCIES
-    }:
+    if raw in YEARLY_FREQUENCIES or lowered in {item.lower() for item in YEARLY_FREQUENCIES}:
         return "1y"
     return "1d"
 
@@ -80,19 +74,13 @@ def _as_number(value: Any) -> float:
         return 0.0
 
 
-def aggregate_price_bars(
-    bars: list[dict[str, Any]], frequency: str
-) -> list[dict[str, Any]]:
+def aggregate_price_bars(bars: list[dict[str, Any]], frequency: str) -> list[dict[str, Any]]:
     """从日线聚合周线/月线。输入可乱序，输出按日期升序。"""
     normalized_frequency = normalize_frequency(frequency)
     if normalized_frequency not in {"1w", "1mo", "1y"}:
         return bars
 
-    dated_bars = [
-        (dt, bar)
-        for bar in bars
-        if (dt := _parse_bar_datetime(bar.get("date"))) is not None
-    ]
+    dated_bars = [(dt, bar) for bar in bars if (dt := _parse_bar_datetime(bar.get("date"))) is not None]
     dated_bars.sort(key=lambda item: item[0])
     if not dated_bars:
         return []
@@ -140,9 +128,7 @@ def aggregate_price_bars(
                 "change_pct": round(change_pct, 4),
                 "adjust": last_bar.get("adjust") or first_bar.get("adjust") or "",
                 "source": f"aggregate:{last_bar.get('source') or first_bar.get('source') or '1d'}",
-                "fetched_at": last_bar.get("fetched_at")
-                or first_bar.get("fetched_at")
-                or 0,
+                "fetched_at": last_bar.get("fetched_at") or first_bar.get("fetched_at") or 0,
             }
         )
     return out
@@ -168,9 +154,7 @@ def _clean_intraday_datetime(value: Any) -> str:
 
 def _is_cn_trading_minute(dt: datetime) -> bool:
     current = dt.time()
-    return time(9, 30) <= current <= time(11, 30) or time(13, 0) <= current <= time(
-        15, 0
-    )
+    return time(9, 30) <= current <= time(11, 30) or time(13, 0) <= current <= time(15, 0)
 
 
 def _previous_daily_close(symbol: str, before: datetime | None = None) -> float:
@@ -213,9 +197,7 @@ def _compatible_previous_close(previous_close: float, current_price: float) -> f
     return 0.0
 
 
-def fetch_intraday_prices(
-    symbol: str, limit: int = 240, period: str = "1"
-) -> list[dict[str, Any]]:
+def fetch_intraday_prices(symbol: str, limit: int = 240, period: str = "1") -> list[dict[str, Any]]:
     """实时拉取分钟级分时数据。失败返回空列表，不用日线冒充。"""
     code = normalize_symbol(symbol)
     if not code or get_market(code) != "CN":
@@ -224,9 +206,7 @@ def fetch_intraday_prices(
     try:
         import akshare as ak
 
-        df = ak.stock_zh_a_minute(
-            symbol=_to_market_symbol(code), period=period, adjust=""
-        )
+        df = ak.stock_zh_a_minute(symbol=_to_market_symbol(code), period=period, adjust="")
     except Exception as exc:
         logger.warning("intraday prices failed for %s: %s", code, exc)
         return []
@@ -257,9 +237,7 @@ def fetch_intraday_prices(
 
     rows: list[tuple[datetime, Any]] = []
     for _, row in df.iterrows():
-        raw_date = (
-            row.get(date_col) if date_col else datetime.now().strftime("%Y-%m-%d %H:%M")
-        )
+        raw_date = row.get(date_col) if date_col else datetime.now().strftime("%Y-%m-%d %H:%M")
         dt = _parse_bar_datetime(raw_date)
         if not dt or not _is_cn_trading_minute(dt):
             continue
@@ -334,9 +312,5 @@ def default_daily_window_days(limit: int, frequency: str) -> int:
 def latest_bar_date(bars: list[dict[str, Any]]) -> date | None:
     """Return the latest calendar date found in a bar list."""
 
-    dates = [
-        dt.date()
-        for bar in bars
-        if (dt := _parse_bar_datetime(bar.get("date"))) is not None
-    ]
+    dates = [dt.date() for bar in bars if (dt := _parse_bar_datetime(bar.get("date"))) is not None]
     return max(dates) if dates else None

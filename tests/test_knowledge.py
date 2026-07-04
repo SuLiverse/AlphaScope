@@ -106,10 +106,7 @@ class TestFileStore:
             count = save_chunks("doc1", ["chunk1", "chunk2", "chunk3"])
             assert count == 3
             # 只统计插入 chunk 的 execute(建表 SQL 不计入业务调用计数)
-            insert_calls = [
-                c for c in conn.execute.call_args_list
-                if "INSERT INTO document_chunks" in str(c)
-            ]
+            insert_calls = [c for c in conn.execute.call_args_list if "INSERT INTO document_chunks" in str(c)]
             assert len(insert_calls) == 3
 
     def test_get_chunks(self):
@@ -248,15 +245,11 @@ async def test_delete_document_success(client):
 @pytest.mark.anyio
 async def test_search_knowledge_vector(client):
     """POST /api/knowledge/search 向量搜索成功"""
-    mock_results = [
-        {"text": "chunk1", "metadata": {"doc_id": "d1"}, "distance": 0.5, "id": "c1"}
-    ]
+    mock_results = [{"text": "chunk1", "metadata": {"doc_id": "d1"}, "distance": 0.5, "id": "c1"}]
     with patch("backend.rag.vector_store.VectorStore") as MockVS:
         instance = MockVS.return_value
         instance.query.return_value = mock_results
-        resp = await client.post(
-            "/api/knowledge/search", json={"query": "test", "limit": 10}
-        )
+        resp = await client.post("/api/knowledge/search", json={"query": "test", "limit": 10})
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
@@ -289,9 +282,7 @@ async def test_search_knowledge_fallback(client):
             ],
         ),
     ):
-        resp = await client.post(
-            "/api/knowledge/search", json={"query": "test", "limit": 10}
-        )
+        resp = await client.post("/api/knowledge/search", json={"query": "test", "limit": 10})
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True

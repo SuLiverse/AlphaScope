@@ -181,9 +181,7 @@ try:
 except Exception:
     _HAS_BT = False
 
-_bt_required = pytest.mark.skipif(
-    not _HAS_BT, reason="backtrader 未安装, 跳过执行路径用例"
-)
+_bt_required = pytest.mark.skipif(not _HAS_BT, reason="backtrader 未安装, 跳过执行路径用例")
 
 
 @_bt_required

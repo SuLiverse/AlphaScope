@@ -24,9 +24,7 @@ async def get_dragon_tiger(symbol: str, days: int = Query(default=30, ge=1, le=9
 
     try:
         data = DragonTigerProvider().get_dragon_tiger({"symbol": symbol, "days": days})
-        return ApiResponse(
-            success=True, data=data or {"lhb_count_30d": 0, "matched_youzi": []}
-        )
+        return ApiResponse(success=True, data=data or {"lhb_count_30d": 0, "matched_youzi": []})
     except Exception as exc:  # pragma: no cover - defensive
         logger.warning("[dragon-tiger] %s 失败: %s", symbol, exc)
         return ApiResponse(

@@ -224,8 +224,7 @@ def describe() -> dict[str, Any]:
         "available": _QS_AVAILABLE,
         "version": getattr(qs, "__version__", "unknown") if _QS_AVAILABLE else None,  # type: ignore[union-attr]
         "note": (
-            "quantstats 就绪: 可生成专业级绩效报告 (Sharpe/Sortino/Calmar/Max DD/"
-            "月度收益热力图等数十项)"
+            "quantstats 就绪: 可生成专业级绩效报告 (Sharpe/Sortino/Calmar/Max DD/月度收益热力图等数十项)"
             if _QS_AVAILABLE
             else "quantstats 未安装。pip install quantstats 启用专业级绩效报告。"
         ),

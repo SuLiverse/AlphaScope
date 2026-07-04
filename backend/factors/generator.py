@@ -211,9 +211,7 @@ class FactorGenerator:
     ) -> list[FactorReport]:
         """批量生成因子报告"""
         names = stock_names or {}
-        return [
-            self.generate(s, stock_name=names.get(s, ""), days=days) for s in symbols
-        ]
+        return [self.generate(s, stock_name=names.get(s, ""), days=days) for s in symbols]
 
     # ---- 各维度因子计算 ----
 
@@ -251,9 +249,7 @@ class FactorGenerator:
 
         total_weight = sum(w for _, w, _ in sentiments)
         if total_weight > 0:
-            report.news_sentiment = max(
-                -1.0, min(1.0, sum(s * w for s, w, _ in sentiments) / total_weight)
-            )
+            report.news_sentiment = max(-1.0, min(1.0, sum(s * w for s, w, _ in sentiments) / total_weight))
 
         if include_signals:
             for sent, _, title in sentiments[:10]:
@@ -300,9 +296,7 @@ class FactorGenerator:
 
         total_imp = sum(imp for _, imp, _, _ in scores)
         if total_imp > 0:
-            report.event_signal = max(
-                -1.0, min(1.0, sum(s for s, _, _, _ in scores) / total_imp)
-            )
+            report.event_signal = max(-1.0, min(1.0, sum(s for s, _, _, _ in scores) / total_imp))
 
         if include_signals:
             for score, _, title, cat in scores[:10]:
@@ -354,9 +348,7 @@ class FactorGenerator:
         if not ratings:
             return
 
-        report.analyst_rating = max(
-            -1.0, min(1.0, sum(r for r, _, _ in ratings) / len(ratings))
-        )
+        report.analyst_rating = max(-1.0, min(1.0, sum(r for r, _, _ in ratings) / len(ratings)))
 
         if include_signals:
             for score, inst, title in ratings[:10]:
@@ -498,9 +490,7 @@ class FactorGenerator:
 
         # 组合: 60% 短期动量 + 20% 中期动量 + 20% 量能变化
         momentum = (
-            0.6 * max(-1.0, min(1.0, short_return * 10))
-            + 0.2 * max(-1.0, min(1.0, mid_return * 5))
-            + 0.2 * vol_score
+            0.6 * max(-1.0, min(1.0, short_return * 10)) + 0.2 * max(-1.0, min(1.0, mid_return * 5)) + 0.2 * vol_score
         )
 
         report.momentum = max(-1.0, min(1.0, momentum))
@@ -551,9 +541,7 @@ def get_factor_generator() -> FactorGenerator:
     return _generator
 
 
-def generate_factor_report(
-    symbol: str, stock_name: str = "", days: int = 30
-) -> FactorReport:
+def generate_factor_report(symbol: str, stock_name: str = "", days: int = 30) -> FactorReport:
     """生成单只股票因子报告"""
     return get_factor_generator().generate(symbol, stock_name, days)
 
@@ -587,9 +575,7 @@ def format_factor_summary(report: FactorReport) -> str:
         for sig in report.signals[:5]:
             sig_type = sig.get("type", "")
             if sig_type == "news":
-                lines.append(
-                    f"  - [新闻] {sig.get('title', '')} (情绪: {sig.get('sentiment', 0):+.2f})"
-                )
+                lines.append(f"  - [新闻] {sig.get('title', '')} (情绪: {sig.get('sentiment', 0):+.2f})")
             elif sig_type == "event":
                 lines.append(
                     f"  - [公告:{sig.get('category', '')}] {sig.get('title', '')} (得分: {sig.get('score', 0):+.2f})"

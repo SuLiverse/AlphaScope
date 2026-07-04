@@ -75,15 +75,11 @@ def _trend_class(value) -> str:
 
 
 def _message_count(sess: ChatSession) -> int:
-    return sum(
-        1 for m in getattr(sess, "messages", []) if getattr(m, "role", "") != "system"
-    )
+    return sum(1 for m in getattr(sess, "messages", []) if getattr(m, "role", "") != "system")
 
 
 def _round_count(sess: ChatSession) -> int:
-    return sum(
-        1 for m in getattr(sess, "messages", []) if getattr(m, "role", "") == "user"
-    )
+    return sum(1 for m in getattr(sess, "messages", []) if getattr(m, "role", "") == "user")
 
 
 def _ensure_session(
@@ -347,16 +343,12 @@ def _render_context_card(ctx: dict):
 
     with st.expander("查看完整上下文快照", expanded=False):
         safe_ctx = {
-            k: v
-            for k, v in (ctx or {}).items()
-            if "key" not in str(k).lower() and "token" not in str(k).lower()
+            k: v for k, v in (ctx or {}).items() if "key" not in str(k).lower() and "token" not in str(k).lower()
         }
         st.json(safe_ctx)
 
 
-def _render_model_settings(
-    symbol: str, stock_name: str, ctx: dict, sess: ChatSession
-) -> ChatSession:
+def _render_model_settings(symbol: str, stock_name: str, ctx: dict, sess: ChatSession) -> ChatSession:
     providers = list(PROVIDER_DEFAULT_MODEL.keys())
     custom_provider_label = "custom"
 
@@ -372,18 +364,12 @@ def _render_model_settings(
     with st.expander("模型与连接设置", expanded=False):
         st.markdown("**内置厂商**")
         c1, c2 = st.columns([1, 1])
-        builtin_provider = (
-            sess.provider
-            if sess.provider in providers
-            else (providers[0] if providers else "deepseek")
-        )
+        builtin_provider = sess.provider if sess.provider in providers else (providers[0] if providers else "deepseek")
         with c1:
             selected_builtin_provider = st.selectbox(
                 "模型厂商",
                 providers,
-                index=providers.index(builtin_provider)
-                if builtin_provider in providers
-                else 0,
+                index=providers.index(builtin_provider) if builtin_provider in providers else 0,
                 key=f"chat_provider_select_{symbol}",
                 help="内置厂商使用项目预设 Base URL。下面可以单独启用自定义 OpenAI 兼容接口。",
             )
@@ -392,9 +378,7 @@ def _render_model_settings(
                 "模型名称",
                 value=sess.model
                 if sess.provider != custom_provider_label
-                else PROVIDER_DEFAULT_MODEL.get(
-                    selected_builtin_provider, "deepseek-chat"
-                ),
+                else PROVIDER_DEFAULT_MODEL.get(selected_builtin_provider, "deepseek-chat"),
                 key=f"chat_model_input_{symbol}",
                 help="默认使用项目内置模型映射；如需测试兼容模型，可在这里临时覆盖。",
             )
@@ -403,10 +387,7 @@ def _render_model_settings(
         st.markdown("**自定义厂商（OpenAI 兼容 / CherryStudio 风格）**")
         enable_custom = st.checkbox(
             "启用自定义厂商 API 接口",
-            value=(
-                sess.provider == custom_provider_label
-                or bool(getattr(sess, "custom_base_url", ""))
-            ),
+            value=(sess.provider == custom_provider_label or bool(getattr(sess, "custom_base_url", ""))),
             key=f"chat_enable_custom_{symbol}",
             help="开启后会使用你填写的 Base URL + API Key 调用模型，并支持从 /models 获取模型列表。",
         )
@@ -426,12 +407,8 @@ def _render_model_settings(
             help="仅保存在当前 Streamlit 会话内存中，不会保存、导出或写入上下文。",
         )
 
-        custom_model_options = list(
-            dict.fromkeys([m for m in getattr(sess, "custom_models", []) if m])
-        )
-        current_custom_model = (
-            sess.model if sess.provider == custom_provider_label else ""
-        )
+        custom_model_options = list(dict.fromkeys([m for m in getattr(sess, "custom_models", []) if m]))
+        current_custom_model = sess.model if sess.provider == custom_provider_label else ""
         if current_custom_model and current_custom_model not in custom_model_options:
             custom_model_options.insert(0, current_custom_model)
 
@@ -477,29 +454,21 @@ def _render_model_settings(
                         sess.provider = custom_provider_label
                         sess.custom_base_url = custom_base_url
                         sess.api_key = custom_key
-                        st.session_state["chat_provider_override"] = (
-                            custom_provider_label
-                        )
+                        st.session_state["chat_provider_override"] = custom_provider_label
                         _set_session(symbol, sess)
                         st.success(f"已获取 {len(models)} 个模型。")
                         st.rerun()
                     else:
-                        st.warning(
-                            "接口已连接，但没有返回可用模型。可以手动添加模型名称。"
-                        )
+                        st.warning("接口已连接，但没有返回可用模型。可以手动添加模型名称。")
                 except Exception as e:
                     st.error(f"获取模型列表失败: {str(e)[:220]}")
         with bc2:
-            if st.button(
-                "添加模型", use_container_width=True, key=f"chat_add_model_{symbol}"
-            ):
+            if st.button("添加模型", use_container_width=True, key=f"chat_add_model_{symbol}"):
                 model_id = (manual_model or "").strip()
                 if not model_id:
                     st.warning("请先输入模型 ID。")
                 else:
-                    models = list(
-                        dict.fromkeys([*getattr(sess, "custom_models", []), model_id])
-                    )
+                    models = list(dict.fromkeys([*getattr(sess, "custom_models", []), model_id]))
                     sess.custom_models = models
                     sess.model = model_id
                     sess.provider = custom_provider_label
@@ -530,15 +499,10 @@ def _render_model_settings(
                 sess.model = custom_model.strip()
                 changed = True
         else:
-            if (
-                sess.provider == custom_provider_label
-                or selected_builtin_provider != sess.provider
-            ):
+            if sess.provider == custom_provider_label or selected_builtin_provider != sess.provider:
                 sess.provider = selected_builtin_provider
                 sess.custom_base_url = ""
-                sess.model = PROVIDER_DEFAULT_MODEL.get(
-                    selected_builtin_provider, "deepseek-chat"
-                )
+                sess.model = PROVIDER_DEFAULT_MODEL.get(selected_builtin_provider, "deepseek-chat")
                 st.session_state["chat_provider_override"] = selected_builtin_provider
                 changed = True
             elif builtin_model.strip() and builtin_model.strip() != sess.model:
@@ -602,9 +566,7 @@ def _prepare_input_state(symbol: str, input_key: str):
 
 
 def _render_quick_prompts(symbol: str, input_key: str):
-    st.markdown(
-        "<div class='ai-chat-section-title'>快捷问题</div>", unsafe_allow_html=True
-    )
+    st.markdown("<div class='ai-chat-section-title'>快捷问题</div>", unsafe_allow_html=True)
     cols = st.columns(3)
     for i, q in enumerate(GUIDE_QUESTIONS):
         with cols[i % 3]:
@@ -615,12 +577,8 @@ def _render_quick_prompts(symbol: str, input_key: str):
 
 
 def _render_messages(sess: ChatSession):
-    st.markdown(
-        "<div class='ai-chat-section-title'>对话历史</div>", unsafe_allow_html=True
-    )
-    chat_msgs = [
-        m for m in getattr(sess, "messages", []) if getattr(m, "role", "") != "system"
-    ]
+    st.markdown("<div class='ai-chat-section-title'>对话历史</div>", unsafe_allow_html=True)
+    chat_msgs = [m for m in getattr(sess, "messages", []) if getattr(m, "role", "") != "system"]
     if not chat_msgs:
         st.markdown(
             """
@@ -646,9 +604,7 @@ def _render_messages(sess: ChatSession):
                 st.markdown(content)
         else:
             with st.chat_message("assistant", avatar="🤖"):
-                st.caption(
-                    f"AI 分析师 · {getattr(sess, 'provider', 'provider')} · {timestamp}"
-                )
+                st.caption(f"AI 分析师 · {getattr(sess, 'provider', 'provider')} · {timestamp}")
                 st.markdown(content)
 
 
@@ -656,9 +612,7 @@ def _render_input_area(symbol: str, sess: ChatSession):
     input_key = f"chat_input_{symbol}"
     _prepare_input_state(symbol, input_key)
 
-    st.markdown(
-        "<div class='ai-chat-section-title'>继续提问</div>", unsafe_allow_html=True
-    )
+    st.markdown("<div class='ai-chat-section-title'>继续提问</div>", unsafe_allow_html=True)
     user_input = st.text_area(
         "向 AI 提问",
         key=input_key,
@@ -671,15 +625,11 @@ def _render_input_area(symbol: str, sess: ChatSession):
     with c1:
         st.caption("发送前可编辑快捷问题；空输入不会调用模型。")
     with c2:
-        if st.button(
-            "清空输入", use_container_width=True, key=f"chat_clear_input_btn_{symbol}"
-        ):
+        if st.button("清空输入", use_container_width=True, key=f"chat_clear_input_btn_{symbol}"):
             st.session_state[f"chat_clear_input_next_{symbol}"] = True
             st.rerun()
     with c3:
-        send_clicked = st.button(
-            "发送", use_container_width=True, type="primary", key=f"chat_send_{symbol}"
-        )
+        send_clicked = st.button("发送", use_container_width=True, type="primary", key=f"chat_send_{symbol}")
 
     if send_clicked:
         msg_to_send = (user_input or "").strip()
@@ -716,9 +666,7 @@ def render(symbol: str, stock_name: str, ctx: dict):
     default_provider = cur_override or os.getenv("AI_CHAT_PROVIDER", "deepseek")
     if default_provider not in PROVIDER_DEFAULT_MODEL and default_provider != "custom":
         default_provider = "deepseek"
-    session_provider = (
-        default_provider if default_provider in PROVIDER_DEFAULT_MODEL else "deepseek"
-    )
+    session_provider = default_provider if default_provider in PROVIDER_DEFAULT_MODEL else "deepseek"
 
     sess = _ensure_session(symbol, stock_name, ctx, provider=session_provider)
     global_ai_settings = st.session_state.get("ai_global_settings", {})
@@ -726,12 +674,8 @@ def render(symbol: str, stock_name: str, ctx: dict):
         provider = global_ai_settings.get("provider") or sess.provider
         sess.provider = provider if provider in PROVIDER_DEFAULT_MODEL else "custom"
         sess.model = global_ai_settings.get("model") or sess.model
-        sess.api_key = global_ai_settings.get("api_key", "") or getattr(
-            sess, "api_key", ""
-        )
-        sess.custom_base_url = global_ai_settings.get("base_url", "") or getattr(
-            sess, "custom_base_url", ""
-        )
+        sess.api_key = global_ai_settings.get("api_key", "") or getattr(sess, "api_key", "")
+        sess.custom_base_url = global_ai_settings.get("base_url", "") or getattr(sess, "custom_base_url", "")
         if global_ai_settings.get("custom_models"):
             sess.custom_models = list(global_ai_settings.get("custom_models") or [])
         _set_session(symbol, sess)

@@ -73,9 +73,7 @@ class TestVisionReportGenerator:
         from backend.vision.chart_detector import ChartDetectionResult
 
         result = VisionAnalysisResult(
-            detection=ChartDetectionResult(
-                is_chart=True, chart_type="kline", ticker="600519"
-            ),
+            detection=ChartDetectionResult(is_chart=True, chart_type="kline", ticker="600519"),
             real_data=RealDataComparison(
                 data_available=True,
                 latest_close=1800.0,

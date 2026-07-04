@@ -174,9 +174,7 @@ def _parse_eastmoney_search_payload(text: str) -> Dict[str, Any]:
         return {}
 
 
-def _fetch_eastmoney_search_text(
-    cf_requests, params: dict, headers: dict, use_cffi: bool = True
-) -> str:
+def _fetch_eastmoney_search_text(cf_requests, params: dict, headers: dict, use_cffi: bool = True) -> str:
     """Try Eastmoney search without cookie first, then fall back to a minimal history cookie."""
     base_headers = {k: v for k, v in headers.items() if k.lower() != "cookie"}
     url = "https://search-api-web.eastmoney.com/search/jsonp"
@@ -202,9 +200,7 @@ def _fetch_eastmoney_search_text(
 
     try:
         if use_cffi:
-            r = cf_requests.get(
-                url, params=params, headers=headers, impersonate="chrome", timeout=10
-            )
+            r = cf_requests.get(url, params=params, headers=headers, impersonate="chrome", timeout=10)
         else:
             r = cf_requests.get(url, params=params, headers=headers, timeout=10)
         return r.text
@@ -288,9 +284,7 @@ def _date_today() -> str:
     return datetime.now().strftime("%Y%m%d")
 
 
-def fetch_announcements_cninfo(
-    symbol: str, days: int = 30, limit: int = 40
-) -> List[Dict[str, Any]]:
+def fetch_announcements_cninfo(symbol: str, days: int = 30, limit: int = 40) -> List[Dict[str, Any]]:
     """巨潮资讯个股公告(支持按代码 + 日期范围筛选,质量最高)。
 
     Returns 列表,每条字段:
@@ -331,9 +325,7 @@ def fetch_announcements_cninfo(
     return out
 
 
-def fetch_announcements_em_today(
-    date_str: Optional[str] = None, limit: int = 60
-) -> List[Dict[str, Any]]:
+def fetch_announcements_em_today(date_str: Optional[str] = None, limit: int = 60) -> List[Dict[str, Any]]:
     """东财全市场当日公告。supplements 巨潮接口,有时巨潮当日还没收录,东财已经发布。
 
     返回字段对齐 :func:`fetch_announcements_cninfo`,额外带 ``code`` / ``name``,便于行业过滤。
@@ -351,9 +343,7 @@ def fetch_announcements_em_today(
         out.append(
             {
                 "title": title,
-                "category": classify_announcement(
-                    title + " " + _clean_str(row.get("公告类型"))
-                ),
+                "category": classify_announcement(title + " " + _clean_str(row.get("公告类型"))),
                 "date": _clean_str(row.get("公告日期"))[:10],
                 "url": _clean_str(row.get("网址")),
                 "source": "东财",
@@ -379,9 +369,7 @@ def merge_announcements(*lists: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return out
 
 
-def build_announcements_brief_for_llm(
-    items: List[Dict[str, Any]], max_items: int = 8
-) -> str:
+def build_announcements_brief_for_llm(items: List[Dict[str, Any]], max_items: int = 8) -> str:
     """把公告列表压缩成给 LLM 看的简报。"""
     if not items:
         return "无近期公告"
@@ -529,9 +517,7 @@ def fetch_keyword_news_em(keyword: str, limit: int = 20) -> List[Dict[str, Any]]
         try:
             import requests as _http  # type: ignore[no-redef]
         except Exception:
-            logger.warning(
-                "Neither curl_cffi nor requests available for East Money search"
-            )
+            logger.warning("Neither curl_cffi nor requests available for East Money search")
             return []
 
     page_size = max(1, min(int(limit), 50))
@@ -608,9 +594,7 @@ def _news_date_key(item: Dict[str, Any]) -> str:
     return _clean_str(item.get("datetime")) or _clean_str(item.get("date"))
 
 
-def merge_news_items(
-    *lists: List[Dict[str, Any]], limit: Optional[int] = None
-) -> List[Dict[str, Any]]:
+def merge_news_items(*lists: List[Dict[str, Any]], limit: Optional[int] = None) -> List[Dict[str, Any]]:
     """合并多路新闻,按 title+date 去重并尽量按时间倒序。
 
     传参顺序仍有意义:同一标题同一天重复时,保留先出现的数据源。
@@ -728,11 +712,7 @@ def _extract_concept_name(row) -> str:
 
 def _extract_concept_code(row) -> str:
     """从 akshare 概念列表行里取概念代码。"""
-    return (
-        _clean_str(row.get("板块代码"))
-        or _clean_str(row.get("code"))
-        or _clean_str(row.get("概念代码"))
-    )
+    return _clean_str(row.get("板块代码")) or _clean_str(row.get("code")) or _clean_str(row.get("概念代码"))
 
 
 def fetch_stock_concepts(
@@ -758,9 +738,7 @@ def fetch_stock_concepts(
     return _fetch_stock_boards_scan(code, stock_name, max_concepts, max_scan)
 
 
-def _fetch_stock_boards_datacenter(
-    code: str, max_concepts: int = 12
-) -> List[Dict[str, Any]]:
+def _fetch_stock_boards_datacenter(code: str, max_concepts: int = 12) -> List[Dict[str, Any]]:
     """通过东财 datacenter API 直接查个股所属板块(1 次 HTTP 请求)。"""
     import requests as _req
 
@@ -846,11 +824,7 @@ def _fetch_stock_boards_scan(
         if cons is None or len(cons) == 0:
             return None
         try:
-            cons_codes = {
-                _normalize_stock_code(v)
-                for v in cons.get("代码", [])
-                if _normalize_stock_code(v)
-            }
+            cons_codes = {_normalize_stock_code(v) for v in cons.get("代码", []) if _normalize_stock_code(v)}
             names = {_clean_str(v) for v in cons.get("名称", [])}
         except Exception:
             return None
@@ -1418,9 +1392,7 @@ def _infer_industry_from_text(text: str) -> str:
     return ""
 
 
-def fetch_industry_name(
-    symbol: str, concepts: Optional[List[Dict[str, Any]]] = None
-) -> str:
+def fetch_industry_name(symbol: str, concepts: Optional[List[Dict[str, Any]]] = None) -> str:
     """获取股票行业名;多级回退。
 
     1. 东财 datacenter API 直接查板块(1 次请求,最快);
@@ -1500,10 +1472,7 @@ def fetch_industry_name(
     df3 = _safe(ak.stock_zyjs_ths, symbol=symbol)
     if df3 is not None and len(df3):
         row = df3.iloc[0]
-        text = " ".join(
-            _clean_str(row.get(c))
-            for c in ("主营业务", "产品类型", "产品名称", "经营范围")
-        )
+        text = " ".join(_clean_str(row.get(c)) for c in ("主营业务", "产品类型", "产品名称", "经营范围"))
         ind = _infer_industry_from_text(text)
         if ind:
             return ind
@@ -1538,9 +1507,7 @@ def get_stock_related_news(
     也参与匹配。``industry`` 仅在调用方愿意接受行业新闻时使用——一般通过
     :func:`get_industry_news` 单独获取。
     """
-    keywords = _expand_stock_keywords(
-        stock_name, symbol, industry=industry, products=products
-    )
+    keywords = _expand_stock_keywords(stock_name, symbol, industry=industry, products=products)
     if not keywords:
         return []
 
@@ -1622,13 +1589,9 @@ def build_research_brief_for_llm(reports: List[Dict], max_items: int = 8) -> str
     for r in reports[:max_items]:
         rating = r.get("rating") or "未评级"
         rating_counter[rating] = rating_counter.get(rating, 0) + 1
-        lines.append(
-            f"- [{r.get('date', '')}] {r.get('institution', '')}: 《{r.get('title', '')[:40]}》评级={rating}"
-        )
+        lines.append(f"- [{r.get('date', '')}] {r.get('institution', '')}: 《{r.get('title', '')[:40]}》评级={rating}")
 
-    summary_line = "评级分布: " + " / ".join(
-        f"{k}×{v}" for k, v in rating_counter.items()
-    )
+    summary_line = "评级分布: " + " / ".join(f"{k}×{v}" for k, v in rating_counter.items())
     return summary_line + "\n" + "\n".join(lines)
 
 
@@ -1788,11 +1751,7 @@ if __name__ == "__main__":
     print("\n" + "=" * 70)
     print("测试 4: 个股相关资讯（贵州茅台）")
     print("=" * 70)
-    all_news = (
-        fetch_telegraph_em(limit=200)
-        + fetch_telegraph_cls(limit=20)
-        + fetch_telegraph_sina(limit=20)
-    )
+    all_news = fetch_telegraph_em(limit=200) + fetch_telegraph_cls(limit=20) + fetch_telegraph_sina(limit=20)
     related = get_stock_related_news("贵州茅台", all_news, limit=5)
     print(f"匹配到 {len(related)} 条")
     for x in related:

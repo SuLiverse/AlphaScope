@@ -48,9 +48,7 @@ class BaseAdapter(abc.ABC):
         meta = self._metadata()
         # 交易边界硬约束 (Phase 0 第四道防线): 双保险
         if meta.allow_live_order is not False:
-            raise ValueError(
-                f"Integration {meta.name!r} 违反交易边界: allow_live_order 必须 False"
-            )
+            raise ValueError(f"Integration {meta.name!r} 违反交易边界: allow_live_order 必须 False")
         return meta
 
     def _metadata(self) -> IntegrationMetadata:
@@ -94,9 +92,7 @@ class DataAdapter(BaseAdapter):
 
     CATEGORY = IntegrationCategory.DATA
 
-    def get_ohlcv(
-        self, symbol: str, start: str, end: str, **kw: Any
-    ) -> list[dict[str, Any]]:
+    def get_ohlcv(self, symbol: str, start: str, end: str, **kw: Any) -> list[dict[str, Any]]:
         raise NotImplementedError
 
     def healthcheck(self) -> IntegrationHealth:  # pragma: no cover - abstract shim

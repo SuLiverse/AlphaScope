@@ -67,12 +67,8 @@ def test_alert_store_unacknowledged_filter():
     from backend import alert_store
 
     _reset_alerts()
-    alert_store.add_alert(
-        alert_id="a1", symbol="s1", name="", alert_type="price_change", message="m1"
-    )
-    alert_store.add_alert(
-        alert_id="a2", symbol="s2", name="", alert_type="volume_spike", message="m2"
-    )
+    alert_store.add_alert(alert_id="a1", symbol="s1", name="", alert_type="price_change", message="m1")
+    alert_store.add_alert(alert_id="a2", symbol="s2", name="", alert_type="volume_spike", message="m2")
     alert_store.acknowledge_alert("a1")
     unack = alert_store.list_alerts(unacknowledged_only=True)
     assert {i["alert_id"] for i in unack} == {"a2"}
@@ -133,9 +129,7 @@ def test_alerts_api_clear(client):
     from backend import alert_store
 
     _reset_alerts()
-    alert_store.add_alert(
-        alert_id="c1", symbol="s", name="", alert_type="price_change", message="m"
-    )
+    alert_store.add_alert(alert_id="c1", symbol="s", name="", alert_type="price_change", message="m")
     r = client.post("/api/alerts/clear")
     assert r.status_code == 200
     assert r.json()["data"]["cleared"] >= 1

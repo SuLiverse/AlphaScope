@@ -15,9 +15,7 @@ def test_vision_schemas_import():
     assert kline.trend == "bullish"
     assert kline.support_levels == []
 
-    real = RealDataComparison(
-        real_trend="bullish", trend_consistent=True, latest_close=100.0
-    )
+    real = RealDataComparison(real_trend="bullish", trend_consistent=True, latest_close=100.0)
     assert real.trend_consistent is True
     assert real.conflicts == []
 

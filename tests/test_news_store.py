@@ -184,10 +184,7 @@ class TestEventImpact:
                 "title": "test",
             },
         ]
-        prices = [
-            {"date": f"2025-01-{i:02d}", "close": 100 + i, "change_pct": 0.5}
-            for i in range(5, 20)
-        ]
+        prices = [{"date": f"2025-01-{i:02d}", "close": 100 + i, "change_pct": 0.5} for i in range(5, 20)]
         result = analyze_event_impact(events, prices, window_days=3)
         assert len(result) == 1
         assert "impact" in result[0]
@@ -242,10 +239,7 @@ class TestEventImpact:
                 "title": "bad",
             },
         ]
-        prices = [
-            {"date": f"2025-01-{i:02d}", "close": 100 + i, "change_pct": 0.5}
-            for i in range(5, 25)
-        ]
+        prices = [{"date": f"2025-01-{i:02d}", "close": 100 + i, "change_pct": 0.5} for i in range(5, 25)]
         result = correlate_events_prices(events, prices)
         assert "correlation" in result
         assert result["event_count"] == 2

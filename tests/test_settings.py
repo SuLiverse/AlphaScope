@@ -41,9 +41,7 @@ MOCK_PROVIDERS = [
 
 def _mock_public_dns(monkeypatch):
     def fake_getaddrinfo(host, port=None, *args, **kwargs):
-        return [
-            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port or 443))
-        ]
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", port or 443))]
 
     monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
 
@@ -117,11 +115,7 @@ async def test_save_preferences(client):
     with patch("backend.settings_store.save_app_preferences", return_value=saved):
         resp = await client.put(
             "/api/settings/preferences",
-            json={
-                "preferences": {
-                    "general": {"default_symbol": "000001", "refresh_interval": 15}
-                }
-            },
+            json={"preferences": {"general": {"default_symbol": "000001", "refresh_interval": 15}}},
         )
     assert resp.status_code == 200
     data = resp.json()
@@ -192,9 +186,7 @@ async def test_save_provider_response_does_not_leak_plaintext_key(client):
 
 
 @pytest.mark.anyio
-async def test_save_provider_without_master_key_returns_actionable_failure(
-    client, monkeypatch
-):
+async def test_save_provider_without_master_key_returns_actionable_failure(client, monkeypatch):
     """POST save provider must not turn key-vault refusal into an HTTP 500."""
 
     conn = sqlite3.connect(":memory:")
@@ -639,9 +631,7 @@ def test_sync_to_gateway_disables_provider_and_clears_cached_client():
 
     assert "custom-disabled" not in provider_gateway.VENDORS
     assert "custom-disabled" not in provider_gateway._client_cache
-    assert all(
-        item["id"] != "custom-disabled" for item in provider_gateway.get_provider_list()
-    )
+    assert all(item["id"] != "custom-disabled" for item in provider_gateway.get_provider_list())
     with pytest.raises(RuntimeError, match="未配置完整"):
         provider_gateway.create_client("custom-disabled")
 
@@ -717,9 +707,7 @@ async def test_legacy_custom_provider_models_come_from_saved_config(client):
     assert resp.status_code == 200
     data = resp.json()
     assert data["success"] is True
-    assert data["data"]["models"] == [
-        {"id": "alpha-chat", "name": "Alpha Chat", "contextWindow": 8192}
-    ]
+    assert data["data"]["models"] == [{"id": "alpha-chat", "name": "Alpha Chat", "contextWindow": 8192}]
 
 
 def test_legacy_custom_provider_models_hide_disabled_saved_provider():
@@ -768,9 +756,7 @@ def test_gateway_startup_sync_disabled_known_provider_suppresses_runtime_vendor(
     }
     try:
         with (
-            patch(
-                "backend.settings_store.Database", return_value=_MemoryDatabase(conn)
-            ),
+            patch("backend.settings_store.Database", return_value=_MemoryDatabase(conn)),
             patch.dict(
                 os.environ,
                 {"AI_FINANCE_MASTER_KEY": "test-settings-master-key"},
@@ -798,9 +784,7 @@ def test_gateway_startup_sync_disabled_known_provider_suppresses_runtime_vendor(
             provider_gateway._sync_persisted_providers_once()
 
         assert "deepseek" not in provider_gateway.VENDORS
-        assert all(
-            item["id"] != "deepseek" for item in provider_gateway.get_provider_list()
-        )
+        assert all(item["id"] != "deepseek" for item in provider_gateway.get_provider_list())
         with pytest.raises(RuntimeError, match="未配置完整"):
             provider_gateway.create_client("deepseek")
     finally:
@@ -831,9 +815,7 @@ def test_delete_known_provider_override_restores_clean_builtin_and_clears_cache(
     }
     try:
         with (
-            patch(
-                "backend.settings_store.Database", return_value=_MemoryDatabase(conn)
-            ),
+            patch("backend.settings_store.Database", return_value=_MemoryDatabase(conn)),
             patch.dict(
                 os.environ,
                 {
@@ -852,21 +834,13 @@ def test_delete_known_provider_override_restores_clean_builtin_and_clears_cache(
             )
             provider_gateway._client_cache["deepseek"] = object()
 
-            assert (
-                provider_gateway.VENDORS["deepseek"]["api_key"] == "sk-patched-deepseek"
-            )
-            assert (
-                provider_gateway.VENDORS["deepseek"]["base_url"]
-                == "https://patched.example.com/v1"
-            )
+            assert provider_gateway.VENDORS["deepseek"]["api_key"] == "sk-patched-deepseek"
+            assert provider_gateway.VENDORS["deepseek"]["base_url"] == "https://patched.example.com/v1"
 
             assert settings_store.delete_provider("deepseek") is True
 
         assert provider_gateway.VENDORS["deepseek"]["api_key"] == "sk-env-deepseek"
-        assert (
-            provider_gateway.VENDORS["deepseek"]["base_url"]
-            == "https://api.deepseek.com/v1"
-        )
+        assert provider_gateway.VENDORS["deepseek"]["base_url"] == "https://api.deepseek.com/v1"
         assert "deepseek" not in provider_gateway._client_cache
     finally:
         if original:
@@ -905,9 +879,7 @@ async def test_list_provider_models_times_out_quickly(client, monkeypatch):
         },
     )
 
-    resp = await asyncio.wait_for(
-        client.get("/api/settings/providers/demo/models"), timeout=0.5
-    )
+    resp = await asyncio.wait_for(client.get("/api/settings/providers/demo/models"), timeout=0.5)
 
     assert resp.status_code == 200
     data = resp.json()

@@ -49,18 +49,22 @@ def test_score_macro_overview():
     from backend.alternative_factors import score_macro_overview
 
     # 高利率 + 高失业 → 偏空
-    bearish = score_macro_overview({
-        "10_Years_Treasury_Rate": {"value": "4.5"},
-        "Unemployment_Rate": {"value": "6.5"},
-        "CPI": {"value": "5.0"},
-    })
+    bearish = score_macro_overview(
+        {
+            "10_Years_Treasury_Rate": {"value": "4.5"},
+            "Unemployment_Rate": {"value": "6.5"},
+            "CPI": {"value": "5.0"},
+        }
+    )
     assert bearish is not None and bearish < 0
     # 低利率 + 低失业 → 偏多
-    bullish = score_macro_overview({
-        "GS10": {"value": "2.0"},
-        "UNRATE": {"value": "3.5"},
-        "CPIAUCSL": {"value": "1.5"},
-    })
+    bullish = score_macro_overview(
+        {
+            "GS10": {"value": "2.0"},
+            "UNRATE": {"value": "3.5"},
+            "CPIAUCSL": {"value": "1.5"},
+        }
+    )
     assert bullish is not None and bullish > 0
     # 无数据
     assert score_macro_overview({}) is None
@@ -132,9 +136,11 @@ def test_alt_factor_fetch_caches_within_ttl():
         calls["insider"] += 1
         return [{"change": 1000}]
 
-    with patch.object(af, "_fetch_fred_overview_raw", fake_fred), patch.object(
-        af, "_fetch_finnhub_sentiment_raw", fake_sentiment
-    ), patch.object(af, "_fetch_finnhub_insider_raw", fake_insider):
+    with (
+        patch.object(af, "_fetch_fred_overview_raw", fake_fred),
+        patch.object(af, "_fetch_finnhub_sentiment_raw", fake_sentiment),
+        patch.object(af, "_fetch_finnhub_insider_raw", fake_insider),
+    ):
         af.fetch_fred_overview()
         af.fetch_fred_overview()
         af.fetch_finnhub_sentiment("TEST")

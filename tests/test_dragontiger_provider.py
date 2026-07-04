@@ -64,12 +64,7 @@ class TestSeatDb:
 
     def test_is_in_range_implicit_megacap_cap(self):
         # 孙哥无显式 max_mcap → 隐式 500 亿上限
-        assert (
-            is_in_range(
-                "孙哥", {"market_cap": 60_000_000_000, "is_sector_leader": True}
-            )
-            is False
-        )
+        assert is_in_range("孙哥", {"market_cap": 60_000_000_000, "is_sector_leader": True}) is False
         # 章盟主在 allowlist，可做大盘
         assert (
             is_in_range(
@@ -136,9 +131,7 @@ class TestProvider:
             },
             {"营业部名称": "机构专用", "买入金额": 3e7, "卖出金额": 5e7},
         ]
-        monkeypatch.setattr(
-            lhb_mod, "fetch_lhb_recent", lambda code, days=30: fake_records
-        )
+        monkeypatch.setattr(lhb_mod, "fetch_lhb_recent", lambda code, days=30: fake_records)
         monkeypatch.setattr(lhb_mod, "fetch_sector_lhb", lambda top=30: [])
 
         out = DragonTigerProvider().get_dragon_tiger({"symbol": "600519"})

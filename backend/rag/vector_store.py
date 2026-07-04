@@ -16,9 +16,7 @@ CHROMA_DIR = CACHE_DIR / "chroma_db"
 class _OpenAIEmbeddingFunction:
     """Chroma embedding adapter backed by a configured OpenAI-compatible provider."""
 
-    def __init__(
-        self, *, provider_id: str, model: str, base_url: str, api_key: str
-    ) -> None:
+    def __init__(self, *, provider_id: str, model: str, base_url: str, api_key: str) -> None:
         self.provider_id = provider_id
         self.model = model
         self.base_url = base_url
@@ -105,9 +103,7 @@ class VectorStore:
             try:
                 import chromadb
             except ImportError:
-                logger.warning(
-                    "chromadb 未安装，RAG 向量检索功能不可用。安装命令: pip install chromadb==0.6.3"
-                )
+                logger.warning("chromadb 未安装，RAG 向量检索功能不可用。安装命令: pip install chromadb==0.6.3")
                 return None
             self._client = chromadb.PersistentClient(path=str(CHROMA_DIR))
         return self._client
@@ -115,10 +111,7 @@ class VectorStore:
     def get_collection(self, name: str):
         """获取或创建 collection"""
         embedding_function, signature = _configured_embedding_function()
-        if (
-            name not in self._collections
-            or self._collection_signatures.get(name) != signature
-        ):
+        if name not in self._collections or self._collection_signatures.get(name) != signature:
             client = self._get_client()
             if client is None:
                 raise RuntimeError("chromadb 未安装，无法创建向量集合")

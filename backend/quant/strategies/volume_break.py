@@ -22,9 +22,7 @@ class VolumeBreakStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         n = self.params["vol_period"]
         if len(bars) <= n:
             return []
@@ -50,11 +48,7 @@ class VolumeBreakStrategy(BaseStrategy):
                     )
                 )
             elif avg_vol > 0 and vol < avg_vol * 0.7 and price_down:
-                signals.append(
-                    Signal(
-                        "sell", symbol, reason=f"缩量下跌 (量比 {vol / avg_vol:.2f}×)"
-                    )
-                )
+                signals.append(Signal("sell", symbol, reason=f"缩量下跌 (量比 {vol / avg_vol:.2f}×)"))
             else:
                 signals.append(Signal("hold", symbol, reason="量价未触发"))
         return signals

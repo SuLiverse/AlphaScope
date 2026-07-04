@@ -76,9 +76,7 @@ def _ensure_table() -> None:
                 )
                 """
             )
-            conn.execute(
-                f"CREATE INDEX IF NOT EXISTS idx_{_TABLE}_symbol ON {_TABLE}(symbol, created_at)"
-            )
+            conn.execute(f"CREATE INDEX IF NOT EXISTS idx_{_TABLE}_symbol ON {_TABLE}(symbol, created_at)")
             conn.commit()
         _ensured = True
 
@@ -141,14 +139,8 @@ def build_snapshot(
 
     summary = result.get("summary") if isinstance(result.get("summary"), dict) else {}
     debate = result.get("debate") if isinstance(result.get("debate"), dict) else {}
-    risk_gate = (
-        result.get("risk_gate") if isinstance(result.get("risk_gate"), dict) else {}
-    )
-    dv = (
-        result.get("data_verification")
-        if isinstance(result.get("data_verification"), dict)
-        else {}
-    )
+    risk_gate = result.get("risk_gate") if isinstance(result.get("risk_gate"), dict) else {}
+    dv = result.get("data_verification") if isinstance(result.get("data_verification"), dict) else {}
 
     signal = _norm_signal(summary.get("final"))
     sid = f"{symbol}-{now.strftime('%Y%m%d%H%M%S%f')}"
@@ -327,8 +319,7 @@ def list_symbols(limit: int = 100) -> list[dict[str, Any]]:
         _ensure_table()
         with _db().transaction() as conn:
             rows = conn.execute(
-                f"SELECT symbol, name, created_at, signal, confidence "
-                f"FROM {_TABLE} ORDER BY created_at DESC"
+                f"SELECT symbol, name, created_at, signal, confidence FROM {_TABLE} ORDER BY created_at DESC"
             ).fetchall()
         agg: dict[str, dict[str, Any]] = {}
         for r in rows:
@@ -390,9 +381,7 @@ def delete_snapshot(snapshot_id: str) -> bool:
     try:
         _ensure_table()
         with _db().transaction() as conn:
-            cur = conn.execute(
-                f"DELETE FROM {_TABLE} WHERE snapshot_id = ?", (snapshot_id,)
-            )
+            cur = conn.execute(f"DELETE FROM {_TABLE} WHERE snapshot_id = ?", (snapshot_id,))
             conn.commit()
             return cur.rowcount > 0
     except Exception:

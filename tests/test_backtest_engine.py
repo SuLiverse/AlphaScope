@@ -16,9 +16,7 @@ import pytest
 # ----------------------------------------------------------------
 
 
-def _make_bars(
-    n: int = 100, base_price: float = 100.0, trend: float = 0.001
-) -> list[dict]:
+def _make_bars(n: int = 100, base_price: float = 100.0, trend: float = 0.001) -> list[dict]:
     """Generate synthetic OHLCV bars."""
     import random
 

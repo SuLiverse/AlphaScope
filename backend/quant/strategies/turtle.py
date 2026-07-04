@@ -23,9 +23,7 @@ class TurtleBreakoutStrategy(BaseStrategy):
         "position_size_pct": 20,
     }
 
-    def generate_signals(
-        self, bars: list[dict], portfolio_state: dict[str, Any] | None = None
-    ) -> list[Signal]:
+    def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         entry = self.params["entry_period"]
         exit_p = self.params["exit_period"]
         if len(bars) <= entry:
@@ -36,9 +34,7 @@ class TurtleBreakoutStrategy(BaseStrategy):
         closes = self._closes(bars)
         signals: list[Signal] = []
         for i in range(entry, len(bars)):
-            prev_high = max(
-                highs[i - entry : i]
-            )  # exclude today's high (no look-ahead)
+            prev_high = max(highs[i - entry : i])  # exclude today's high (no look-ahead)
             prev_low = min(lows[i - exit_p : i])
             symbol = bars[i].get("symbol", "")
             close = closes[i]
@@ -53,9 +49,7 @@ class TurtleBreakoutStrategy(BaseStrategy):
                     )
                 )
             elif close < prev_low:
-                signals.append(
-                    Signal("sell", symbol, reason=f"跌破 {exit_p}日低点 {prev_low:.2f}")
-                )
+                signals.append(Signal("sell", symbol, reason=f"跌破 {exit_p}日低点 {prev_low:.2f}"))
             else:
                 signals.append(Signal("hold", symbol, reason="通道内"))
         return signals

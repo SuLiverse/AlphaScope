@@ -308,9 +308,7 @@ class EventExtractor:
     def _compile_patterns(self) -> None:
         """预编译正则"""
         for rule in self._rules:
-            rule["_compiled"] = [
-                re.compile(p, re.IGNORECASE) for p in rule.get("title_patterns", [])
-            ]
+            rule["_compiled"] = [re.compile(p, re.IGNORECASE) for p in rule.get("title_patterns", [])]
 
     def extract_from_text(
         self,
@@ -411,12 +409,8 @@ class EventExtractor:
     def _calc_sentiment(self, rule: dict, text_lower: str) -> float:
         """基于关键词计算情绪分"""
         sent_kw = rule.get("sentiment_keywords", {})
-        pos_hits = sum(
-            1 for kw in sent_kw.get("positive", []) if kw.lower() in text_lower
-        )
-        neg_hits = sum(
-            1 for kw in sent_kw.get("negative", []) if kw.lower() in text_lower
-        )
+        pos_hits = sum(1 for kw in sent_kw.get("positive", []) if kw.lower() in text_lower)
+        neg_hits = sum(1 for kw in sent_kw.get("negative", []) if kw.lower() in text_lower)
 
         total = pos_hits + neg_hits
         if total == 0:

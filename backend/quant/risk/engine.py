@@ -32,9 +32,7 @@ from . import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONFIG_PATH = (
-    Path(__file__).resolve().parents[2] / "config" / "risk_rules.yaml"
-)
+_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "risk_rules.yaml"
 
 # 引擎失败时的安全默认: 宁可放过也不误伤(研报场景, 风控 gate 是提示而非阻断交易)。
 _SAFE_FALLBACK_CONFIG: Dict[str, Any] = {
@@ -59,9 +57,7 @@ class RiskEngine:
     纯规则、确定性、可单测;失败时降级到内置安全默认, 不抛异常打断研报流程。
     """
 
-    def __init__(
-        self, config: Optional[Dict[str, Any]] = None, config_path: Optional[str] = None
-    ):
+    def __init__(self, config: Optional[Dict[str, Any]] = None, config_path: Optional[str] = None):
         if config is not None:
             self.config = config
         else:
@@ -102,15 +98,11 @@ class RiskEngine:
         if bl:
             findings.append(bl)
 
-        pos = check_position(
-            stock_data, summary, self.config.get("max_position_pct", {})
-        )
+        pos = check_position(stock_data, summary, self.config.get("max_position_pct", {}))
         if pos:
             findings.append(pos)
 
-        findings.extend(
-            check_concentration(summary, self.config.get("concentration", {}))
-        )
+        findings.extend(check_concentration(summary, self.config.get("concentration", {})))
 
         conf = check_confidence_floor(summary, self.config.get("confidence_floor", {}))
         if conf:

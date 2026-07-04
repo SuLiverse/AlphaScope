@@ -137,9 +137,7 @@ def parse_rows(
 
     bars: List[Dict[str, Any]] = []
     for row in rows:
-        date_val = (
-            str(row.get(schema["date"], "")).strip()[:10] if schema["date"] else ""
-        )
+        date_val = str(row.get(schema["date"], "")).strip()[:10] if schema["date"] else ""
         if not date_val:
             continue
         close = _to_float(row.get(schema["close"])) if schema["close"] else 0.0
@@ -297,9 +295,7 @@ class CsvUploadProvider(BaseProvider):
         headers = list(rows[0].keys())
         schema = discover_schema(headers)
         if not schema_is_valid(schema):
-            self._logger.info(
-                "[csv_upload] %s 列 schema 不完整(缺 date/OHLC), 跳过", path.name
-            )
+            self._logger.info("[csv_upload] %s 列 schema 不完整(缺 date/OHLC), 跳过", path.name)
             return []
         limit = int(query.get("limit", 250) or 250)
         return parse_rows(rows, schema, symbol=symbol, limit=limit)

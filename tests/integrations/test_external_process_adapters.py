@@ -87,9 +87,7 @@ def test_license_classification_correct():
     }
     for name, safety in expected.items():
         m = reg.get(name).metadata()
-        assert m.license_safety == safety, (
-            f"{name} license_safety 应是 {safety}, 实际 {m.license_safety}"
-        )
+        assert m.license_safety == safety, f"{name} license_safety 应是 {safety}, 实际 {m.license_safety}"
 
 
 def test_no_live_capabilities_exposed():
@@ -132,11 +130,7 @@ def test_healthcheck_message_includes_install_hint():
     for name in EXPECTED_ENGINES:
         h = reg.get(name).healthcheck()
         if h.status == HealthStatus.UNAVAILABLE:
-            assert (
-                "docker" in h.message.lower()
-                or "pip install" in h.message.lower()
-                or "外部进程" in h.message
-            )
+            assert "docker" in h.message.lower() or "pip install" in h.message.lower() or "外部进程" in h.message
 
 
 # ============================================================
@@ -153,19 +147,14 @@ def test_run_backtest_returns_research_only_empty_result():
         assert res.research_only is True
         assert res.assumptions.engine_name == name
         # 假设卡应标注命令白名单 + 严禁 live trading
-        assert (
-            "严禁" in (res.assumptions.note or "")
-            or "live" in (res.assumptions.note or "").lower()
-        )
+        assert "严禁" in (res.assumptions.note or "") or "live" in (res.assumptions.note or "").lower()
 
 
 def test_run_backtest_assumptions_mention_external_process():
     """假设卡应标注数据来自外部进程。"""
     reg = get_registry()
     res = reg.get("lean").run_backtest("s", ["X"], "2024-01-01", "2024-06-30")
-    assert "外部进程" in (res.assumptions.note or "") or "外部进程" in (
-        res.assumptions.data_source or ""
-    )
+    assert "外部进程" in (res.assumptions.note or "") or "外部进程" in (res.assumptions.data_source or "")
 
 
 # ============================================================

@@ -48,9 +48,7 @@ class TestFundSearch:
         assert data["data"]["total"] == 1
 
     @pytest.mark.anyio
-    async def test_search_code_keeps_info_result_when_keyword_search_fails(
-        self, client
-    ):
+    async def test_search_code_keeps_info_result_when_keyword_search_fails(self, client):
         mock_provider = AsyncMock()
         mock_provider.get_info.return_value = {
             "code": "000001",

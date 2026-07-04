@@ -85,9 +85,7 @@ def list_tool_calls(limit: int = 50) -> list[dict[str, Any]]:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        rows = conn.execute(
-            "SELECT * FROM tool_calls ORDER BY created_at DESC LIMIT ?", (limit,)
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM tool_calls ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
     return [
         {
             "id": r["id"],
@@ -136,9 +134,7 @@ def save_cost_record(
         conn.commit()
 
 
-def list_cost_records(
-    model: Optional[str] = None, limit: int = 50
-) -> list[dict[str, Any]]:
+def list_cost_records(model: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
@@ -148,9 +144,7 @@ def list_cost_records(
                 (model, limit),
             ).fetchall()
         else:
-            rows = conn.execute(
-                "SELECT * FROM cost_records ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
+            rows = conn.execute("SELECT * FROM cost_records ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
     return [
         {
             "id": r["id"],
@@ -174,9 +168,7 @@ def get_health_history(limit: int = 50) -> list[dict[str, Any]]:
     _ensure_schema()
     db = Database()
     with db.transaction() as conn:
-        rows = conn.execute(
-            "SELECT * FROM source_fetch_logs ORDER BY started_at DESC LIMIT ?", (limit,)
-        ).fetchall()
+        rows = conn.execute("SELECT * FROM source_fetch_logs ORDER BY started_at DESC LIMIT ?", (limit,)).fetchall()
     return [
         {
             "id": r["id"],
@@ -219,6 +211,7 @@ def get_cost_summary(now: float | None = None) -> dict[str, Any]:
 
     # 多次 SELECT 必须在同一 transaction 内, 保证读一致性。
     with db.transaction() as conn:
+
         def _agg(since: float) -> dict:
             row = conn.execute(
                 "SELECT COUNT(*) AS calls, COALESCE(SUM(cost_usd),0) AS cost, "
@@ -267,12 +260,8 @@ def get_diagnostics_summary() -> dict[str, Any]:
     with db.transaction() as conn:
         # 工具调用统计
         tc_row = conn.execute("SELECT COUNT(*) as total FROM tool_calls").fetchone()
-        tc_errors = conn.execute(
-            "SELECT COUNT(*) as cnt FROM tool_calls WHERE status != 'ok'"
-        ).fetchone()
-        tc_avg = conn.execute(
-            "SELECT AVG(latency_ms) as avg_lat FROM tool_calls WHERE latency_ms > 0"
-        ).fetchone()
+        tc_errors = conn.execute("SELECT COUNT(*) as cnt FROM tool_calls WHERE status != 'ok'").fetchone()
+        tc_avg = conn.execute("SELECT AVG(latency_ms) as avg_lat FROM tool_calls WHERE latency_ms > 0").fetchone()
 
         # 成本统计
         cost_row = conn.execute(

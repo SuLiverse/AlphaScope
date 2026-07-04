@@ -72,9 +72,7 @@ def _to_qlib_instrument(code: str) -> str:
 # ============================================================
 
 
-def normalize_qlib_factor_df(
-    df: Any, symbol: str, factor_set: str = _DEFAULT_FACTOR_SET
-) -> dict[str, Any]:
+def normalize_qlib_factor_df(df: Any, symbol: str, factor_set: str = _DEFAULT_FACTOR_SET) -> dict[str, Any]:
     """把 Qlib 输出的因子 dataframe 归一化成 AlphaScope 因子向量结构。
 
     Qlib 的典型输出: index = 日期(datetime), columns = 各因子名 (如 KBAR/OPEN0/...),
@@ -94,8 +92,7 @@ def normalize_qlib_factor_df(
         "factors": {},
         "source": "qlib",
         "disclaimer": (
-            "Qlib 因子(ml 衍生, source=qlib)与确定性技术因子口径不同, "
-            "仅为研究辅助, 不预测、不构成选股建议。"
+            "Qlib 因子(ml 衍生, source=qlib)与确定性技术因子口径不同, 仅为研究辅助, 不预测、不构成选股建议。"
         ),
     }
     if df is None:
@@ -218,9 +215,7 @@ class QlibAdapter(FactorAdapter):
         handler 需要 instruments/start_time/end_time/fit_*_time, 取因子用
         ``h.fetch(col_set="feature")``。详见 Qlib data framework 文档。
         """
-        instruments = kw.get("instruments") or [
-            _to_qlib_instrument(s) for s in symbols if s
-        ]
+        instruments = kw.get("instruments") or [_to_qlib_instrument(s) for s in symbols if s]
         symbol = instruments[0] if instruments else str(kw.get("symbol", ""))
         factor_set = str(kw.get("factor_set", _DEFAULT_FACTOR_SET))
         start_time = str(kw.get("start_time", "2018-01-01"))

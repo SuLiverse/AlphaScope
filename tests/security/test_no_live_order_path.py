@@ -44,9 +44,7 @@ def test_live_order_flags_are_false() -> None:
     """所有 live/auto 下单标志必须为 False。"""
     b = get_boundary()
     for flag in _MUST_BE_FALSE:
-        assert b.flags.get(flag) is False, (
-            f"交易边界违规: {flag} 必须为 False (当前 {b.flags.get(flag)!r})"
-        )
+        assert b.flags.get(flag) is False, f"交易边界违规: {flag} 必须为 False (当前 {b.flags.get(flag)!r})"
 
 
 def test_allowed_capabilities_remain_true() -> None:
@@ -69,9 +67,7 @@ def test_boundary_passes_startup_invariant() -> None:
 
 def test_invariant_detects_violation() -> None:
     """若有人把 live 标志改 True, assert_invariant 必须立刻抛错。"""
-    bad = TradingBoundary(
-        flags={**get_boundary().flags, "allow_live_broker_order": True}
-    )
+    bad = TradingBoundary(flags={**get_boundary().flags, "allow_live_broker_order": True})
     with pytest.raises(BoundaryViolation):
         bad.assert_invariant()
 
@@ -89,8 +85,7 @@ def test_no_forbidden_symbol_definitions_in_backend() -> None:
     findings = scan_forbidden_symbols()
     if findings:
         lines = [
-            f"  {p.relative_to(Path.cwd()) if Path.cwd() in p.parents else p}:{name}:{ln}"
-            for p, name, ln in findings
+            f"  {p.relative_to(Path.cwd()) if Path.cwd() in p.parents else p}:{name}:{ln}" for p, name, ln in findings
         ]
         pytest.fail(
             "发现禁止的实盘下单符号定义 (应改用 create_paper_order / create_research_ticket 等研究语义):\n"

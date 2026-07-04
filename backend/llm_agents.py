@@ -131,8 +131,6 @@ if __name__ == "__main__":
         print(f"{r['name']:<24} [{r['vendor']}/{r['model']}] {flag}")
         print(f"  → {r['signal']} ({r['confidence']}%)  {r['reason'][:80]}")
     s = res["summary"]
-    print(
-        f"\n[投票] 买{s['buy']}/卖{s['sell']}/观{s['hold']} → {s['final']} | 均值 {s['avg_confidence']:.0f}%"
-    )
+    print(f"\n[投票] 买{s['buy']}/卖{s['sell']}/观{s['hold']} → {s['final']} | 均值 {s['avg_confidence']:.0f}%")
     print("\n[主席总结]")
     print(summarize_with_chairman(res, sample["name"]))

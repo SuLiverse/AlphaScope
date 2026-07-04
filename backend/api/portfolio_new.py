@@ -61,9 +61,7 @@ def list_portfolios() -> dict[str, Any]:
     """List all portfolios."""
     summaries = []
     for pid, p in _portfolios.items():
-        equity = p["cash"] + sum(
-            pos["shares"] * pos["current_price"] for pos in p["positions"].values()
-        )
+        equity = p["cash"] + sum(pos["shares"] * pos["current_price"] for pos in p["positions"].values())
         summaries.append(
             {
                 "id": pid,
@@ -81,17 +79,13 @@ def list_portfolios() -> dict[str, Any]:
 def get_portfolio(portfolio_id: str) -> dict[str, Any]:
     """Get portfolio details."""
     p = _get_portfolio(portfolio_id)
-    equity = p["cash"] + sum(
-        pos["shares"] * pos["current_price"] for pos in p["positions"].values()
-    )
+    equity = p["cash"] + sum(pos["shares"] * pos["current_price"] for pos in p["positions"].values())
     return {
         "success": True,
         "data": {
             **p,
             "equity": round(equity, 2),
-            "total_return_pct": round(
-                (equity - p["initial_capital"]) / p["initial_capital"] * 100, 2
-            ),
+            "total_return_pct": round((equity - p["initial_capital"]) / p["initial_capital"] * 100, 2),
         },
     }
 
@@ -168,9 +162,7 @@ def record_trade(portfolio_id: str, req: TradeCreate) -> dict[str, Any]:
         )
 
     # Record equity
-    equity = p["cash"] + sum(
-        pos["shares"] * pos["current_price"] for pos in p["positions"].values()
-    )
+    equity = p["cash"] + sum(pos["shares"] * pos["current_price"] for pos in p["positions"].values())
     p["equity_history"].append(equity)
 
     return {
@@ -183,9 +175,7 @@ def record_trade(portfolio_id: str, req: TradeCreate) -> dict[str, Any]:
 def get_allocation(portfolio_id: str) -> dict[str, Any]:
     """Get portfolio allocation percentages."""
     p = _get_portfolio(portfolio_id)
-    equity = p["cash"] + sum(
-        pos["shares"] * pos["current_price"] for pos in p["positions"].values()
-    )
+    equity = p["cash"] + sum(pos["shares"] * pos["current_price"] for pos in p["positions"].values())
     if equity == 0:
         return {"success": True, "data": {}}
 

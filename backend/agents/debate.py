@@ -36,10 +36,7 @@ _W_DATA_ANOMALY = 10.0
 _W_DATA_STALE = 8.0
 _W_CRITIC_DIVERGENCE = 20.0
 
-_DISCLAIMER = (
-    "多空对峙描述的是研究分歧与证据强弱,裁决是对结论置信度/共识度的判断,"
-    "不构成任何买卖指令或收益承诺。"
-)
+_DISCLAIMER = "多空对峙描述的是研究分歧与证据强弱,裁决是对结论置信度/共识度的判断,不构成任何买卖指令或收益承诺。"
 
 
 def _num(value: Any, default: float = 0.0) -> float:
@@ -76,9 +73,7 @@ class DebatePoint:
 @dataclass
 class DebateReport:
     status: str
-    consensus: (
-        str  # 看多共识|偏看多|多空分歧|高度分歧|偏看空|看空共识|中性观望|风控否决|未知
-    )
+    consensus: str  # 看多共识|偏看多|多空分歧|高度分歧|偏看空|看空共识|中性观望|风控否决|未知
     consensus_score: float  # 0-100, 越大越一边倒
     divergence_level: str  # 借 Critic: 无/低/中/高
     bull_strength: float
@@ -167,9 +162,7 @@ def _synthesize(
         if signal in _BULL_SIGNALS:
             n_bull += 1
             bull_strength += conf
-            bull_points.append(
-                DebatePoint("bull", key, "agent", f"{name}:{reason}", conf, conf, eids)
-            )
+            bull_points.append(DebatePoint("bull", key, "agent", f"{name}:{reason}", conf, conf, eids))
             # 反方质询:看多但信心不足(过度自信的反面 — 信心薄弱)
             if 0 < conf < 50:
                 bear_points.append(
@@ -184,9 +177,7 @@ def _synthesize(
         elif signal in _BEAR_SIGNALS:
             n_bear += 1
             bear_strength += conf
-            bear_points.append(
-                DebatePoint("bear", key, "agent", f"{name}:{reason}", conf, conf, eids)
-            )
+            bear_points.append(DebatePoint("bear", key, "agent", f"{name}:{reason}", conf, conf, eids))
         else:
             n_neutral += 1
 
@@ -194,9 +185,7 @@ def _synthesize(
     rg = risk_gate or {}
     vetoed = bool(rg.get("vetoed"))
     for vr in rg.get("veto_reasons", []) or []:
-        bear_points.append(
-            DebatePoint("bear", "risk", "risk_veto", f"风控否决:{vr}", _W_RISK_VETO)
-        )
+        bear_points.append(DebatePoint("bear", "risk", "risk_veto", f"风控否决:{vr}", _W_RISK_VETO))
         bear_strength += _W_RISK_VETO
 
     # 反方来源 3:数据缺失 / 过期 / 异常(data_verifier)
@@ -212,13 +201,9 @@ def _synthesize(
             )
         )
     for lbl in dv.get("anomalies", []) or []:
-        bear_points.append(
-            DebatePoint("bear", "data", "data_gap", f"数值异常:{lbl}", _W_DATA_ANOMALY)
-        )
+        bear_points.append(DebatePoint("bear", "data", "data_gap", f"数值异常:{lbl}", _W_DATA_ANOMALY))
     for lbl in dv.get("stale", []) or []:
-        bear_points.append(
-            DebatePoint("bear", "data", "data_gap", f"数据过期:{lbl}", _W_DATA_STALE)
-        )
+        bear_points.append(DebatePoint("bear", "data", "data_gap", f"数据过期:{lbl}", _W_DATA_STALE))
 
     # 反方来源 4:Critic 评审分歧
     div = (critic or {}).get("divergence") or {}
@@ -259,12 +244,8 @@ def _synthesize(
         )
 
     total = bull_strength + bear_strength
-    consensus_score = (
-        round(abs(bull_strength - bear_strength) / total * 100, 1) if total else 0.0
-    )
-    consensus = _label(
-        has_bull_agent, has_bear_agent, n_neutral, consensus_score, divergence_level
-    )
+    consensus_score = round(abs(bull_strength - bear_strength) / total * 100, 1) if total else 0.0
+    consensus = _label(has_bull_agent, has_bear_agent, n_neutral, consensus_score, divergence_level)
     ruling = _ruling(consensus, bull_points, bear_points, n_bull, n_bear)
 
     return DebateReport(
@@ -283,9 +264,7 @@ def _synthesize(
     )
 
 
-def _label(
-    has_bull: bool, has_bear: bool, n_neutral: int, score: float, divergence: str
-) -> str:
+def _label(has_bull: bool, has_bear: bool, n_neutral: int, score: float, divergence: str) -> str:
     if not has_bull and not has_bear:
         return "中性观望" if n_neutral else "未知"
     if has_bull and not has_bear:
@@ -299,14 +278,8 @@ def _label(
 
 
 def _ruling_vetoed(rg: dict[str, Any]) -> str:
-    reasons = (
-        ";".join(str(r) for r in (rg.get("veto_reasons") or []))
-        or "触发 critical 风控规则"
-    )
-    return (
-        f"风控一票否决({reasons})。方向性结论一律不作为投资依据,"
-        f"建议先消除风控触发项再重新评估。"
-    )
+    reasons = ";".join(str(r) for r in (rg.get("veto_reasons") or [])) or "触发 critical 风控规则"
+    return f"风控一票否决({reasons})。方向性结论一律不作为投资依据,建议先消除风控触发项再重新评估。"
 
 
 def _ruling(
@@ -318,20 +291,13 @@ def _ruling(
 ) -> str:
     top_bull = bull_points[0].claim if bull_points else "—"
     bear_agent_pts = [p for p in bear_points if p.kind == "agent"]
-    top_bear = (
-        bear_agent_pts[0].claim
-        if bear_agent_pts
-        else (bear_points[0].claim if bear_points else "—")
-    )
+    top_bear = bear_agent_pts[0].claim if bear_agent_pts else (bear_points[0].claim if bear_points else "—")
     n_challenges = len(bear_points)
 
     if consensus == "中性观望":
         return "各方信号偏中性,缺乏明确方向共识,确定性低;建议补充缺失维度数据后再评估。"
     if consensus in ("看多共识", "偏看多"):
-        base = (
-            f"看多方以 {n_bull} 票占据主导(最强论据:{top_bull})"
-            f",但仍存在 {n_challenges} 条反方质询(如:{top_bear})。"
-        )
+        base = f"看多方以 {n_bull} 票占据主导(最强论据:{top_bull}),但仍存在 {n_challenges} 条反方质询(如:{top_bear})。"
         if consensus == "看多共识":
             base += "一致性偏高反而需警惕群体共识/拥挤风险,建议交叉验证关键证据、并以样本外走查检验稳健性后再判断。"
         else:

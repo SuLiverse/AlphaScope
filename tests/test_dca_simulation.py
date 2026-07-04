@@ -6,9 +6,7 @@ from backend.funds.dca import DCASimulator
 from backend.schemas.funds import DCAFrequency
 
 
-def _make_nav_records(
-    start: float = 1.0, count: int = 120, trend: float = 0.001
-) -> list[dict]:
+def _make_nav_records(start: float = 1.0, count: int = 120, trend: float = 0.001) -> list[dict]:
     """生成测试用净值序列"""
     records = []
     nav = start

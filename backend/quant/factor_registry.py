@@ -54,12 +54,8 @@ def _register(defn: FactorDef) -> None:
 
 
 for _d in [
-    FactorDef(
-        "mom_20", "20日动量", "technical", 1, "近 20 个交易日收盘涨跌幅", "price", "%"
-    ),
-    FactorDef(
-        "mom_60", "60日动量", "technical", 1, "近 60 个交易日收盘涨跌幅", "price", "%"
-    ),
+    FactorDef("mom_20", "20日动量", "technical", 1, "近 20 个交易日收盘涨跌幅", "price", "%"),
+    FactorDef("mom_60", "60日动量", "technical", 1, "近 60 个交易日收盘涨跌幅", "price", "%"),
     FactorDef(
         "vol_20",
         "20日波动率",
@@ -69,15 +65,9 @@ for _d in [
         "price",
         "%",
     ),
-    FactorDef(
-        "ma20_gap", "MA20乖离", "technical", 1, "收盘相对 20 日均线的偏离", "price", "%"
-    ),
-    FactorDef(
-        "ma60_gap", "MA60乖离", "technical", 1, "收盘相对 60 日均线的偏离", "price", "%"
-    ),
-    FactorDef(
-        "rsi_14", "RSI(14)", "technical", 0, "14 日相对强弱指标(50 为中性)", "price", ""
-    ),
+    FactorDef("ma20_gap", "MA20乖离", "technical", 1, "收盘相对 20 日均线的偏离", "price", "%"),
+    FactorDef("ma60_gap", "MA60乖离", "technical", 1, "收盘相对 60 日均线的偏离", "price", "%"),
+    FactorDef("rsi_14", "RSI(14)", "technical", 0, "14 日相对强弱指标(50 为中性)", "price", ""),
     FactorDef(
         "max_dd_60",
         "60日最大回撤",
@@ -115,15 +105,9 @@ for _d in [
         "",
     ),
     # 已有软因子(登记入统一目录;具体数值由 FactorGenerator 计算)。
-    FactorDef(
-        "news_sentiment", "新闻情绪", "sentiment", 1, "新闻舆情情绪得分", "soft", ""
-    ),
-    FactorDef(
-        "event_signal", "事件信号", "event", 1, "公告/事件方向性得分", "soft", ""
-    ),
-    FactorDef(
-        "analyst_rating", "分析师评级", "analyst", 1, "卖方评级倾向得分", "soft", ""
-    ),
+    FactorDef("news_sentiment", "新闻情绪", "sentiment", 1, "新闻舆情情绪得分", "soft", ""),
+    FactorDef("event_signal", "事件信号", "event", 1, "公告/事件方向性得分", "soft", ""),
+    FactorDef("analyst_rating", "分析师评级", "analyst", 1, "卖方评级倾向得分", "soft", ""),
     FactorDef("fund_flow", "资金流", "flow", 1, "主力资金流向得分", "soft", ""),
     FactorDef(
         "momentum",
@@ -161,9 +145,7 @@ for _d in [
 TECHNICAL_FACTORS = [d.id for d in _REGISTRY.values() if d.source == "price"]
 
 
-def list_factors(
-    category: Optional[str] = None, source: Optional[str] = None
-) -> List[Dict[str, Any]]:
+def list_factors(category: Optional[str] = None, source: Optional[str] = None) -> List[Dict[str, Any]]:
     """列出因子目录(可按类别/来源过滤)。纯函数。"""
     out = []
     for d in _REGISTRY.values():
@@ -228,11 +210,7 @@ def _pct_return(closes: List[float], window: int) -> Optional[float]:
 def _volatility(closes: List[float], window: int = 20) -> Optional[float]:
     if len(closes) <= window:
         return None
-    rets = [
-        closes[i] / closes[i - 1] - 1.0
-        for i in range(len(closes) - window, len(closes))
-        if closes[i - 1] > 0
-    ]
+    rets = [closes[i] / closes[i - 1] - 1.0 for i in range(len(closes) - window, len(closes)) if closes[i - 1] > 0]
     if len(rets) < 2:
         return None
     mean = sum(rets) / len(rets)
@@ -289,9 +267,7 @@ def _vol_ratio(volumes: List[float], short: int = 5, long: int = 20) -> Optional
     return round(a / b, 3)
 
 
-def _dist_high(
-    bars: List[Dict[str, Any]], closes: List[float], window: int = 60
-) -> Optional[float]:
+def _dist_high(bars: List[Dict[str, Any]], closes: List[float], window: int = 60) -> Optional[float]:
     highs = _series(bars, "high")[-window:]
     highs = [h for h in highs if h > 0]
     if not highs or not closes:
@@ -302,9 +278,7 @@ def _dist_high(
     return round((closes[-1] / hh - 1.0) * 100.0, 3)
 
 
-def _range_pos(
-    bars: List[Dict[str, Any]], closes: List[float], window: int = 60
-) -> Optional[float]:
+def _range_pos(bars: List[Dict[str, Any]], closes: List[float], window: int = 60) -> Optional[float]:
     highs = [h for h in _series(bars, "high")[-window:] if h > 0]
     lows = [lo for lo in _series(bars, "low")[-window:] if lo > 0]
     if not highs or not lows or not closes:
@@ -388,17 +362,13 @@ def cache_vector(symbol: str, asof: str, vector: Dict[str, Any]) -> bool:
         return False
 
 
-def get_cached_vector(
-    symbol: str, asof: Optional[str] = None
-) -> Optional[Dict[str, Any]]:
+def get_cached_vector(symbol: str, asof: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """取缓存因子向量(asof 缺省取最新)。失败/不存在返回 None。"""
     try:
         _ensure_table()
         conn = _db().conn
         if asof:
-            r = conn.execute(
-                f"SELECT vector FROM {_TABLE} WHERE symbol=? AND asof=?", (symbol, asof)
-            ).fetchone()
+            r = conn.execute(f"SELECT vector FROM {_TABLE} WHERE symbol=? AND asof=?", (symbol, asof)).fetchone()
         else:
             r = conn.execute(
                 f"SELECT vector FROM {_TABLE} WHERE symbol=? ORDER BY asof DESC LIMIT 1",
@@ -447,9 +417,7 @@ def compute_for_symbol(
     if bars is None:
         bars = (loader or _load_bars)(symbol)
     factors = compute_technical_factors(bars)
-    asof = (
-        str(bars[-1].get("date"))[:10] if bars else datetime.now().strftime("%Y-%m-%d")
-    )
+    asof = str(bars[-1].get("date"))[:10] if bars else datetime.now().strftime("%Y-%m-%d")
     result = {
         "symbol": str(symbol),
         "asof": asof,

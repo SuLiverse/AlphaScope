@@ -92,9 +92,7 @@ def test_build_experiment_log_different_input_different_hash():
 # 3. MLflow 路径 (skipif)
 # ============================================================
 
-mlflow_required = pytest.mark.skipif(
-    not aie.is_available("mlflow"), reason="mlflow 未装"
-)
+mlflow_required = pytest.mark.skipif(not aie.is_available("mlflow"), reason="mlflow 未装")
 
 
 @mlflow_required
@@ -126,9 +124,7 @@ def test_log_backtest_to_mlflow(tmp_path):
 # 4. Optuna 路径 (skipif)
 # ============================================================
 
-optuna_required = pytest.mark.skipif(
-    not aie.is_available("optuna"), reason="optuna 未装"
-)
+optuna_required = pytest.mark.skipif(not aie.is_available("optuna"), reason="optuna 未装")
 
 
 @optuna_required
@@ -150,9 +146,7 @@ def test_optimize_hyperparameters_basic():
 # 5. Evidently 路径 (skipif)
 # ============================================================
 
-evidently_required = pytest.mark.skipif(
-    not aie.is_available("evidently"), reason="evidently 未装"
-)
+evidently_required = pytest.mark.skipif(not aie.is_available("evidently"), reason="evidently 未装")
 
 
 @evidently_required

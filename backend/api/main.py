@@ -165,9 +165,7 @@ if HAS_FASTAPI:
     def _has_valid_local_token(request: Request) -> bool:
         expected = _local_api_token()
         # 优先 header; 浏览器导航/SSE 场景回退 query param
-        provided = request.headers.get(LOCAL_TOKEN_HEADER, "") or request.query_params.get(
-            LOCAL_TOKEN_QUERY, ""
-        )
+        provided = request.headers.get(LOCAL_TOKEN_HEADER, "") or request.query_params.get(LOCAL_TOKEN_QUERY, "")
         return bool(provided) and hmac.compare_digest(provided, expected)
 
     @app.middleware("http")
@@ -355,11 +353,7 @@ if HAS_FASTAPI:
             else:
                 poor += 1
             providers.append(entry)
-        avg_quality = (
-            round(sum(p["quality_score"] for p in providers) / len(providers), 1)
-            if providers
-            else 0.0
-        )
+        avg_quality = round(sum(p["quality_score"] for p in providers) / len(providers), 1) if providers else 0.0
         return ApiResponse(
             success=True,
             data={
@@ -449,9 +443,7 @@ if HAS_FASTAPI:
         if not conv:
             raise HTTPException(status_code=404, detail="对话不存在")
         messages = store.get_messages(conversation_id)
-        return ApiResponse(
-            success=True, data={"conversation": conv, "messages": messages}
-        )
+        return ApiResponse(success=True, data={"conversation": conv, "messages": messages})
 
     @app.delete(
         "/api/conversations/{conversation_id}",
@@ -468,9 +460,7 @@ if HAS_FASTAPI:
 
     # ============== 对话流式 API (SSE) ==============
 
-    async def _sse_generator(
-        result: dict, conversation_id: str
-    ) -> AsyncGenerator[str, None]:
+    async def _sse_generator(result: dict, conversation_id: str) -> AsyncGenerator[str, None]:
         """将分析结果转为 SSE 事件流"""
         status_event = {
             "type": "status",
@@ -614,10 +604,7 @@ if HAS_FASTAPI:
         return [
             bar
             for bar in bars
-            if any(
-                _safe_float_for_api(bar.get(field)) > 0
-                for field in ("open", "close", "high", "low", "volume")
-            )
+            if any(_safe_float_for_api(bar.get(field)) > 0 for field in ("open", "close", "high", "low", "volume"))
         ]
 
     @app.post("/api/analysis/run", response_model=ApiResponse[AnalysisResultData])
@@ -673,9 +660,7 @@ if HAS_FASTAPI:
         try:
             from backend.quant import research_memory
 
-            research_memory.record_snapshot(
-                req.stock_symbol, req.stock_name, result, stock_data
-            )
+            research_memory.record_snapshot(req.stock_symbol, req.stock_name, result, stock_data)
         except Exception:
             pass
 
@@ -731,12 +716,7 @@ if HAS_FASTAPI:
         table = get_agent_model_table()
         return ApiResponse(
             success=True,
-            data={
-                "agents": [
-                    {"key": k, "name": n, "vendor": v, "model": m}
-                    for k, n, v, m in table
-                ]
-            },
+            data={"agents": [{"key": k, "name": n, "vendor": v, "model": m} for k, n, v, m in table]},
         )
 
     # ============== 专家团 API ==============
@@ -924,9 +904,7 @@ if HAS_FASTAPI:
 
         provider = get_web_search_provider()
         if not provider.is_available():
-            raise HTTPException(
-                status_code=503, detail="搜索服务未配置 (需要 TAVILY_API_KEY)"
-            )
+            raise HTTPException(status_code=503, detail="搜索服务未配置 (需要 TAVILY_API_KEY)")
 
         results = provider.search(query, max_results)
         return ApiResponse(

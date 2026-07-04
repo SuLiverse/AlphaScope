@@ -53,9 +53,7 @@ class ScheduledReportManager:
 
     # ============== 观察列表管理 ==============
 
-    def add_to_watchlist(
-        self, symbol: str, name: str, alert_conditions: Optional[Dict] = None
-    ):
+    def add_to_watchlist(self, symbol: str, name: str, alert_conditions: Optional[Dict] = None):
         """添加到观察列表"""
         # 检查是否已存在
         for item in self._watchlist:
@@ -76,10 +74,7 @@ class ScheduledReportManager:
 
     def get_watchlist(self) -> List[Dict[str, Any]]:
         """获取观察列表"""
-        return [
-            {"symbol": item.symbol, "name": item.name, "added_at": item.added_at}
-            for item in self._watchlist
-        ]
+        return [{"symbol": item.symbol, "name": item.name, "added_at": item.added_at} for item in self._watchlist]
 
     # ============== 监控与告警 ==============
 
@@ -250,9 +245,7 @@ class ScheduledReportManager:
                 close = sd.get("close", 0)
                 change = sd.get("day_change", 0)
                 direction = "🔴" if change < 0 else "🟢" if change > 0 else "⚪"
-                parts.append(
-                    f"- {direction} **{name}**({symbol}): ¥{close:.2f} ({change:+.2f}%)"
-                )
+                parts.append(f"- {direction} **{name}**({symbol}): ¥{close:.2f} ({change:+.2f}%)")
 
         # 待处理告警
         unacked = [a for a in self._alerts if not a.acknowledged]

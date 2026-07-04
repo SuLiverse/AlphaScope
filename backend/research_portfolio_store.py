@@ -44,8 +44,7 @@ def list_positions() -> list[dict[str, Any]]:
     db = Database()
     with db.transaction() as conn:
         rows = conn.execute(
-            "SELECT symbol, name, sector, shares, cost, added_at "
-            "FROM research_positions ORDER BY added_at DESC"
+            "SELECT symbol, name, sector, shares, cost, added_at FROM research_positions ORDER BY added_at DESC"
         ).fetchall()
     return [
         {

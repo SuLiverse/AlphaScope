@@ -188,9 +188,7 @@ def trace_span(name: str, attributes: dict[str, Any] | None = None):
     return _Wrapped(cm)
 
 
-def build_trace_context(
-    job_id: str, user_prompt: str = "", data_sources: list[str] | None = None
-) -> dict[str, Any]:
+def build_trace_context(job_id: str, user_prompt: str = "", data_sources: list[str] | None = None) -> dict[str, Any]:
     """构造标准 trace 属性 (纯函数, 不依赖 otel)。
 
     用于给回测/研究任务的 span 提供统一属性集 (job_id/user_prompt/data_sources)。

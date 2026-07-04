@@ -249,25 +249,17 @@ def get_active_key(name: str, fallback_env: str = "") -> str:
     return ""
 
 
-def save_credential(
-    name: str, api_key: str, token_env: Optional[str] = None
-) -> dict[str, Any]:
+def save_credential(name: str, api_key: str, token_env: Optional[str] = None) -> dict[str, Any]:
     """保存数据源 API Key (加密落盘) + 热重载 registry (不再注入 os.environ, 审计 C6)。"""
     _ensure_table()
     preset = _PRESET_BY_NAME.get(name)
-    env = (
-        token_env
-        or (preset["token_env"] if preset else None)
-        or f"{name.upper()}_TOKEN"
-    )
+    env = token_env or (preset["token_env"] if preset else None) or f"{name.upper()}_TOKEN"
     now = time.time()
     encrypted = encrypt_key(api_key) if api_key else ""
     # existing 查询 + INSERT/UPDATE 在同一事务内(原子性); _reload_registry 不碰 DB,
     # 但为稳妥放在锁外。
     with _db().transaction() as conn:
-        existing = conn.execute(
-            "SELECT name FROM datasource_credentials WHERE name=?", (name,)
-        ).fetchone()
+        existing = conn.execute("SELECT name FROM datasource_credentials WHERE name=?", (name,)).fetchone()
         if existing:
             conn.execute(
                 "UPDATE datasource_credentials SET token_env=?, encrypted_key=?, updated_at=? WHERE name=?",
@@ -327,9 +319,7 @@ def _save_yaml(config) -> None:
         if _HAS_RUAMEL:
             YAML().dump(config, f)
         else:
-            yaml.safe_dump(
-                config, f, allow_unicode=True, sort_keys=False, default_flow_style=False
-            )
+            yaml.safe_dump(config, f, allow_unicode=True, sort_keys=False, default_flow_style=False)
 
 
 # data_type (provider.data_types 用的复数形式) -> yaml 里的 _providers 键名 (单数)

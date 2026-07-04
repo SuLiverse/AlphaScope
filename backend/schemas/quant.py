@@ -61,9 +61,7 @@ class StrategyInfo(BaseModel):
     id: str = Field(description="策略ID")
     name: str = Field(description="策略名称")
     description: str = Field(default="", description="策略描述")
-    status: StrategyStatus = Field(
-        default=StrategyStatus.ACTIVE, description="策略状态"
-    )
+    status: StrategyStatus = Field(default=StrategyStatus.ACTIVE, description="策略状态")
     params: list[StrategyParam] = Field(default_factory=list, description="策略参数")
     version: str = Field(default="1.0", description="策略版本")
 
@@ -105,9 +103,7 @@ class BacktestResult(BaseModel):
     symbol: str = Field(description="标的代码")
     status: RunStatus = Field(description="运行状态")
     metrics: Optional[BacktestMetrics] = Field(default=None, description="回测指标")
-    equity_curve: list[dict[str, Any]] = Field(
-        default_factory=list, description="权益曲线"
-    )
+    equity_curve: list[dict[str, Any]] = Field(default_factory=list, description="权益曲线")
     trades: list[dict[str, Any]] = Field(default_factory=list, description="交易记录")
     error: Optional[str] = Field(default=None, description="错误信息")
     started_at: Optional[datetime] = Field(default=None, description="开始时间")

@@ -85,9 +85,7 @@ def normalize_returns_input(
         return returns
     if isinstance(returns, list):
         try:
-            cols = asset_names or [
-                f"A{i}" for i in range(len(returns[0]) if returns else 0)
-            ]
+            cols = asset_names or [f"A{i}" for i in range(len(returns[0]) if returns else 0)]
             return pd.DataFrame(returns, columns=cols)
         except Exception:
             return None
@@ -120,11 +118,7 @@ def build_rebalance_draft(
     norm = {k: (float(v) / total if total > 0 else 0.0) for k, v in weights.items()}
     return {
         "target_weights": {k: round(v, 6) for k, v in norm.items()},
-        "target_value_by_asset": (
-            {k: round(v * total_value, 2) for k, v in norm.items()}
-            if total_value > 0
-            else {}
-        ),
+        "target_value_by_asset": ({k: round(v * total_value, 2) for k, v in norm.items()} if total_value > 0 else {}),
         "total_value": total_value,
         "method": method,
         "research_only": True,
@@ -251,9 +245,7 @@ def optimize_portfolio(
 # ============================================================
 
 
-def _optimize_with_skfolio(
-    df: "pd.DataFrame", method: str, rf: float
-) -> dict[str, float] | None:
+def _optimize_with_skfolio(df: "pd.DataFrame", method: str, rf: float) -> dict[str, float] | None:
     """skfolio: MeanRisk 优化。"""
     try:
         if method == "max_sharpe":
@@ -276,9 +268,7 @@ def _optimize_with_skfolio(
         return None
 
 
-def _optimize_with_riskfolio(
-    df: "pd.DataFrame", method: str, rf: float
-) -> dict[str, float] | None:
+def _optimize_with_riskfolio(df: "pd.DataFrame", method: str, rf: float) -> dict[str, float] | None:
     """riskfolio: rp.Portfolio 经典优化。"""
     try:
         port = rp.Portfolio(returns=df)  # type: ignore[union-attr]
@@ -299,9 +289,7 @@ def _optimize_with_riskfolio(
         return None
 
 
-def _optimize_with_pypfopt(
-    df: "pd.DataFrame", method: str, rf: float
-) -> dict[str, float] | None:
+def _optimize_with_pypfopt(df: "pd.DataFrame", method: str, rf: float) -> dict[str, float] | None:
     """pypfopt: EfficientFrontier。"""
     try:
         mu = expected_returns.mean_historical_return(df, compounding=False)  # type: ignore[union-attr]

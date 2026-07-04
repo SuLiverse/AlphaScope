@@ -120,8 +120,7 @@ def generate_report(
 
                     lines.append(f"### {i}. {claim}")
                     lines.append(
-                        f"> 置信度: {conf:.0%} | 来源数: {src_count} | "
-                        f"可信度: {trust:.0%} | 时效性: {decay:.0%}"
+                        f"> 置信度: {conf:.0%} | 来源数: {src_count} | 可信度: {trust:.0%} | 时效性: {decay:.0%}"
                     )
                     lines.append("")
 
@@ -129,9 +128,7 @@ def generate_report(
                         ev_type = ev.get("type", ev.get("evidence_type", ""))
                         source = ev.get("source", "")
                         data_date = ev.get("data_date", "")
-                        lines.append(
-                            f"- [{ev_type}] {ev.get('claim', ev.get('title', ''))}"
-                        )
+                        lines.append(f"- [{ev_type}] {ev.get('claim', ev.get('title', ''))}")
                         if source:
                             lines.append(f"  来源: {source}")
                         if data_date:
@@ -164,9 +161,7 @@ def generate_report(
             # 覆盖率
             coverage = chain.get("coverage", 1.0)
             overall_conf = chain.get("overall_confidence", 0.0)
-            lines.append(
-                f"> 证据覆盖率: {coverage:.0%} | 综合置信度: {overall_conf:.0%}"
-            )
+            lines.append(f"> 证据覆盖率: {coverage:.0%} | 综合置信度: {overall_conf:.0%}")
             lines.append("")
 
         except Exception:

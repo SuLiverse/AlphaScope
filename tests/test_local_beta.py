@@ -158,16 +158,12 @@ class TestKlineUpload:
         from backend.vision.vision_agent import VisionAnalysisResult
 
         mock_result = VisionAnalysisResult(
-            detection=ChartDetectionResult(
-                is_chart=True, chart_type="kline", ticker="600519"
-            ),
+            detection=ChartDetectionResult(is_chart=True, chart_type="kline", ticker="600519"),
             summary="上升趋势",
             ok=True,
         )
 
-        with patch(
-            "backend.vision.vision_agent.analyze_image", return_value=mock_result
-        ):
+        with patch("backend.vision.vision_agent.analyze_image", return_value=mock_result):
             resp = await client.post(
                 "/api/vision/analyze",
                 json={"image_base64": "dGVzdA==", "mime_type": "image/png"},
@@ -238,9 +234,7 @@ class TestHistoryPersistence:
             "backend.ai_assistant.conversation_store.ConversationStore.create_conversation",
             return_value="conv-123",
         ):
-            resp = await client.post(
-                "/api/conversations", json={"title": "持久化测试", "mode": "free"}
-            )
+            resp = await client.post("/api/conversations", json={"title": "持久化测试", "mode": "free"})
         assert resp.status_code == 200
         assert resp.json()["data"]["id"] == "conv-123"
 
@@ -289,9 +283,7 @@ class TestNoChromaDegradation:
     @pytest.mark.anyio
     async def test_health_without_chromadb(self, client):
         """无 ChromaDB 时 /health 正常"""
-        with patch(
-            "backend.rag.vector_store.VectorStore._get_client", return_value=None
-        ):
+        with patch("backend.rag.vector_store.VectorStore._get_client", return_value=None):
             resp = await client.get("/health")
         assert resp.status_code == 200
         assert resp.json()["data"]["status"] == "healthy"
@@ -304,9 +296,7 @@ class TestNoChromaDegradation:
             side_effect=RuntimeError("chromadb 未安装"),
         ):
             with patch("backend.file_store.search_documents", return_value=[]):
-                resp = await client.post(
-                    "/api/knowledge/search", json={"query": "test"}
-                )
+                resp = await client.post("/api/knowledge/search", json={"query": "test"})
         assert resp.status_code == 200
         assert resp.json()["success"] is True
 

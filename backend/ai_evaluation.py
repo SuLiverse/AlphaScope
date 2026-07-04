@@ -122,10 +122,7 @@ def describe() -> dict[str, Any]:
         "available_tools": tools,
         "ready_count": len(ready),
         "ready": ready,
-        "note": (
-            f"就绪 MLOps 库: {', '.join(ready) if ready else '(无)'}; "
-            "按需 pip install 缺失库启用对应能力。"
-        ),
+        "note": (f"就绪 MLOps 库: {', '.join(ready) if ready else '(无)'}; 按需 pip install 缺失库启用对应能力。"),
     }
 
 
@@ -321,9 +318,7 @@ def build_experiment_log(
             sort_keys=True,
             default=str,
         )
-        payload["reproducibility_hash"] = hashlib.sha256(
-            canonical.encode()
-        ).hexdigest()[:16]
+        payload["reproducibility_hash"] = hashlib.sha256(canonical.encode()).hexdigest()[:16]
     except Exception:
         payload["reproducibility_hash"] = None
     return payload

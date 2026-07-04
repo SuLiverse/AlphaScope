@@ -46,17 +46,13 @@ def generate_vision_report(result: Any) -> str:
         lines.append("")
 
         if kline.trend:
-            trend_icon = {"上升趋势": "📈", "下降趋势": "📉", "震荡": "↔️"}.get(
-                kline.trend, ""
-            )
+            trend_icon = {"上升趋势": "📈", "下降趋势": "📉", "震荡": "↔️"}.get(kline.trend, "")
             lines.append(f"### 趋势判断: {trend_icon} {kline.trend}")
             lines.append("")
 
         # 支撑压力位
         support = kline.support_levels if hasattr(kline, "support_levels") else []
-        resistance = (
-            kline.resistance_levels if hasattr(kline, "resistance_levels") else []
-        )
+        resistance = kline.resistance_levels if hasattr(kline, "resistance_levels") else []
         if support or resistance:
             lines.append("### 关键价位")
             lines.append("")
@@ -145,8 +141,7 @@ def generate_vision_report(result: Any) -> str:
         lines.append(result.disclaimer)
     else:
         lines.append(
-            "以上分析仅基于K线图形观察，可能与实际行情存在偏差。"
-            "请结合实时行情数据验证关键价位。本分析不构成投资建议。"
+            "以上分析仅基于K线图形观察，可能与实际行情存在偏差。请结合实时行情数据验证关键价位。本分析不构成投资建议。"
         )
     lines.append("")
 

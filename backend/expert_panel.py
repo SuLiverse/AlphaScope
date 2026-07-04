@@ -182,18 +182,10 @@ def load_experts_config_v2(yaml_path: Optional[Path] = None) -> List[ExpertTeamC
             members.append(
                 ExpertMemberConfig(
                     id=m_raw.get("id", ""),
-                    display_name=display_name.get("zh", "")
-                    if isinstance(display_name, dict)
-                    else str(display_name),
-                    display_name_en=display_name.get("en", "")
-                    if isinstance(display_name, dict)
-                    else "",
-                    profession=profession.get("zh", "")
-                    if isinstance(profession, dict)
-                    else str(profession),
-                    profession_en=profession.get("en", "")
-                    if isinstance(profession, dict)
-                    else "",
+                    display_name=display_name.get("zh", "") if isinstance(display_name, dict) else str(display_name),
+                    display_name_en=display_name.get("en", "") if isinstance(display_name, dict) else "",
+                    profession=profession.get("zh", "") if isinstance(profession, dict) else str(profession),
+                    profession_en=profession.get("en", "") if isinstance(profession, dict) else "",
                     avatar=m_raw.get("avatar", ""),
                     prompt_file=prompt_file,
                     role=m_raw.get("role", "member"),
@@ -217,9 +209,7 @@ def load_experts_config_v2(yaml_path: Optional[Path] = None) -> List[ExpertTeamC
                 display_name=team_display_name.get("zh", "")
                 if isinstance(team_display_name, dict)
                 else str(team_display_name),
-                display_name_en=team_display_name.get("en", "")
-                if isinstance(team_display_name, dict)
-                else "",
+                display_name_en=team_display_name.get("en", "") if isinstance(team_display_name, dict) else "",
                 description=team_raw.get("description", ""),
                 avatar=team_raw.get("avatar", ""),
                 prompt_file=team_raw.get("promptFile", ""),
@@ -296,17 +286,11 @@ def _validate_opinion(data: dict, cfg) -> dict:
 
 def _resolve_expert_ai_config(cfg, global_ai_settings: Optional[dict] = None):
     global_ai_settings = global_ai_settings or {}
-    preferred_vendor = getattr(cfg, "preferred_vendor", "") or getattr(
-        cfg, "provider", "deepseek"
-    )
-    preferred_model = getattr(cfg, "preferred_model", "") or getattr(
-        cfg, "model", "deepseek-chat"
-    )
+    preferred_vendor = getattr(cfg, "preferred_vendor", "") or getattr(cfg, "provider", "deepseek")
+    preferred_model = getattr(cfg, "preferred_model", "") or getattr(cfg, "model", "deepseek-chat")
     api_key = getattr(cfg, "api_key", "") or ""
     base_url = getattr(cfg, "base_url", "") or ""
-    if getattr(cfg, "inherit_global_key", True) and global_ai_settings.get(
-        "use_unified_key", True
-    ):
+    if getattr(cfg, "inherit_global_key", True) and global_ai_settings.get("use_unified_key", True):
         preferred_vendor = global_ai_settings.get("provider") or preferred_vendor
         preferred_model = global_ai_settings.get("model") or preferred_model
         api_key = global_ai_settings.get("api_key", "") or api_key
@@ -314,9 +298,7 @@ def _resolve_expert_ai_config(cfg, global_ai_settings: Optional[dict] = None):
     return preferred_vendor, preferred_model, api_key, base_url
 
 
-def run_expert(
-    cfg, stock_brief: str, stock_name: str, global_ai_settings: Optional[dict] = None
-) -> ExpertOpinion:
+def run_expert(cfg, stock_brief: str, stock_name: str, global_ai_settings: Optional[dict] = None) -> ExpertOpinion:
     """
     单专家调用,含双层兜底。
     支持 v1.0 ExpertConfig 和 v2.0 ExpertMemberConfig。
@@ -324,12 +306,8 @@ def run_expert(
     user_msg = _build_user_message(cfg, stock_brief, stock_name)
 
     # 兼容 v1.0 和 v2.0 的属性访问
-    system_prompt = getattr(cfg, "system_prompt", "") or load_prompt_file(
-        getattr(cfg, "prompt_file", "")
-    )
-    preferred_vendor, preferred_model, api_key, base_url = _resolve_expert_ai_config(
-        cfg, global_ai_settings
-    )
+    system_prompt = getattr(cfg, "system_prompt", "") or load_prompt_file(getattr(cfg, "prompt_file", ""))
+    preferred_vendor, preferred_model, api_key, base_url = _resolve_expert_ai_config(cfg, global_ai_settings)
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -346,11 +324,7 @@ def run_expert(
     ]:
         # 检查厂商配置是否完整；自定义 Base URL 时允许使用临时配置。
         cfg_v = VENDORS.get(vd) or {}
-        if (
-            not bu
-            and (not cfg_v.get("api_key") or not cfg_v.get("base_url"))
-            and not key_override
-        ):
+        if not bu and (not cfg_v.get("api_key") or not cfg_v.get("base_url")) and not key_override:
             last_err = f"{vd} 未配置完整"
             continue
 
@@ -396,8 +370,7 @@ def run_expert(
             valid = _validate_opinion(data, cfg)
             return ExpertOpinion(
                 expert_key=getattr(cfg, "key", "") or getattr(cfg, "id", ""),
-                expert_name=getattr(cfg, "name", "")
-                or getattr(cfg, "display_name", ""),
+                expert_name=getattr(cfg, "name", "") or getattr(cfg, "display_name", ""),
                 style=getattr(cfg, "style", "") or getattr(cfg, "profession", ""),
                 icon=getattr(cfg, "icon", "") or getattr(cfg, "avatar", ""),
                 view=valid["view"],
@@ -510,9 +483,7 @@ def editable_dict_to_team(data: dict) -> ExpertTeamConfig:
         seen.add(member_id)
         focus_raw = raw.get("focus_dims", "")
         if isinstance(focus_raw, str):
-            focus_dims = [
-                x.strip() for x in focus_raw.replace("，", ",").split(",") if x.strip()
-            ]
+            focus_dims = [x.strip() for x in focus_raw.replace("，", ",").split(",") if x.strip()]
         else:
             focus_dims = list(focus_raw or [])
         members.append(
@@ -570,15 +541,11 @@ def run_team_roundtable(
         return run_debate_round(team, stock_brief, stock_name, global_ai_settings)
 
     if run_mode == TeamRunMode.DEVILS_ADVOCATE:
-        return run_devils_advocate(
-            team, stock_brief, stock_name, global_ai_settings, advocate_cfg
-        )
+        return run_devils_advocate(team, stock_brief, stock_name, global_ai_settings, advocate_cfg)
 
     if run_mode == TeamRunMode.CHAIRMAN_RULING:
         # 先做快速投票，再由主席裁决
-        base_result = run_team_roundtable(
-            team, stock_brief, stock_name, global_ai_settings, TeamRunMode.QUICK_VOTE
-        )
+        base_result = run_team_roundtable(team, stock_brief, stock_name, global_ai_settings, TeamRunMode.QUICK_VOTE)
         t0 = time.time()  # 重新计时（包含主席裁决）
         chairman_op = _run_chairman_ruling(
             team,
@@ -597,9 +564,7 @@ def run_team_roundtable(
 
     if run_mode == TeamRunMode.HUMAN_INTERVENTION:
         # 人工介入模式: 仅做快速投票，前端负责展示并允许用户追加提问
-        result = run_team_roundtable(
-            team, stock_brief, stock_name, global_ai_settings, TeamRunMode.QUICK_VOTE
-        )
+        result = run_team_roundtable(team, stock_brief, stock_name, global_ai_settings, TeamRunMode.QUICK_VOTE)
         result["run_mode"] = TeamRunMode.HUMAN_INTERVENTION.value
         result["awaiting_human_input"] = True
         return result
@@ -631,9 +596,7 @@ def run_team_roundtable(
 
     with ThreadPoolExecutor(max_workers=len(active_members)) as ex:
         futs = {
-            ex.submit(
-                run_expert, member, stock_brief, stock_name, global_ai_settings
-            ): member.id
+            ex.submit(run_expert, member, stock_brief, stock_name, global_ai_settings): member.id
             for member in active_members
         }
         for fut in as_completed(futs):
@@ -668,9 +631,7 @@ def run_team_roundtable(
 
 
 # ============== v1.0 兼容：5 路并行 ==============
-def run_roundtable(
-    stock_brief: str, stock_name: str, api_keys: Optional[Dict[str, str]] = None
-) -> dict:
+def run_roundtable(stock_brief: str, stock_name: str, api_keys: Optional[Dict[str, str]] = None) -> dict:
     """
     v1.0 兼容：5 专家并行调用。返回:
     {
@@ -688,10 +649,7 @@ def run_roundtable(
     api_keys = api_keys or {}
 
     with ThreadPoolExecutor(max_workers=len(experts)) as ex:
-        futs = {
-            ex.submit(run_expert, cfg, stock_brief, stock_name): cfg.key
-            for cfg in experts
-        }
+        futs = {ex.submit(run_expert, cfg, stock_brief, stock_name): cfg.key for cfg in experts}
         for fut in as_completed(futs):
             try:
                 op = fut.result(timeout=30)
@@ -776,9 +734,7 @@ def _build_opinions_summary(opinions: Dict[str, ExpertOpinion]) -> str:
     return "\n".join(lines) if lines else "(暂无有效意见)"
 
 
-def _build_debate_user_message(
-    cfg, stock_brief: str, stock_name: str, opinions_summary: str
-) -> str:
+def _build_debate_user_message(cfg, stock_brief: str, stock_name: str, opinions_summary: str) -> str:
     """为辩论轮构建 user message：附带其他专家意见摘要，要求该专家审阅后决定是否修订。"""
     focus_dims = getattr(cfg, "focus_dims", []) or []
     style = getattr(cfg, "style", "") or getattr(cfg, "stop_loss_style", "中等")
@@ -814,15 +770,9 @@ def _run_expert_debate_round(
     global_ai_settings: Optional[dict] = None,
 ) -> ExpertOpinion:
     """单专家辩论轮调用：在看到其他专家意见后重新给出判断。"""
-    user_msg = _build_debate_user_message(
-        cfg, stock_brief, stock_name, opinions_summary
-    )
-    system_prompt = getattr(cfg, "system_prompt", "") or load_prompt_file(
-        getattr(cfg, "prompt_file", "")
-    )
-    preferred_vendor, preferred_model, api_key, base_url = _resolve_expert_ai_config(
-        cfg, global_ai_settings
-    )
+    user_msg = _build_debate_user_message(cfg, stock_brief, stock_name, opinions_summary)
+    system_prompt = getattr(cfg, "system_prompt", "") or load_prompt_file(getattr(cfg, "prompt_file", ""))
+    preferred_vendor, preferred_model, api_key, base_url = _resolve_expert_ai_config(cfg, global_ai_settings)
 
     messages = [
         {"role": "system", "content": system_prompt},
@@ -838,11 +788,7 @@ def _run_expert_debate_round(
         (fallback[0], fallback[1], "", None),
     ]:
         cfg_v = VENDORS.get(vd) or {}
-        if (
-            not bu
-            and (not cfg_v.get("api_key") or not cfg_v.get("base_url"))
-            and not key_override
-        ):
+        if not bu and (not cfg_v.get("api_key") or not cfg_v.get("base_url")) and not key_override:
             last_err = f"{vd} 未配置完整"
             continue
 
@@ -886,8 +832,7 @@ def _run_expert_debate_round(
             valid = _validate_opinion(data, cfg)
             return ExpertOpinion(
                 expert_key=getattr(cfg, "key", "") or getattr(cfg, "id", ""),
-                expert_name=getattr(cfg, "name", "")
-                or getattr(cfg, "display_name", ""),
+                expert_name=getattr(cfg, "name", "") or getattr(cfg, "display_name", ""),
                 style=getattr(cfg, "style", "") or getattr(cfg, "profession", ""),
                 icon=getattr(cfg, "icon", "") or getattr(cfg, "avatar", ""),
                 view=valid["view"],
@@ -971,9 +916,7 @@ def run_debate_round(
     round1_opinions: Dict[str, ExpertOpinion] = {}
     with ThreadPoolExecutor(max_workers=len(active_members)) as ex:
         futs = {
-            ex.submit(
-                run_expert, member, stock_brief, stock_name, global_ai_settings
-            ): member.id
+            ex.submit(run_expert, member, stock_brief, stock_name, global_ai_settings): member.id
             for member in active_members
         }
         for fut in as_completed(futs):
@@ -1107,9 +1050,7 @@ def run_devils_advocate(
     opinions: Dict[str, ExpertOpinion] = {}
     with ThreadPoolExecutor(max_workers=len(active_members)) as ex:
         futs = {
-            ex.submit(
-                run_expert, member, stock_brief, stock_name, global_ai_settings
-            ): member.id
+            ex.submit(run_expert, member, stock_brief, stock_name, global_ai_settings): member.id
             for member in active_members
         }
         for fut in as_completed(futs):
@@ -1179,9 +1120,7 @@ def run_devils_advocate(
 
     try:
         system_prompt = adv_member.system_prompt
-        preferred_vendor, preferred_model, api_key, base_url = (
-            _resolve_expert_ai_config(adv_member, global_ai_settings)
-        )
+        preferred_vendor, preferred_model, api_key, base_url = _resolve_expert_ai_config(adv_member, global_ai_settings)
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": critique_user_msg},
@@ -1197,11 +1136,7 @@ def run_devils_advocate(
             (fallback[0], fallback[1], "", None),
         ]:
             cfg_v = VENDORS.get(vd) or {}
-            if (
-                not bu
-                and (not cfg_v.get("api_key") or not cfg_v.get("base_url"))
-                and not key_override
-            ):
+            if not bu and (not cfg_v.get("api_key") or not cfg_v.get("base_url")) and not key_override:
                 last_err = f"{vd} 未配置完整"
                 continue
             try:
@@ -1337,11 +1272,7 @@ def _run_chairman_ruling(
     # 确定主席配置
     if chairman_cfg is None:
         lead_member = next(
-            (
-                m
-                for m in team.members
-                if m.role == "lead" and getattr(m, "enabled", True)
-            ),
+            (m for m in team.members if m.role == "lead" and getattr(m, "enabled", True)),
             None,
         )
         chairman_cfg = lead_member or (team.members[0] if team.members else None)
@@ -1408,11 +1339,7 @@ def _run_chairman_ruling(
         (fallback[0], fallback[1], "", None),
     ]:
         cfg_v = VENDORS.get(vd) or {}
-        if (
-            not bu
-            and (not cfg_v.get("api_key") or not cfg_v.get("base_url"))
-            and not key_override
-        ):
+        if not bu and (not cfg_v.get("api_key") or not cfg_v.get("base_url")) and not key_override:
             last_err = f"{vd} 未配置完整"
             continue
         try:
@@ -1655,8 +1582,7 @@ def export_md(
             lines.append("- (无)")
         lines += [
             "",
-            f"**操作建议**: {op.action} | **建议仓位**: {op.position}% | "
-            f"**止损位**: ¥{op.stop_loss:.2f}",
+            f"**操作建议**: {op.action} | **建议仓位**: {op.position}% | **止损位**: ¥{op.stop_loss:.2f}",
         ]
         if getattr(op, "invalid_if", ""):
             lines += ["", f"**失效条件**: {op.invalid_if}"]
@@ -1692,9 +1618,7 @@ def _build_quick_brief(symbol: str, stock_name: str) -> str:
     try:
         end = datetime.now().strftime("%Y%m%d")
         start = (datetime.now() - pd.Timedelta(days=180)).strftime("%Y%m%d")
-        df = ak.stock_zh_a_hist(
-            symbol=symbol, period="daily", start_date=start, end_date=end, adjust="qfq"
-        )
+        df = ak.stock_zh_a_hist(symbol=symbol, period="daily", start_date=start, end_date=end, adjust="qfq")
         if df is not None and not df.empty:
             df.columns = [
                 "date",
@@ -1752,9 +1676,7 @@ if __name__ == "__main__":
             print(f"      团队: {t.display_name} ({len(t.members)} 位成员)")
             for m in t.members:
                 role_tag = " [LEAD]" if m.role == "lead" else ""
-                print(
-                    f"        {m.avatar} {m.display_name}{role_tag} → {m.provider}/{m.model}"
-                )
+                print(f"        {m.avatar} {m.display_name}{role_tag} → {m.provider}/{m.model}")
     else:
         print("    ! 未找到 v2.0 teams 配置，将使用 v1.0 兼容模式")
 
@@ -1787,14 +1709,10 @@ if __name__ == "__main__":
         flag = "OK" if op.ok else "FAIL"
         fb = " (降级)" if op.fallback_used else ""
         role_tag = f" [{op.role}]" if getattr(op, "role", "member") != "member" else ""
-        print(
-            f"\n  {op.icon} {op.expert_name}{role_tag} [{op.vendor}/{op.model}]{fb} {flag}"
-        )
+        print(f"\n  {op.icon} {op.expert_name}{role_tag} [{op.vendor}/{op.model}]{fb} {flag}")
         if op.ok:
             print(f"    view: {op.view[:80]}")
-            print(
-                f"    action: {op.action} | position: {op.position}% | stop: ¥{op.stop_loss:.2f}"
-            )
+            print(f"    action: {op.action} | position: {op.position}% | stop: ¥{op.stop_loss:.2f}")
             if op.evidence:
                 ev0 = op.evidence[0]
                 ev_str = str(ev0)[:60] if isinstance(ev0, dict) else ev0[:60]
@@ -1803,10 +1721,7 @@ if __name__ == "__main__":
             print(f"    error: {op.error_msg[:100]}")
 
     s = result["summary"]
-    print(
-        f"\n[5] 投票汇总: {s.get('buy', 0)}买/{s.get('hold', 0)}观/"
-        f"{s.get('reduce', 0)}减/{s.get('sell', 0)}卖"
-    )
+    print(f"\n[5] 投票汇总: {s.get('buy', 0)}买/{s.get('hold', 0)}观/{s.get('reduce', 0)}减/{s.get('sell', 0)}卖")
     print(f"    平均仓位: {s.get('avg_position', 0):.1f}%")
     print(f"    有效专家: {s.get('valid_count', 0)}/{s.get('total_count', 0)}")
 

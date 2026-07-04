@@ -281,12 +281,10 @@ def _run_local_backtest(body: BacktestRequestBody) -> dict[str, Any]:
     now = datetime.now()
     run_id = f"local-{now.strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}"
     final_equity = float(
-        performance.get("final_equity")
-        or (result.equity_curve[-1] if result.equity_curve else body.initial_capital)
+        performance.get("final_equity") or (result.equity_curve[-1] if result.equity_curve else body.initial_capital)
     )
     equity_curve = [
-        {"date": date, "equity": equity, "value": equity}
-        for date, equity in zip(result.dates, result.equity_curve)
+        {"date": date, "equity": equity, "value": equity} for date, equity in zip(result.dates, result.equity_curve)
     ]
     payload = {
         "run_id": run_id,
@@ -425,9 +423,7 @@ def _run_chip_distribution_local(body: "ChipDistributionRequestBody") -> dict[st
             initial_capital=100000.0,
         )
 
-    report = compute_chip_distribution(
-        raw, symbol=body.symbol, price_levels=body.price_levels
-    )
+    report = compute_chip_distribution(raw, symbol=body.symbol, price_levels=body.price_levels)
     now = datetime.now()
     run_id = f"chip-{now.strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}"
     payload = report.to_dict()
@@ -448,9 +444,7 @@ def _run_chip_distribution_local(body: "ChipDistributionRequestBody") -> dict[st
             "started_at": now.isoformat(),
             "finished_at": now.isoformat(),
             "message": (
-                "已使用本地样例行情完成筹码分布,仅用于功能预览。"
-                if data_source == "local_preview"
-                else report.note
+                "已使用本地样例行情完成筹码分布,仅用于功能预览。" if data_source == "local_preview" else report.note
             ),
         }
     )
@@ -499,9 +493,7 @@ def _run_strategy_comparison_local(
         strategy = StrategyRegistry.create(name, {})
         if strategy is None:
             continue
-        engine = BacktestEngine(
-            initial_capital=body.initial_capital, commission_rate=0.001
-        )
+        engine = BacktestEngine(initial_capital=body.initial_capital, commission_rate=0.001)
         result = engine.run(strategy, [dict(b) for b in bars], body.symbol)
         perf = result.performance or {}
         rows.append(
@@ -532,9 +524,7 @@ def _run_strategy_comparison_local(
     assumptions: dict[str, Any] = {}
     if bars:
         # 任一引擎实例的假设都一致,取一次披露给前端。
-        assumptions = BacktestEngine(
-            initial_capital=body.initial_capital
-        )._assumptions()
+        assumptions = BacktestEngine(initial_capital=body.initial_capital)._assumptions()
     payload = {
         "run_id": run_id,
         "mode": "strategy_compare",
@@ -620,9 +610,7 @@ def _run_walk_forward_local(body: "WalkForwardRequestBody") -> dict[str, Any]:
             "started_at": now.isoformat(),
             "finished_at": now.isoformat(),
             "message": (
-                "已使用本地样例行情完成走查，仅用于功能预览。"
-                if data_source == "local_preview"
-                else report.note
+                "已使用本地样例行情完成走查，仅用于功能预览。" if data_source == "local_preview" else report.note
             ),
         }
     )
@@ -680,9 +668,7 @@ def _run_evolution_local(body: "EvolveRequestBody") -> dict[str, Any]:
             "started_at": now.isoformat(),
             "finished_at": now.isoformat(),
             "message": (
-                "已使用本地样例行情完成寻优，仅用于功能预览。"
-                if data_source == "local_preview"
-                else report.message
+                "已使用本地样例行情完成寻优，仅用于功能预览。" if data_source == "local_preview" else report.message
             ),
         }
     )
@@ -713,12 +699,8 @@ class WalkForwardRequestBody(BaseModel):
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     initial_capital: float = Field(default=1000000.0, description="初始资金")
     params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
-    n_splits: int = Field(
-        default=5, description="样本外窗口数(2-12, 数据不足时自动收敛)"
-    )
-    scheme: str = Field(
-        default="anchored", description="切分方案: anchored(锚定) | rolling(滚动)"
-    )
+    n_splits: int = Field(default=5, description="样本外窗口数(2-12, 数据不足时自动收敛)")
+    scheme: str = Field(default="anchored", description="切分方案: anchored(锚定) | rolling(滚动)")
 
 
 class ChipDistributionRequestBody(BaseModel):
@@ -755,9 +737,7 @@ class StrategyCompareRequestBody(BaseModel):
 class ExperimentCompareBody(BaseModel):
     """实验横向对比请求体。"""
 
-    run_ids: list[str] = Field(
-        default_factory=list, description="要对比的实验 run_id 列表"
-    )
+    run_ids: list[str] = Field(default_factory=list, description="要对比的实验 run_id 列表")
 
 
 class EvolveRequestBody(BaseModel):
@@ -772,12 +752,8 @@ class EvolveRequestBody(BaseModel):
     start_date: str = Field(description="开始日期 YYYY-MM-DD")
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     initial_capital: float = Field(default=1000000.0, description="初始资金")
-    params: dict[str, Any] = Field(
-        default_factory=dict, description="固定基底参数(不被进化)"
-    )
-    param_space: dict[str, Any] = Field(
-        default_factory=dict, description="可选显式搜索空间;缺省由默认参数推断"
-    )
+    params: dict[str, Any] = Field(default_factory=dict, description="固定基底参数(不被进化)")
+    param_space: dict[str, Any] = Field(default_factory=dict, description="可选显式搜索空间;缺省由默认参数推断")
     population_size: int = Field(default=16, description="种群规模(4-40, 自动夹紧)")
     generations: int = Field(default=8, description="进化代数(1-20, 受算力预算约束)")
     fitness_metric: str = Field(
@@ -949,9 +925,7 @@ async def export_stock_pool(body: StockPoolExportRequest):
     return Response(
         content=csv_text,
         media_type="text/csv; charset=utf-8",
-        headers={
-            "Content-Disposition": 'attachment; filename="alphascope-stock-pool.csv"'
-        },
+        headers={"Content-Disposition": 'attachment; filename="alphascope-stock-pool.csv"'},
     )
 
 
@@ -1015,9 +989,7 @@ async def run_patterns_endpoint(body: PatternsRequestBody):
     """
     try:
         result = await asyncio.to_thread(_run_patterns_local, body)
-        return ApiResponse(
-            success=True, data=result, message=result.get("note") or None
-        )
+        return ApiResponse(success=True, data=result, message=result.get("note") or None)
     except Exception as e:
         return ApiResponse(
             success=False,
@@ -1087,9 +1059,7 @@ async def list_experiments_endpoint(mode: str = "", symbol: str = "", limit: int
     """列举已持久化的量化实验(回测/走查/筹码/策略榜),按时间倒序,可按 mode/symbol 过滤。"""
     from backend.quant.experiment_store import count_experiments, list_experiments
 
-    items = await asyncio.to_thread(
-        list_experiments, limit=limit, mode=mode or None, symbol=symbol or None
-    )
+    items = await asyncio.to_thread(list_experiments, limit=limit, mode=mode or None, symbol=symbol or None)
     return ApiResponse(
         success=True,
         data={"experiments": items, "total": count_experiments()},

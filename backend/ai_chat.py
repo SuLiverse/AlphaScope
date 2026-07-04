@@ -82,9 +82,7 @@ class ChatSession:
     model: str = "deepseek-chat"
     api_key: str = ""  # 自定义 API Key（可选，覆盖 provider 默认配置）
     custom_base_url: str = ""  # 自定义 OpenAI-compatible Base URL（仅当前会话内存）
-    custom_models: List[str] = field(
-        default_factory=list
-    )  # 当前会话拉取/添加的自定义模型
+    custom_models: List[str] = field(default_factory=list)  # 当前会话拉取/添加的自定义模型
     messages: List[ChatMessage] = field(default_factory=list)
     context_snapshot: dict = field(default_factory=dict)  # 注入的上下文快照
     max_rounds: int = MAX_ROUNDS
@@ -210,13 +208,7 @@ def fetch_model_list(base_url: str, api_key: str) -> List[str]:
     """从 OpenAI-compatible /models 接口拉取模型 ID 列表。"""
     client = _create_custom_client(base_url, api_key)
     models = client.models.list()
-    ids = sorted(
-        {
-            getattr(m, "id", "")
-            for m in getattr(models, "data", [])
-            if getattr(m, "id", "")
-        }
-    )
+    ids = sorted({getattr(m, "id", "") for m in getattr(models, "data", []) if getattr(m, "id", "")})
     return ids
 
 
@@ -285,17 +277,11 @@ def send_message(session: ChatSession, user_msg: str) -> ChatSession:
             )
             # Streamlit 热重载时 call_llm 可能仍指向旧函数签名，不接受 api_key。
             # 用签名检查兼容旧函数，避免 TypeError 字符串匹配掩盖真实错误。
-            key_override = (
-                (getattr(session, "api_key", "") or None)
-                if (vd, md) == primary
-                else None
-            )
+            key_override = (getattr(session, "api_key", "") or None) if (vd, md) == primary else None
             reply = _call_llm_compat(payload, api_key=key_override)
             if reply and reply.strip():
                 if (vd, md) != primary:
-                    reply = (
-                        f"_(主厂商 {primary[0]} 不可用,已切换到 {vd}/{md})_\n\n" + reply
-                    )
+                    reply = f"_(主厂商 {primary[0]} 不可用,已切换到 {vd}/{md})_\n\n" + reply
                 break
         except Exception as e:
             last_err = str(e)[:200]
@@ -386,9 +372,7 @@ if __name__ == "__main__":
     after = len(sess.messages)
     chat_msgs = [m for m in sess.messages if m.role != "system"]
     print(f"    截断前 {before} 条,截断后 {after} 条 (chat={len(chat_msgs)})")
-    assert len(chat_msgs) == sess.max_rounds * 2, (
-        f"应保留 {sess.max_rounds * 2} 条 chat msg"
-    )
+    assert len(chat_msgs) == sess.max_rounds * 2, f"应保留 {sess.max_rounds * 2} 条 chat msg"
     print("    ✓ 截断逻辑正确")
 
     # 3. export_to_markdown
