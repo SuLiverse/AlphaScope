@@ -59,8 +59,15 @@ def normalize_symbol(symbol: str) -> str:
     # 只保留数字
     digits = re.sub(r"\D", "", s)
     # A 股 6 位，港股 5 位，美股可变
-    if len(digits) >= 5:
-        return digits[:6] if len(digits) >= 6 else digits
+    if len(digits) >= 6:
+        return digits[:6]
+    # 港股 4-5 位数字(9988/00700 两种写法都常见), 统一补零到 5 位
+    if len(digits) >= 4:
+        return digits.zfill(5)
+    # 无足够数字位: 美股字母代码(AAPL/BRK.B), 保留字母数字与点号
+    alpha = re.sub(r"[^A-Z0-9.]", "", s)
+    if alpha and re.search(r"[A-Z]", alpha):
+        return alpha
     return digits
 
 
@@ -69,6 +76,8 @@ def get_market(symbol: str) -> str:
     code = normalize_symbol(symbol)
     if not code:
         return "CN"
+    if re.search(r"[A-Z]", code):
+        return "US"  # 美股（字母代码）
     if len(code) == 5:
         return "HK"  # 港股（5 位数字）
     if code.startswith("6"):
