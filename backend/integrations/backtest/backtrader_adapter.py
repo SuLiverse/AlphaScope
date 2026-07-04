@@ -26,14 +26,18 @@ from __future__ import annotations
 from typing import Any
 
 # ----- 可选依赖: backtrader 缺失时优雅降级 -----
+# pandas 单独守卫: 引擎缺失不应拖垮纯函数 (bars_to_feed_data 只需 pandas)
+try:
+    import pandas as pd
+except Exception:
+    pd = None  # type: ignore[assignment]
+
 try:
     import backtrader as bt  # type: ignore[import-untyped]
-    import pandas as pd
 
-    _BT_AVAILABLE = True
+    _BT_AVAILABLE = pd is not None
 except Exception:  # ImportError / 副作用失败都不致命
     bt = None  # type: ignore[assignment]
-    pd = None  # type: ignore[assignment]
     _BT_AVAILABLE = False
 
 from backend.integrations.base import BacktestEngineAdapter
@@ -98,6 +102,7 @@ def build_assumptions(
     engine_name: str = "backtrader",
     commission: float = 0.0003,
     stake: int = 100,
+    note: str | None = None,
 ) -> BacktestAssumptions:
     """构造诚实假设卡 (与 vectorbt 一致的披露口径)。
 
@@ -116,7 +121,8 @@ def build_assumptions(
         adj_method="后复权 (由数据源决定)",
         future_function_check=True,
         data_source="调用方注入 (bars=)",
-        note=(
+        note=note
+        or (
             "backtrader 向事件驱动回测: 原生不模拟 A 股 T+1/印花税/涨跌停/停牌; "
             "结果偏乐观, 适合经典策略兼容/教学验证, 严肃 A 股回测须切回原生引擎。"
         ),
