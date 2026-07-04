@@ -23,14 +23,18 @@ from __future__ import annotations
 from typing import Any
 
 # ----- 可选依赖: bt 缺失时优雅降级 -----
+# pandas 单独守卫: 引擎缺失不应拖垮纯函数 (bars_to_price_df 只需 pandas)
+try:
+    import pandas as pd
+except Exception:
+    pd = None  # type: ignore[assignment]
+
 try:
     import bt as _bt  # type: ignore[import-untyped]
-    import pandas as pd
 
-    _BT_AVAILABLE = True
+    _BT_AVAILABLE = pd is not None
 except Exception:
     _bt = None  # type: ignore[assignment]
-    pd = None  # type: ignore[assignment]
     _BT_AVAILABLE = False
 
 from backend.integrations.base import BacktestEngineAdapter

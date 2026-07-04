@@ -29,18 +29,22 @@ from typing import Any
 
 # ----- 可选依赖: lib-pybroker 缺失时优雅降级 -----
 # 注意 PyPI 包名是 lib-pybroker, 顶层 import 名仍是 pybroker
+# pandas/numpy 单独守卫: 引擎缺失不应拖垮纯函数 (bars_to_pybroker_df 只需 pandas)
+try:
+    import pandas as pd
+    import numpy as np
+except Exception:
+    pd = None  # type: ignore[assignment]
+    np = None  # type: ignore[assignment]
+
 try:
     from pybroker import Strategy as _PybrokerStrategy  # type: ignore[import-untyped]
     from pybroker import StrategyConfig as _PybrokerConfig  # type: ignore[import-untyped]
-    import pandas as pd
-    import numpy as np
 
-    _PB_AVAILABLE = True
+    _PB_AVAILABLE = pd is not None
 except Exception:  # ImportError / 副作用失败都不致命
     _PybrokerStrategy = None  # type: ignore[assignment]
     _PybrokerConfig = None  # type: ignore[assignment]
-    pd = None  # type: ignore[assignment]
-    np = None  # type: ignore[assignment]
     _PB_AVAILABLE = False
 
 from backend.integrations.base import BacktestEngineAdapter
@@ -110,6 +114,7 @@ def build_assumptions(
     initial_cash: float = 1_000_000,
     buy_delay: int = 1,
     sell_delay: int = 1,
+    note: str | None = None,
 ) -> BacktestAssumptions:
     """构造诚实假设卡 (与其他 adapter 一致的披露口径)。
 
@@ -128,7 +133,8 @@ def build_assumptions(
         adj_method="后复权 (由数据源决定)",
         future_function_check=True,
         data_source="调用方注入 (bars=)",
-        note=(
+        note=note
+        or (
             "pybroker ML + walk-forward 回测: 原生不模拟 A 股 T+1/印花税/涨跌停/停牌; "
             "buy_delay/sell_delay 是 next-bar 成交近似 T+1; 结果偏乐观, 适合 ML 策略研究"
             "与过拟合检测, 严肃 A 股回测须切回原生引擎。"
