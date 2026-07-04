@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-100%2B%20APIs-009688)](docs/api.md)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.9.48-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
+[![Release](https://img.shields.io/badge/release-v1.9.49-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
 
 > **把 AI 选股从「黑箱结论」变成「可复核的研究流程」。**
 >
@@ -27,7 +27,7 @@
 搜股票 → 工作台(行情/新闻/公告) → AI 研报(多 Agent 辩论) → 证据链(结论反查来源) → 简单回测 → 导出报告
 ```
 
-> 🎬 **演示 GIF 占位**：`docs/assets/v1.9.0/golden-path.gif`（待录制：搜「茅台」→生成研报→点证据链→跑双均线回测→导出。建议 60s、≤ 5MB）
+![AlphaScope 5 分钟黄金路径](docs/assets/v1.9.0/golden-path.gif)
 
 ### 两行启动
 
@@ -43,6 +43,14 @@ cd apps/web && npm install && npm run dev                                       
 ### 🧪 先用 Demo 体验（零 Key）
 
 不想配置 API Key？首次启动时在引导弹窗点「**先用 Demo 体验**」，即可用内置 10 只股票示例数据走完整条研究流程，研报会明确标注「演示样本」。准备好后再到「设置」里填自己的 Key 切换真实分析。
+
+---
+
+## GitHub 仓库元数据建议
+
+About: `Local-first AI equity research workbench with auditable multi-agent debate, evidence chains and backtesting with real trading frictions.`
+
+Topics: `ai-agent`, `quant`, `a-stock`, `backtesting`, `multi-agent`, `fastapi`, `react`, `llm`, `local-first`, `equity-research`
 
 ---
 
@@ -75,19 +83,21 @@ flowchart TB
 
 ## 界面预览
 
-> 📸 截图录制中：`docs/assets/v1.9.0/`（当前文档引用的是 v1.4.1 历史截图，v1.9.0 截图待更新）。
-
 ### 股票工作台
 
-![研策中枢 AlphaScope 股票工作台](docs/assets/v1.4.1/workbench.png)
+![研策中枢 AlphaScope 股票工作台](docs/assets/v1.9.0/workbench.png)
 
 ### 数据源终端
 
-![研策中枢 AlphaScope 数据源终端](docs/assets/v1.4.1/news-terminal.png)
+![研策中枢 AlphaScope 数据源终端](docs/assets/v1.9.0/news-terminal.png)
 
 ### 研究报告生成
 
-![研策中枢 AlphaScope 研究报告生成器](docs/assets/v1.4.1/report-generator.png)
+![研策中枢 AlphaScope 研究报告生成器](docs/assets/v1.9.0/report-generator.png)
+
+### 量化回测与风控
+
+![研策中枢 AlphaScope 量化回测与风控](docs/assets/v1.9.0/backtest.png)
 
 ## 目录
 
