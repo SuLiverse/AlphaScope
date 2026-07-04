@@ -39,8 +39,8 @@ def test_available_tools_returns_dict():
 
 
 def test_is_available_any():
-    # 至少装了一些 (本环境装了 mlflow/optuna 等)
-    assert aie.is_available() is True
+    # 可用性与底层库实际安装状态一致 (本机装 mlflow/optuna → True; CI 精简依赖 → False)
+    assert aie.is_available() is any(aie.available_tools().values())
 
 
 def test_is_available_specific_unknown_returns_false():
