@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.9.49 - 2026-07-05
+
+> **README 视觉素材占位收尾**: 接手 Claude Code 早期 P0 清单中剩余的"v1.9 截图/GIF 仍为占位"问题, 把首屏黄金路径和界面预览切到当前版本真实截图。
+
+### README 显影
+- 新增 `docs/assets/v1.9.0/` 当前界面素材: 工作台、数据源终端、研究报告生成、量化回测四张 1920×1200 截图。
+- 新增轻量 `golden-path.gif`(由当前截图合成, < 5MB), README 首屏不再显示"演示 GIF 占位"。
+- README「界面预览」从 `docs/assets/v1.4.1/` 切换到 `docs/assets/v1.9.0/`, 并补量化回测与风控截图。
+- `docs/assets/v1.9.0/README.md` 从录制待办改为当前素材清单 + 重新生成建议。
+
+### 前端可复用入口
+- `App.tsx` 支持 `?tab=...` 直接打开指定模块, 便于截图、分享和后续文档链接。
+
+### 验证
+- Playwright CLI 生成并抽样检查四张截图; GIF 体积约 125KB。
+- `npm --prefix apps/web run build` 通过。
+
 ## v1.9.48 - 2026-07-05
 
 > **三市场行情接手收尾**: 接手 Claude Code 停在半路的 AkShare 多市场行情批次, 把 v1.9.47 后的符号归一化继续落到 provider 实际取数层。纯增量, 不改变既有 A 股主链路。

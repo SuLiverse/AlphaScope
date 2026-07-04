@@ -35,6 +35,12 @@ const EvidenceAggregator = lazy(() => import('./components/EvidenceAggregator').
 
 const VISIBLE_TABS: TabID[] = ['dashboard', 'workbench', 'agents', 'experts', 'market', 'tasks', 'strategy_lab', 'fund_dca', 'news', 'chart', 'detailed', 'saved', 'valuation', 'dragon_tiger', 'investors', 'brief', 'monitor', 'research_memory', 'report_archive', 'tickflow', 'datalake', 'factor_registry', 'integration_center', 'evidence_aggregator', 'settings'];
 
+function initialTabFromUrl(): TabID {
+  if (typeof window === 'undefined') return 'dashboard';
+  const tab = new URLSearchParams(window.location.search).get('tab') as TabID | null;
+  return tab && VISIBLE_TABS.includes(tab) ? tab : 'dashboard';
+}
+
 function ModuleLoading() {
   return (
     <div className="flex h-full min-h-[420px] items-center justify-center px-6">
@@ -117,7 +123,7 @@ class ModuleErrorBoundary extends React.Component<ModuleErrorBoundaryProps, Modu
 }
 
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<TabID>('dashboard');
+  const [currentTab, setCurrentTab] = useState<TabID>(() => initialTabFromUrl());
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('api');
 
   const openAgentSettings = () => {
