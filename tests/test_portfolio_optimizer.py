@@ -94,8 +94,8 @@ def test_build_disclaimer_mentions_method():
 def test_available_optimizers_returns_list():
     opts = po.available_optimizers()
     assert isinstance(opts, list)
-    # 至少有 skfolio/riskfolio/pypfopt 之一 (本环境装了)
-    assert po.is_available() is True
+    # 可用性与优化器列表一致 (本机装 skfolio/riskfolio/pypfopt 任一 → True; CI 精简依赖 → 空+False)
+    assert bool(po.is_available()) is (len(opts) > 0)
 
 
 def test_describe_reports_state():
