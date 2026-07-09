@@ -252,6 +252,43 @@ def _load_local_bars(
     )
 
 
+_MSG_NEED_REAL_OR_PREVIEW = (
+    "真实行情不足（本地库与数据源均无可用 K 线）。"
+    "请检查网络/数据源，或在请求中设置 allow_preview_data=true 使用演示样例行情（仅预览，非真实）。"
+)
+
+
+class PreviewOptIn(BaseModel):
+    """无真实行情时是否允许合成样例（默认关，须显式 opt-in）。"""
+
+    allow_preview_data: bool = Field(
+        default=False,
+        description="无真实行情时是否允许使用本地合成样例（仅演示，须显式 opt-in）",
+    )
+
+
+def _require_bars(
+    body: PreviewOptIn,
+    *,
+    symbol: str,
+    start_date: str,
+    end_date: str,
+    initial_capital: float = 1_000_000.0,
+    min_bars: int = 30,
+) -> tuple[list[dict[str, Any]], str]:
+    """统一取数 + 守卫：不足且未 opt-in preview 时 raise，供各 quant runner 复用。"""
+    bars, data_source = _load_local_bars(
+        symbol,
+        start_date=start_date,
+        end_date=end_date,
+        initial_capital=initial_capital,
+        allow_preview_data=body.allow_preview_data,
+    )
+    if data_source == "unavailable" or len(bars) < min_bars:
+        raise ValueError(_MSG_NEED_REAL_OR_PREVIEW)
+    return bars, data_source
+
+
 def _persist_experiment(payload: dict[str, Any]) -> None:
     """失败安全地把运行载荷落库(experiment_store),供跨会话查询/对比。
 
@@ -276,18 +313,13 @@ def _run_local_backtest(body: BacktestRequestBody) -> dict[str, Any]:
     if strategy is None:
         raise ValueError(f"策略不存在: {body.strategy_id}")
 
-    bars, data_source = _load_local_bars(
-        body.symbol,
+    bars, data_source = _require_bars(
+        body,
+        symbol=body.symbol,
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
-        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
-    if data_source == "unavailable" or len(bars) < 30:
-        raise ValueError(
-            "真实行情不足（本地库与数据源均无可用 K 线）。"
-            "请检查网络/数据源，或在请求中设置 allow_preview_data=true 使用演示样例行情（仅预览，非真实）。"
-        )
     engine = BacktestEngine(initial_capital=body.initial_capital, commission_rate=0.001)
     result = engine.run(strategy, bars, body.symbol)
     performance = result.performance or {}
@@ -378,15 +410,13 @@ def _run_patterns_local(body: "PatternsRequestBody") -> dict[str, Any]:
     """加载本地行情并做 K 线形态识别, 返回 API 载荷。形态识别纯确定性、不触网。"""
     from backend.quant.patterns import detect_patterns
 
-    bars, data_source = _load_local_bars(
-        body.symbol,
+    bars, data_source = _require_bars(
+        body,
+        symbol=body.symbol,
         start_date=body.start_date,
         end_date=body.end_date,
-        initial_capital=1_000_000.0,
-        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
+        min_bars=1,
     )
-    if data_source == "unavailable" or not bars:
-        raise ValueError("真实行情不足，无法识别形态。可设置 allow_preview_data=true 使用演示样例行情。")
     report = detect_patterns(bars, symbol=body.symbol, lookback=body.lookback)
     payload = report.to_dict()
     payload.update(
@@ -432,15 +462,14 @@ def _run_chip_distribution_local(body: "ChipDistributionRequestBody") -> dict[st
     data_source = "local_price_store"
     if len(raw) < 20:
         # 退回清洗取数(带 provider/preview 兜底)。换手率会被剥离 → 走量能代理。
-        raw, data_source = _load_local_bars(
-            body.symbol,
+        raw, data_source = _require_bars(
+            body,
+            symbol=body.symbol,
             start_date=body.start_date,
             end_date=body.end_date,
             initial_capital=100000.0,
-            allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
+            min_bars=1,
         )
-        if data_source == "unavailable" or not raw:
-            raise ValueError("真实行情不足，无法计算筹码分布。可设置 allow_preview_data=true 使用演示样例行情。")
 
     report = compute_chip_distribution(raw, symbol=body.symbol, price_levels=body.price_levels)
     now = datetime.now()
@@ -494,15 +523,13 @@ def _run_strategy_comparison_local(
     from backend.quant.strategies import StrategyRegistry
 
     rank_by = body.rank_by if body.rank_by in _COMPARE_RANK_KEYS else "sharpe_ratio"
-    bars, data_source = _load_local_bars(
-        body.symbol,
+    bars, data_source = _require_bars(
+        body,
+        symbol=body.symbol,
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
-        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
-    if data_source == "unavailable" or len(bars) < 30:
-        raise ValueError("真实行情不足，无法对比策略。可设置 allow_preview_data=true 使用演示样例行情。")
 
     rows: list[dict[str, Any]] = []
     skipped: list[str] = []
@@ -596,15 +623,13 @@ def _run_walk_forward_local(body: "WalkForwardRequestBody") -> dict[str, Any]:
     if StrategyRegistry.get(body.strategy_id) is None:
         raise ValueError(f"策略不存在: {body.strategy_id}")
 
-    bars, data_source = _load_local_bars(
-        body.symbol,
+    bars, data_source = _require_bars(
+        body,
+        symbol=body.symbol,
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
-        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
-    if data_source == "unavailable" or len(bars) < 30:
-        raise ValueError("真实行情不足，无法走查。可设置 allow_preview_data=true 使用演示样例行情。")
     report = run_walk_forward(
         body.strategy_id,
         bars,
@@ -655,15 +680,13 @@ def _run_evolution_local(body: "EvolveRequestBody") -> dict[str, Any]:
     if StrategyRegistry.get(body.strategy_id) is None:
         raise ValueError(f"策略不存在: {body.strategy_id}")
 
-    bars, data_source = _load_local_bars(
-        body.symbol,
+    bars, data_source = _require_bars(
+        body,
+        symbol=body.symbol,
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
-        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
-    if data_source == "unavailable" or len(bars) < 30:
-        raise ValueError("真实行情不足，无法进化寻优。可设置 allow_preview_data=true 使用演示样例行情。")
     report = run_evolution(
         body.strategy_id,
         bars,
@@ -704,7 +727,7 @@ def _run_evolution_local(body: "EvolveRequestBody") -> dict[str, Any]:
     return payload
 
 
-class BacktestRequestBody(BaseModel):
+class BacktestRequestBody(PreviewOptIn):
     """回测请求体"""
 
     strategy_id: str = Field(description="策略ID")
@@ -713,13 +736,9 @@ class BacktestRequestBody(BaseModel):
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     initial_capital: float = Field(default=1000000.0, description="初始资金")
     params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
-    allow_preview_data: bool = Field(
-        default=False,
-        description="无真实行情时是否允许使用本地合成样例（仅演示，须显式 opt-in）",
-    )
 
 
-class WalkForwardRequestBody(BaseModel):
+class WalkForwardRequestBody(PreviewOptIn):
     """走查(walk-forward)样本外稳健性分析请求体。
 
     复用回测的取数与策略，额外指定样本外窗口数与切分方案。
@@ -733,30 +752,27 @@ class WalkForwardRequestBody(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
     n_splits: int = Field(default=5, description="样本外窗口数(2-12, 数据不足时自动收敛)")
     scheme: str = Field(default="anchored", description="切分方案: anchored(锚定) | rolling(滚动)")
-    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
-class ChipDistributionRequestBody(BaseModel):
+class ChipDistributionRequestBody(PreviewOptIn):
     """筹码(成本)分布请求体。"""
 
     symbol: str = Field(description="标的代码")
     start_date: str = Field(description="开始日期 YYYY-MM-DD")
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     price_levels: int = Field(default=100, description="价位离散桶数(20-400)")
-    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
-class PatternsRequestBody(BaseModel):
+class PatternsRequestBody(PreviewOptIn):
     """K 线形态识别请求体。"""
 
     symbol: str = Field(description="标的代码")
     start_date: str = Field(description="开始日期 YYYY-MM-DD")
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     lookback: int = Field(default=60, description="蜡烛形态扫描窗口(最近 N 根)")
-    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
-class StrategyCompareRequestBody(BaseModel):
+class StrategyCompareRequestBody(PreviewOptIn):
     """策略横向对比请求体:同一标的/区间跑全部内置策略并排名。"""
 
     symbol: str = Field(description="标的代码")
@@ -767,7 +783,6 @@ class StrategyCompareRequestBody(BaseModel):
         default="sharpe_ratio",
         description="排名指标: sharpe_ratio|total_return|calmar_ratio",
     )
-    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
 class ExperimentCompareBody(BaseModel):
@@ -776,7 +791,7 @@ class ExperimentCompareBody(BaseModel):
     run_ids: list[str] = Field(default_factory=list, description="要对比的实验 run_id 列表")
 
 
-class EvolveRequestBody(BaseModel):
+class EvolveRequestBody(PreviewOptIn):
     """遗传算法策略参数寻优请求体。
 
     复用回测的取数与策略;在策略的数值参数空间内用确定性 GA 搜索更优组合。
@@ -797,7 +812,6 @@ class EvolveRequestBody(BaseModel):
         description="适应度指标: sharpe_ratio|calmar_ratio|sortino_ratio|total_return|annualized_return|profit_factor|win_rate",
     )
     seed: int = Field(default=42, description="随机种子(决定可复现性)")
-    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
 class TdxCompileRequestBody(BaseModel):
