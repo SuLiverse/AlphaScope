@@ -21,6 +21,7 @@ import {
 import { cn } from '../lib/utils';
 import { fetchApi } from '../lib/api';
 import { getErrorMessage } from '../lib/dataFetch';
+import { useQuantPreviewOptIn } from '../lib/quantPreview';
 import { getPersistedStock } from '../lib/workspaceEvents';
 import { ThemedSelect } from './ThemedSelect';
 
@@ -174,8 +175,7 @@ export function StrategyLab() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  /** 与回测页一致：默认关，须显式允许演示样例 */
-  const [allowPreviewData, setAllowPreviewData] = useState(false);
+  const { allowPreviewData, setAllowPreviewData, previewBody } = useQuantPreviewOptIn(false);
   const [aiText, setAiText] = useState('');
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -259,7 +259,7 @@ export function StrategyLab() {
           start_date: fmt(startDate),
           end_date: fmt(endDate),
           initial_capital: capital,
-          allow_preview_data: allowPreviewData,
+          ...previewBody,
           params: {
             buy_rules: draft.buy_rules,
             sell_rules: draft.sell_rules,

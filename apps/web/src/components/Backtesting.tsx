@@ -30,6 +30,7 @@ import { findStockTarget, STOCK_UNIVERSE, StockTarget } from '../lib/stocks';
 import { API_BASE_URL, LOCAL_API_TOKEN, fetchApi } from '../lib/api';
 import { getPersistedStock, subscribeStockSelected } from '../lib/workspaceEvents';
 import { getErrorMessage, stripSymbolSuffix, useAsync } from '../lib/dataFetch';
+import { previewResultNote, useQuantPreviewOptIn } from '../lib/quantPreview';
 import { StableChartContainer } from './StableChartContainer';
 
 type TabID = 'overview' | 'workshop' | 'leaderboard' | 'walkforward' | 'evolution' | 'chips' | 'experiments' | 'pool' | 'compare';
@@ -179,6 +180,7 @@ interface BacktestResultData {
   message?: string;
   degraded?: boolean;
   data_source?: string;
+  is_preview?: boolean;
 }
 
 interface StrategyInfo {
@@ -584,8 +586,7 @@ export function Backtesting() {
   const [selectedStockName, setSelectedStockName] = useState(persistedStock.name);
   const [days, setDays] = useState(180);
   const [initialCapital, setInitialCapital] = useState(1000000);
-  /** 无真实行情时是否允许合成样例（默认关，须显式勾选） */
-  const [allowPreviewData, setAllowPreviewData] = useState(false);
+  const { allowPreviewData, setAllowPreviewData, previewBody } = useQuantPreviewOptIn(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BacktestResultData | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -794,15 +795,13 @@ export function Backtesting() {
           end_date: fmt(endDate),
           initial_capital: initialCapital,
           params: {},
-          allow_preview_data: allowPreviewData,
+          ...previewBody,
         }),
       });
       setResult(res);
       const perf = res.metrics || {};
       const tradeCount = perf.trade_count ?? 0;
-      const previewNote = res.degraded || res.data_source === 'local_preview' || res.summary?.data_source === 'local_preview'
-        ? ' ⚠ 当前为演示样例行情，非真实行情。'
-        : '';
+      const previewNote = previewResultNote(res);
       if (tradeCount === 0) {
         setActionMessage(
           `回测完成但 0 笔交易：策略未触发买卖信号，或当前本金（¥${initialCapital.toLocaleString()}）按 A 股 100 股整手买不进该标的。可尝试提高本金或更换标的。${res.summary?.data_source_label ? ' 数据来源：' + res.summary.data_source_label : ''}${previewNote}`,
@@ -853,7 +852,7 @@ export function Backtesting() {
           params: {},
           n_splits: wfSplits,
           scheme: wfScheme,
-          allow_preview_data: allowPreviewData,
+          ...previewBody,
         }),
       });
       setWfResult(res);
@@ -894,7 +893,7 @@ export function Backtesting() {
           start_date: fmt(startDate),
           end_date: fmt(endDate),
           price_levels: 100,
-          allow_preview_data: allowPreviewData,
+          ...previewBody,
         }),
       });
       setChipResult(res);
@@ -947,7 +946,7 @@ export function Backtesting() {
           generations: evoGens,
           fitness_metric: evoMetric,
           seed: evoSeed,
-          allow_preview_data: allowPreviewData,
+          ...previewBody,
         }),
       });
       setEvoResult(res);
@@ -1077,7 +1076,7 @@ export function Backtesting() {
           end_date: fmt(endDate),
           initial_capital: initialCapital,
           params: { formula: tdxFormula },
-          allow_preview_data: allowPreviewData,
+          ...previewBody,
         }),
       });
       setResult(res);
@@ -1117,7 +1116,7 @@ export function Backtesting() {
           end_date: fmt(endDate),
           initial_capital: initialCapital,
           rank_by: cmpRankBy,
-          allow_preview_data: allowPreviewData,
+          ...previewBody,
         }),
       });
       setCmpResult(res);

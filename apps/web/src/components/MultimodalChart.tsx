@@ -46,6 +46,7 @@ import { SyntheticDataBanner } from './SyntheticDataBanner';
 import {
   isLivePriceFeed,
   isSyntheticPriceFeed,
+  priceFeedKindLabel,
   resolvePriceFeed,
   type PriceFeed,
 } from '../lib/priceFeed';
@@ -1413,13 +1414,7 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
             <div className="rounded-xl border border-white/5 bg-black/25 p-3">
               <p className="mb-1 text-[10px] text-neutral-500">数据形态</p>
               <p className="font-semibold text-neutral-200">
-                {visionSource.kind === 'uploaded'
-                  ? '上传截图'
-                  : isLivePriceFeed(priceFeed)
-                    ? priceFeed === 'live_degraded'
-                      ? '真实行情K线(源降级)'
-                      : '真实行情K线'
-                    : '本地预览K线'}
+                {visionSource.kind === 'uploaded' ? '上传截图' : priceFeedKindLabel(priceFeed)}
               </p>
               <p className={cn('mt-1 font-mono text-[10px]', isLivePriceFeed(priceFeed) || visionSource.kind === 'uploaded' ? 'text-emerald-300' : 'text-amber-300')}>
                 {visionSource.kind === 'uploaded' ? `图片 ${uploadedImage ? '已读取' : '读取中'}` : chartSourceLabel}

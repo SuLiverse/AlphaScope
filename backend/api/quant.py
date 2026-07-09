@@ -17,8 +17,20 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
-from pydantic import BaseModel, Field
-
+from backend.api.quant_schemas import (
+    BacktestRequestBody,
+    ChipDistributionRequestBody,
+    EvolveRequestBody,
+    ExperimentCompareBody,
+    LiveStartBody,
+    LiveStopBody,
+    PatternsRequestBody,
+    PreviewOptIn,
+    StockPoolExportRequest,
+    StrategyCompareRequestBody,
+    TdxCompileRequestBody,
+    WalkForwardRequestBody,
+)
 from backend.provider_timeout import call_with_timeout
 from backend.schemas.api import ApiResponse
 from backend.stock_resolver import resolve_stock
@@ -258,15 +270,6 @@ _MSG_NEED_REAL_OR_PREVIEW = (
 )
 
 
-class PreviewOptIn(BaseModel):
-    """无真实行情时是否允许合成样例（默认关，须显式 opt-in）。"""
-
-    allow_preview_data: bool = Field(
-        default=False,
-        description="无真实行情时是否允许使用本地合成样例（仅演示，须显式 opt-in）",
-    )
-
-
 def _require_bars(
     body: PreviewOptIn,
     *,
@@ -287,6 +290,25 @@ def _require_bars(
     if data_source == "unavailable" or len(bars) < min_bars:
         raise ValueError(_MSG_NEED_REAL_OR_PREVIEW)
     return bars, data_source
+
+
+def _source_fields(data_source: str, *, extra_degraded: bool = False) -> dict[str, Any]:
+    """统一 data_source / label / is_preview / degraded，避免各 runner 复制三元表达式。"""
+    is_preview = data_source == "local_preview"
+    if is_preview:
+        label = "本地样例行情"
+    elif data_source == "provider":
+        label = "实时数据源"
+    elif data_source == "unavailable":
+        label = "无可用行情"
+    else:
+        label = "本地行情库"
+    return {
+        "data_source": data_source,
+        "data_source_label": label,
+        "is_preview": is_preview,
+        "degraded": is_preview or extra_degraded,
+    }
 
 
 def _persist_experiment(payload: dict[str, Any]) -> None:
@@ -361,20 +383,12 @@ def _run_local_backtest(body: BacktestRequestBody) -> dict[str, Any]:
             "risk_violation_count": len(result.risk_violations),
             "start_date": bars[0]["date"] if bars else body.start_date,
             "end_date": bars[-1]["date"] if bars else body.end_date,
-            "data_source": data_source,
-            "data_source_label": (
-                "本地样例行情"
-                if data_source == "local_preview"
-                else "实时数据源"
-                if data_source == "provider"
-                else "本地行情库"
-            ),
+            **_source_fields(data_source),
         },
         "started_at": now.isoformat(),
         "finished_at": now.isoformat(),
         "source_status": "local",
-        "data_source": data_source,
-        "degraded": data_source == "local_preview",
+        **_source_fields(data_source),
         "engine": "local",
         "params": strategy.params,
         "message": (
@@ -421,15 +435,7 @@ def _run_patterns_local(body: "PatternsRequestBody") -> dict[str, Any]:
     payload = report.to_dict()
     payload.update(
         {
-            "data_source": data_source,
-            "data_source_label": (
-                "本地样例行情"
-                if data_source == "local_preview"
-                else "实时数据源"
-                if data_source == "provider"
-                else "本地行情库"
-            ),
-            "degraded": data_source == "local_preview" or report.status != "ok",
+            **_source_fields(data_source, extra_degraded=report.status != "ok"),
         }
     )
     return payload
@@ -479,16 +485,8 @@ def _run_chip_distribution_local(body: "ChipDistributionRequestBody") -> dict[st
         {
             "run_id": run_id,
             "mode": "chip_distribution",
-            "data_source": data_source,
-            "data_source_label": (
-                "本地样例行情"
-                if data_source == "local_preview"
-                else "实时数据源"
-                if data_source == "provider"
-                else "本地行情库"
-            ),
+            **_source_fields(data_source, extra_degraded=report.status != "ok"),
             "bar_count": len(raw),
-            "degraded": data_source == "local_preview" or report.status != "ok",
             "started_at": now.isoformat(),
             "finished_at": now.isoformat(),
             "message": (
@@ -583,16 +581,8 @@ def _run_strategy_comparison_local(
         "skipped": skipped,
         "evaluated": len(rows),
         "assumptions": assumptions,
-        "data_source": data_source,
-        "data_source_label": (
-            "本地样例行情"
-            if data_source == "local_preview"
-            else "实时数据源"
-            if data_source == "provider"
-            else "本地行情库"
-        ),
+        **_source_fields(data_source),
         "bar_count": len(bars),
-        "degraded": data_source == "local_preview",
         "started_at": now.isoformat(),
         "finished_at": now.isoformat(),
         "message": (
@@ -604,11 +594,6 @@ def _run_strategy_comparison_local(
     }
     _persist_experiment(payload)
     return payload
-
-
-# ============================================================
-# 请求模型
-# ============================================================
 
 
 def _run_walk_forward_local(body: "WalkForwardRequestBody") -> dict[str, Any]:
@@ -647,16 +632,8 @@ def _run_walk_forward_local(body: "WalkForwardRequestBody") -> dict[str, Any]:
             "run_id": run_id,
             "strategy_id": body.strategy_id,
             "mode": "walk_forward",
-            "data_source": data_source,
-            "data_source_label": (
-                "本地样例行情"
-                if data_source == "local_preview"
-                else "实时数据源"
-                if data_source == "provider"
-                else "本地行情库"
-            ),
+            **_source_fields(data_source, extra_degraded=report.status != "ok"),
             "bar_count": len(bars),
-            "degraded": data_source == "local_preview" or report.status != "ok",
             "started_at": now.isoformat(),
             "finished_at": now.isoformat(),
             "message": (
@@ -706,16 +683,8 @@ def _run_evolution_local(body: "EvolveRequestBody") -> dict[str, Any]:
         {
             "run_id": run_id,
             "mode": "evolution",
-            "data_source": data_source,
-            "data_source_label": (
-                "本地样例行情"
-                if data_source == "local_preview"
-                else "实时数据源"
-                if data_source == "provider"
-                else "本地行情库"
-            ),
+            **_source_fields(data_source, extra_degraded=report.status != "ok"),
             "bar_count": len(bars),
-            "degraded": data_source == "local_preview" or report.status != "ok",
             "started_at": now.isoformat(),
             "finished_at": now.isoformat(),
             "message": (
@@ -725,120 +694,6 @@ def _run_evolution_local(body: "EvolveRequestBody") -> dict[str, Any]:
     )
     _persist_experiment(payload)
     return payload
-
-
-class BacktestRequestBody(PreviewOptIn):
-    """回测请求体"""
-
-    strategy_id: str = Field(description="策略ID")
-    symbol: str = Field(description="标的代码")
-    start_date: str = Field(description="开始日期 YYYY-MM-DD")
-    end_date: str = Field(description="结束日期 YYYY-MM-DD")
-    initial_capital: float = Field(default=1000000.0, description="初始资金")
-    params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
-
-
-class WalkForwardRequestBody(PreviewOptIn):
-    """走查(walk-forward)样本外稳健性分析请求体。
-
-    复用回测的取数与策略，额外指定样本外窗口数与切分方案。
-    """
-
-    strategy_id: str = Field(description="策略ID")
-    symbol: str = Field(description="标的代码")
-    start_date: str = Field(description="开始日期 YYYY-MM-DD")
-    end_date: str = Field(description="结束日期 YYYY-MM-DD")
-    initial_capital: float = Field(default=1000000.0, description="初始资金")
-    params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
-    n_splits: int = Field(default=5, description="样本外窗口数(2-12, 数据不足时自动收敛)")
-    scheme: str = Field(default="anchored", description="切分方案: anchored(锚定) | rolling(滚动)")
-
-
-class ChipDistributionRequestBody(PreviewOptIn):
-    """筹码(成本)分布请求体。"""
-
-    symbol: str = Field(description="标的代码")
-    start_date: str = Field(description="开始日期 YYYY-MM-DD")
-    end_date: str = Field(description="结束日期 YYYY-MM-DD")
-    price_levels: int = Field(default=100, description="价位离散桶数(20-400)")
-
-
-class PatternsRequestBody(PreviewOptIn):
-    """K 线形态识别请求体。"""
-
-    symbol: str = Field(description="标的代码")
-    start_date: str = Field(description="开始日期 YYYY-MM-DD")
-    end_date: str = Field(description="结束日期 YYYY-MM-DD")
-    lookback: int = Field(default=60, description="蜡烛形态扫描窗口(最近 N 根)")
-
-
-class StrategyCompareRequestBody(PreviewOptIn):
-    """策略横向对比请求体:同一标的/区间跑全部内置策略并排名。"""
-
-    symbol: str = Field(description="标的代码")
-    start_date: str = Field(description="开始日期 YYYY-MM-DD")
-    end_date: str = Field(description="结束日期 YYYY-MM-DD")
-    initial_capital: float = Field(default=1000000.0, description="初始资金")
-    rank_by: str = Field(
-        default="sharpe_ratio",
-        description="排名指标: sharpe_ratio|total_return|calmar_ratio",
-    )
-
-
-class ExperimentCompareBody(BaseModel):
-    """实验横向对比请求体。"""
-
-    run_ids: list[str] = Field(default_factory=list, description="要对比的实验 run_id 列表")
-
-
-class EvolveRequestBody(PreviewOptIn):
-    """遗传算法策略参数寻优请求体。
-
-    复用回测的取数与策略;在策略的数值参数空间内用确定性 GA 搜索更优组合。
-    样本内寻优极易过拟合,结果附强免责并建议再做样本外走查。
-    """
-
-    strategy_id: str = Field(description="策略ID")
-    symbol: str = Field(description="标的代码")
-    start_date: str = Field(description="开始日期 YYYY-MM-DD")
-    end_date: str = Field(description="结束日期 YYYY-MM-DD")
-    initial_capital: float = Field(default=1000000.0, description="初始资金")
-    params: dict[str, Any] = Field(default_factory=dict, description="固定基底参数(不被进化)")
-    param_space: dict[str, Any] = Field(default_factory=dict, description="可选显式搜索空间;缺省由默认参数推断")
-    population_size: int = Field(default=16, description="种群规模(4-40, 自动夹紧)")
-    generations: int = Field(default=8, description="进化代数(1-20, 受算力预算约束)")
-    fitness_metric: str = Field(
-        default="sharpe_ratio",
-        description="适应度指标: sharpe_ratio|calmar_ratio|sortino_ratio|total_return|annualized_return|profit_factor|win_rate",
-    )
-    seed: int = Field(default=42, description="随机种子(决定可复现性)")
-
-
-class TdxCompileRequestBody(BaseModel):
-    """通达信公式编译(语法检查/预览)请求体。"""
-
-    formula: str = Field(description="通达信(TDX)公式源码")
-
-
-class LiveStartBody(BaseModel):
-    """实盘启动请求体"""
-
-    strategy_id: str = Field(description="策略ID")
-    symbol: str = Field(description="标的代码")
-    params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
-    capital: float = Field(default=1000000.0, description="投入资金")
-
-
-class LiveStopBody(BaseModel):
-    """实盘停止请求体"""
-
-    run_id: str = Field(description="运行ID")
-
-
-class StockPoolExportRequest(BaseModel):
-    """Stock pool CSV export request."""
-
-    text: str = Field(description="Stock pool text containing symbols")
 
 
 def _extract_stock_pool_symbols(text: str, limit: int = 200) -> list[str]:
