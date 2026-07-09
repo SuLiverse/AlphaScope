@@ -41,7 +41,6 @@ from backend.api.quant_core import (
     _run_strategy_comparison_local,
     _run_walk_forward_local,
     _stock_pool_csv,
-    run_local_backtest_payload,
 )
 from backend.schemas.api import ApiResponse
 
@@ -49,6 +48,7 @@ from backend.schemas.api import ApiResponse
 _load_local_bars = quant_core._load_local_bars
 _require_bars = quant_core._require_bars
 _source_fields = quant_core._source_fields
+run_local_backtest_payload = quant_core.run_local_backtest_payload
 
 router = APIRouter(prefix="/api/quant", tags=["quant"])
 
