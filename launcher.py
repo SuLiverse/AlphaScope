@@ -179,10 +179,29 @@ def find_free_port(preferred: int) -> int:
 
 
 def generate_local_api_token() -> str:
-    return secrets.token_urlsafe(32)
+    """兼容入口：实现集中在 backend.security.runtime_config。"""
+    try:
+        from backend.security.runtime_config import generate_local_api_token as _gen
+
+        return _gen()
+    except ImportError:
+        return secrets.token_urlsafe(32)
 
 
 def write_runtime_config(web_dir: Path, api_port: int, local_api_token: str) -> None:
+    try:
+        from backend.security.runtime_config import write_runtime_config_dir
+
+        write_runtime_config_dir(
+            web_dir,
+            api_port=api_port,
+            local_api_token=local_api_token,
+            packaged=is_frozen(),
+        )
+        return
+    except ImportError:
+        pass
+    # 极端环境（无 backend 包）回退
     api_base_url = f"http://127.0.0.1:{api_port}"
     payload = {
         "apiBaseUrl": api_base_url,
@@ -192,9 +211,7 @@ def write_runtime_config(web_dir: Path, api_port: int, local_api_token: str) -> 
     }
     web_dir.mkdir(parents=True, exist_ok=True)
     (web_dir / "runtime-config.js").write_text(
-        "window.__ALPHASCOPE_CONFIG__ = "
-        + json.dumps(payload, ensure_ascii=False)
-        + ";\n",
+        "window.__ALPHASCOPE_CONFIG__ = " + json.dumps(payload, ensure_ascii=False) + ";\n",
         encoding="utf-8",
     )
 

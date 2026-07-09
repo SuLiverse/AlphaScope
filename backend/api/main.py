@@ -94,6 +94,8 @@ def _safe_float_for_api(value: Any, default: float = 0.0) -> float:
 
 
 try:
+    from contextlib import asynccontextmanager
+
     from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
     from fastapi.middleware.cors import CORSMiddleware
     from fastapi.responses import JSONResponse, StreamingResponse
@@ -120,10 +122,22 @@ if HAS_FASTAPI:
 
     api_version = _load_api_version()
 
+    @asynccontextmanager
+    async def _app_lifespan(_app: FastAPI):
+        # 启动时引导 local token（写 env / runtime-config），避免 import 副作用。
+        try:
+            from backend.security.local_token import ensure_local_api_token
+
+            ensure_local_api_token()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("local API token bootstrap skipped: %s", exc)
+        yield
+
     app = FastAPI(
         title="研策中枢 AlphaScope API",
         description="研策中枢 AlphaScope API — 多 Agent 异构分析、专家团、K线图视觉分析",
         version=api_version,
+        lifespan=_app_lifespan,
     )
 
     app.add_middleware(
@@ -132,14 +146,6 @@ if HAS_FASTAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # 源码启动默认启用 local token（打包 launcher 也会生成）；显式 OPEN 可关。
-    try:
-        from backend.security.local_token import ensure_local_api_token
-
-        ensure_local_api_token()
-    except Exception as exc:  # noqa: BLE001 — 鉴权引导失败不阻断启动
-        logger.warning("local API token bootstrap skipped: %s", exc)
 
     LOCAL_TOKEN_HEADER = "X-AlphaScope-Local-Token"
     # 浏览器导航/SSE 无法加自定义 header, 兼容用 query param 传 token(报告下载、任务事件流)。
