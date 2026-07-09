@@ -174,6 +174,8 @@ export function StrategyLab() {
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BacktestResult | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  /** 与回测页一致：默认关，须显式允许演示样例 */
+  const [allowPreviewData, setAllowPreviewData] = useState(false);
   const [aiText, setAiText] = useState('');
   const [aiOpen, setAiOpen] = useState(false);
 
@@ -257,8 +259,7 @@ export function StrategyLab() {
           start_date: fmt(startDate),
           end_date: fmt(endDate),
           initial_capital: capital,
-          // 低代码试跑：缺真实行情时允许演示样例（结果会标 local_preview）
-          allow_preview_data: true,
+          allow_preview_data: allowPreviewData,
           params: {
             buy_rules: draft.buy_rules,
             sell_rules: draft.sell_rules,
@@ -351,6 +352,16 @@ export function StrategyLab() {
           <p className="mt-1 text-xs text-neutral-500">
             字段 + 操作符 + 阈值,无代码组合买卖信号 → 编译为 custom_rule 策略 → 复用真实回测引擎(T+1/印花税/滑点/防未来函数)。
           </p>
+          <label className="mt-2 inline-flex max-w-xl cursor-pointer items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-100/90">
+            <input
+              type="checkbox"
+              data-testid="strategy-lab-allow-preview"
+              checked={allowPreviewData}
+              onChange={(e) => setAllowPreviewData(e.target.checked)}
+              className="mt-0.5 rounded border-amber-500/40 bg-black/40"
+            />
+            <span>允许演示样例行情（无真实行情时；默认关闭，与「量化回测」一致）</span>
+          </label>
         </div>
       </header>
 
