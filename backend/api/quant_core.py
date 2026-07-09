@@ -19,6 +19,7 @@ from backend.api.quant_schemas import (
     ChipDistributionRequestBody,
     EvolveRequestBody,
     PatternsRequestBody,
+    PreviewOptIn,
     StrategyCompareRequestBody,
     WalkForwardRequestBody,
 )
@@ -734,4 +735,3 @@ def run_local_backtest_payload(
             params=params or {},
         )
     )
-
