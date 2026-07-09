@@ -113,9 +113,9 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
       <div className="flex-1 w-full overflow-y-auto custom-scrollbar overflow-x-hidden">
         {menuGroups.map((group, idx) => {
           const isAdvancedGroup = Boolean(group.collapsible);
-          const groupVisible = !isAdvancedGroup || showAdvanced || !isExpanded;
-          // 折叠侧栏时高级项始终可点；展开侧栏时高级组可收起
-          const itemsToShow = isAdvancedGroup && isExpanded && !showAdvanced ? [] : group.items;
+          // 折叠侧栏：高级图标始终可点；展开侧栏：仅 showAdvanced 时列出高级项
+          const itemsToShow =
+            isAdvancedGroup && isExpanded && !showAdvanced ? [] : group.items;
 
           return (
           <div key={idx} className="mb-6">
@@ -148,7 +148,7 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
               <div className="w-6 h-px bg-white/10 mx-auto mb-4"></div>
             )}
             
-            <nav className={cn('flex flex-col gap-2 w-full px-3', !groupVisible && isExpanded && 'hidden')}>
+            <nav className="flex flex-col gap-2 w-full px-3">
               {itemsToShow.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = currentTab === tab.id || (currentTab === 'workbench' && tab.id === 'dashboard');
