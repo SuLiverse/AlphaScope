@@ -250,7 +250,7 @@ class TestApiPayload:
         with (
             patch("backend.price_store.get_prices", return_value=[]),  # 原始取数为空
             patch("backend.price_store.normalize_symbol", return_value="600519"),
-            patch("backend.api.quant._load_local_bars", return_value=(cleaned, "provider")) as mock_load,
+            patch("backend.api.quant_core._load_local_bars", return_value=(cleaned, "provider")) as mock_load,
         ):
             payload = _run_chip_distribution_local(body)
 

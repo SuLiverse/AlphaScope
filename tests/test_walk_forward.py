@@ -171,7 +171,7 @@ class TestApiPayload:
         )
         bars = _make_bars(240)
         with patch(
-            "backend.api.quant._load_local_bars",
+            "backend.api.quant_core._load_local_bars",
             return_value=(bars, "local_price_store"),
         ):
             payload = _run_walk_forward_local(body)

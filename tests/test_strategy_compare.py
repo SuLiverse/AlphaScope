@@ -39,7 +39,7 @@ def _run(rank_by="sharpe_ratio"):
         rank_by=rank_by,
     )
     with patch(
-        "backend.api.quant._load_local_bars",
+        "backend.api.quant_core._load_local_bars",
         return_value=(_make_bars(), "local_price_store"),
     ):
         return _run_strategy_comparison_local(body)
