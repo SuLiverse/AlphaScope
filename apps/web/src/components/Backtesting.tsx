@@ -764,8 +764,11 @@ export function Backtesting() {
               setSelectedStrategy={setSelectedStrategy}
               compileTdx={compileTdx}
               runTdxBacktest={runTdxBacktest}
-            
-              strategiesAsync={strategiesAsync}
+              strategiesLoading={strategiesAsync.loading}
+              strategiesError={strategiesAsync.error}
+              onRefreshStrategies={() => {
+                void strategiesAsync.refresh();
+              }}
             />
           )}
 
@@ -814,7 +817,7 @@ export function Backtesting() {
               runWalkForward={runWalkForward}
               stockOptions={stockOptions}
             
-              strategiesAsync={strategiesAsync}
+              strategiesLoading={strategiesAsync.loading}
             />
           )}
           {activeTab === 'evolution' && (
@@ -841,7 +844,7 @@ export function Backtesting() {
               stockOptions={stockOptions}
               evoChartData={evoChartData}
             
-              strategiesAsync={strategiesAsync}
+              strategiesLoading={strategiesAsync.loading}
             />
           )}
           {activeTab === 'chips' && (

@@ -1,6 +1,10 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type { ChangeEvent } from "react";
+import type { StockTarget } from "../../../lib/stocks";
+import type { ChipDistributionData } from "../backtestTypes";
+
 import { motion } from "motion/react";
 import {
   Activity,
@@ -17,23 +21,33 @@ import { MetricCard } from "../MetricCard";
 import { StableChartContainer } from "../../StableChartContainer";
 import { formatFactor } from "../backtestFormat";
 
-export function ChipsTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    selectedSymbol,
-    setSelectedSymbol,
-    setSelectedStockName,
-    days,
-    setDays,
-    chipRunning,
-    chipResult,
-    chipError,
-    runChipDistribution,
-    chipChartData,
-    stockOptions
-  } = props;
+export interface ChipsTabProps {
+  selectedSymbol: string;
+  setSelectedSymbol: (symbol: string) => void;
+  setSelectedStockName: (name: string) => void;
+  days: number;
+  setDays: (days: number) => void;
+  chipRunning: boolean;
+  chipResult: ChipDistributionData | null;
+  chipError: string | null;
+  runChipDistribution: () => void | Promise<void>;
+  chipChartData: Array<{ price: number; priceLabel: string; pct: number; inProfit: boolean }>;
+  stockOptions: StockTarget[];
+}
+
+export function ChipsTab({
+  selectedSymbol,
+  setSelectedSymbol,
+  setSelectedStockName,
+  days,
+  setDays,
+  chipRunning,
+  chipResult,
+  chipError,
+  runChipDistribution,
+  chipChartData,
+  stockOptions,
+}: ChipsTabProps) {
 
   return (
             <motion.div key="chips" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
@@ -47,8 +61,8 @@ export function ChipsTab(props: {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">标的</p>
                   <select
                     value={selectedSymbol}
-                    onChange={(e: any) => {
-                      const stock = stockOptions.find((item: any) => item.symbol === e.target.value);
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
+                      const stock = stockOptions.find((item: StockTarget) => item.symbol === e.target.value);
                       if (stock) {
                         setSelectedSymbol(stock.symbol);
                         setSelectedStockName(stock.name);
@@ -56,7 +70,7 @@ export function ChipsTab(props: {
                     }}
                     className="mt-1 bg-transparent text-sm text-indigo-300 outline-none"
                   >
-                    {stockOptions.map((stock: any) => (
+                    {stockOptions.map((stock: StockTarget) => (
                       <option key={stock.symbol} value={stock.symbol} className="bg-[#0f0f15] text-neutral-200">
                         {stock.name} ({stock.symbol})
                       </option>
@@ -70,7 +84,7 @@ export function ChipsTab(props: {
                     min={60}
                     max={1000}
                     value={days}
-                    onChange={(e: any) => setDays(Math.max(60, Math.min(1000, Number(e.target.value) || 180)))}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setDays(Math.max(60, Math.min(1000, Number(e.target.value) || 180)))}
                     className="mt-1 w-20 bg-transparent text-sm text-neutral-200 outline-none"
                   />
                 </div>
