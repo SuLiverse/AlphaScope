@@ -21,3 +21,17 @@ export function resolvePriceFeed(opts: {
   if (opts.failed || !opts.hasBars) return 'synthetic';
   return opts.backendDegraded ? 'live_degraded' : 'live';
 }
+
+/** UI 文案，避免 JSX 嵌套三元 */
+export function priceFeedKindLabel(feed: PriceFeed): string {
+  switch (feed) {
+    case 'live':
+      return '真实行情K线';
+    case 'live_degraded':
+      return '真实行情K线(源降级)';
+    case 'synthetic':
+      return '本地预览K线';
+    default:
+      return '同步中';
+  }
+}

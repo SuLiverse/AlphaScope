@@ -55,6 +55,9 @@ reports/archive/
 # apps/  # Now used for React frontend - only ignore node_modules
 apps/web/node_modules/
 apps/web/.next/
+# 后端 lifespan 会写入本机 token，勿提交
+apps/web/public/runtime-config.js
+apps/web/dist/runtime-config.js
 
 # IDE
 .vscode/
