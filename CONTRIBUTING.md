@@ -24,12 +24,19 @@ ruff format --check backend/ frontend/ tests/
 python -m pytest tests/ -v
 ```
 
+可选：安装 pre-commit，提交前自动跑与 CI 相同的 ruff check/format（避免再因 format 门禁整段 CI 变红）：
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
 4. Submit a pull request with a clear description of what changed and why
 
 ## Code Style
 
 - Python 3.11+
-- Ruff for linting and formatting (config in `ruff.toml`)
+- Ruff for linting and formatting (config in `pyproject.toml` / pre-commit)
 - Type hints encouraged but not required
 - No comments unless the "why" is non-obvious
 
