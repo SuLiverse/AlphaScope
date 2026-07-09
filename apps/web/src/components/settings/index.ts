@@ -4,3 +4,4 @@
 export * from "./types";
 export * from "./helpers";
 export * from "./fields";
+export { ModelsTab } from "./ModelsTab";
