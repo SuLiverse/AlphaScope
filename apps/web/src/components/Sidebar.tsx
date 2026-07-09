@@ -44,8 +44,10 @@ type MenuItem = {
 
 export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  // 高级模块默认折叠图标栏；展开侧栏时若当前 tab 在高级组则自动展开该组
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
-  const menuGroups: Array<{ title: string; items: MenuItem[] }> = [
+  const menuGroups: Array<{ title: string; items: MenuItem[]; collapsible?: boolean }> = [
     { 
       title: 'AI 投研体系',
       items: [
@@ -61,7 +63,6 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         { id: 'research_memory', label: '研究记忆', icon: History },
         { id: 'report_archive', label: '研究存档中心', icon: Archive },
         { id: 'saved', label: '投研逻辑证据链', icon: Bookmark },
-        { id: 'evidence_aggregator', label: '多源证据聚合', icon: Layers },
       ]
     },
     {
@@ -71,14 +72,25 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
         { id: 'strategy_lab', label: '低代码策略编辑器', icon: Beaker },
         { id: 'fund_dca', label: '基金与定投研究室', icon: Coins },
         { id: 'valuation', label: '估值建模', icon: Calculator },
+        { id: 'monitor', label: '系统监控中心', icon: Gauge },
+      ]
+    },
+    {
+      // 功能完整保留，仅归入高级分组降低主路径噪音（审查建议）
+      title: '高级工具',
+      collapsible: true,
+      items: [
+        { id: 'evidence_aggregator', label: '多源证据聚合', icon: Layers },
         { id: 'tickflow', label: '自定义数据表', icon: Webhook },
         { id: 'datalake', label: '数据湖', icon: Database },
         { id: 'factor_registry', label: '因子注册中心', icon: Sigma },
         { id: 'integration_center', label: '集成中心', icon: Boxes },
-        { id: 'monitor', label: '系统监控中心', icon: Gauge },
       ]
     }
   ];
+
+  const advancedIds = menuGroups.find((g) => g.collapsible)?.items.map((i) => i.id) ?? [];
+  const showAdvanced = advancedOpen || advancedIds.includes(currentTab);
 
   return (
     <motion.aside 
@@ -99,7 +111,13 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
       </div>
 
       <div className="flex-1 w-full overflow-y-auto custom-scrollbar overflow-x-hidden">
-        {menuGroups.map((group, idx) => (
+        {menuGroups.map((group, idx) => {
+          const isAdvancedGroup = Boolean(group.collapsible);
+          const groupVisible = !isAdvancedGroup || showAdvanced || !isExpanded;
+          // 折叠侧栏时高级项始终可点；展开侧栏时高级组可收起
+          const itemsToShow = isAdvancedGroup && isExpanded && !showAdvanced ? [] : group.items;
+
+          return (
           <div key={idx} className="mb-6">
             <AnimatePresence>
               {isExpanded && (
@@ -109,7 +127,20 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
                   exit={{ opacity: 0, height: 0 }}
                   className="px-6 mb-3 text-[11px] font-mono text-neutral-500 font-medium tracking-wider whitespace-nowrap overflow-hidden"
                 >
-                  {group.title}
+                  {isAdvancedGroup ? (
+                    <button
+                      type="button"
+                      data-testid="nav-advanced-toggle"
+                      onClick={() => setAdvancedOpen((v) => !v)}
+                      className="flex w-full items-center justify-between gap-2 text-left text-neutral-500 hover:text-neutral-300"
+                      title="高级工具（功能完整保留）"
+                    >
+                      <span>{group.title}</span>
+                      <ChevronRight className={cn('h-3.5 w-3.5 transition-transform', showAdvanced && 'rotate-90')} />
+                    </button>
+                  ) : (
+                    group.title
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -117,8 +148,8 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
               <div className="w-6 h-px bg-white/10 mx-auto mb-4"></div>
             )}
             
-            <nav className="flex flex-col gap-2 w-full px-3">
-              {group.items.map((tab) => {
+            <nav className={cn('flex flex-col gap-2 w-full px-3', !groupVisible && isExpanded && 'hidden')}>
+              {itemsToShow.map((tab) => {
                 const Icon = tab.icon;
                 const isActive = currentTab === tab.id || (currentTab === 'workbench' && tab.id === 'dashboard');
                 return (
@@ -134,7 +165,7 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
                           ? 'text-indigo-400' 
                           : 'text-neutral-500 hover:text-neutral-300 hover:bg-white/5'
                       )}
-                      title={!isExpanded ? tab.label : undefined}
+                      title={!isExpanded ? `${tab.label}${isAdvancedGroup ? '（高级）' : ''}` : undefined}
                     >
                       <div className="w-[22px] flex items-center justify-center flex-shrink-0 relative z-10">
                         <Icon className={cn("w-[22px] h-[22px] transition-transform duration-300", isActive ? "scale-110" : "group-hover:scale-110")} strokeWidth={isActive ? 2.5 : 2} />
@@ -176,8 +207,19 @@ export function Sidebar({ currentTab, setCurrentTab }: SidebarProps) {
                 );
               })}
             </nav>
+            {isAdvancedGroup && isExpanded && !showAdvanced && (
+              <button
+                type="button"
+                data-testid="nav-advanced-expand"
+                onClick={() => setAdvancedOpen(true)}
+                className="mx-3 mt-1 w-[calc(100%-1.5rem)] rounded-lg border border-dashed border-white/10 px-3 py-2 text-left text-[11px] text-neutral-500 hover:border-indigo-500/30 hover:text-neutral-300"
+              >
+                展开高级工具（{group.items.length}）
+              </button>
+            )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mt-auto pt-4 flex flex-col gap-2 w-full px-3 flex-shrink-0">

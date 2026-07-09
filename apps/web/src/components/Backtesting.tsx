@@ -177,6 +177,8 @@ interface BacktestResultData {
   summary?: BacktestSummary;
   assumptions?: BacktestAssumptions;
   message?: string;
+  degraded?: boolean;
+  data_source?: string;
 }
 
 interface StrategyInfo {
@@ -582,6 +584,8 @@ export function Backtesting() {
   const [selectedStockName, setSelectedStockName] = useState(persistedStock.name);
   const [days, setDays] = useState(180);
   const [initialCapital, setInitialCapital] = useState(1000000);
+  /** 无真实行情时是否允许合成样例（默认关，须显式勾选） */
+  const [allowPreviewData, setAllowPreviewData] = useState(false);
   const [running, setRunning] = useState(false);
   const [result, setResult] = useState<BacktestResultData | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -790,18 +794,22 @@ export function Backtesting() {
           end_date: fmt(endDate),
           initial_capital: initialCapital,
           params: {},
+          allow_preview_data: allowPreviewData,
         }),
       });
       setResult(res);
       const perf = res.metrics || {};
       const tradeCount = perf.trade_count ?? 0;
+      const previewNote = res.degraded || res.data_source === 'local_preview' || res.summary?.data_source === 'local_preview'
+        ? ' ⚠ 当前为演示样例行情，非真实行情。'
+        : '';
       if (tradeCount === 0) {
         setActionMessage(
-          `回测完成但 0 笔交易：策略未触发买卖信号，或当前本金（¥${initialCapital.toLocaleString()}）按 A 股 100 股整手买不进该标的。可尝试提高本金或更换标的。${res.summary?.data_source_label ? ' 数据来源：' + res.summary.data_source_label : ''}`,
+          `回测完成但 0 笔交易：策略未触发买卖信号，或当前本金（¥${initialCapital.toLocaleString()}）按 A 股 100 股整手买不进该标的。可尝试提高本金或更换标的。${res.summary?.data_source_label ? ' 数据来源：' + res.summary.data_source_label : ''}${previewNote}`,
         );
       } else {
         setActionMessage(
-          `回测完成：${tradeCount} 笔交易，累计收益 ${formatPercent(perf.total_return)}，最大回撤 ${formatPercent(perf.max_drawdown)}。${res.summary?.data_source_label ? '数据来源：' + res.summary.data_source_label : ''}`,
+          `回测完成：${tradeCount} 笔交易，累计收益 ${formatPercent(perf.total_return)}，最大回撤 ${formatPercent(perf.max_drawdown)}。${res.summary?.data_source_label ? '数据来源：' + res.summary.data_source_label : ''}${previewNote}`,
         );
       }
     } catch (err) {
@@ -845,6 +853,7 @@ export function Backtesting() {
           params: {},
           n_splits: wfSplits,
           scheme: wfScheme,
+          allow_preview_data: allowPreviewData,
         }),
       });
       setWfResult(res);
@@ -885,6 +894,7 @@ export function Backtesting() {
           start_date: fmt(startDate),
           end_date: fmt(endDate),
           price_levels: 100,
+          allow_preview_data: allowPreviewData,
         }),
       });
       setChipResult(res);
@@ -937,6 +947,7 @@ export function Backtesting() {
           generations: evoGens,
           fitness_metric: evoMetric,
           seed: evoSeed,
+          allow_preview_data: allowPreviewData,
         }),
       });
       setEvoResult(res);
@@ -1066,6 +1077,7 @@ export function Backtesting() {
           end_date: fmt(endDate),
           initial_capital: initialCapital,
           params: { formula: tdxFormula },
+          allow_preview_data: allowPreviewData,
         }),
       });
       setResult(res);
@@ -1105,6 +1117,7 @@ export function Backtesting() {
           end_date: fmt(endDate),
           initial_capital: initialCapital,
           rank_by: cmpRankBy,
+          allow_preview_data: allowPreviewData,
         }),
       });
       setCmpResult(res);
@@ -1233,6 +1246,18 @@ export function Backtesting() {
             </span>
           </h2>
           <p className="mt-2 text-sm font-mono tracking-wide text-neutral-400">调用后端 BacktestEngine 运行策略、股票池真实因子筛查与决策后验</p>
+          <label className="mt-3 inline-flex max-w-xl cursor-pointer items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100/90">
+            <input
+              type="checkbox"
+              data-testid="allow-preview-data"
+              checked={allowPreviewData}
+              onChange={(e) => setAllowPreviewData(e.target.checked)}
+              className="mt-0.5 rounded border-amber-500/40 bg-black/40"
+            />
+            <span>
+              允许演示样例行情（无真实行情时才用合成数据；默认关闭，勾选后结果会标注「本地样例」）
+            </span>
+          </label>
         </div>
 
         <div className="flex rounded-xl border border-white/5 bg-black/60 p-1.5">

@@ -133,6 +133,14 @@ if HAS_FASTAPI:
         allow_headers=["*"],
     )
 
+    # 源码启动默认启用 local token（打包 launcher 也会生成）；显式 OPEN 可关。
+    try:
+        from backend.security.local_token import ensure_local_api_token
+
+        ensure_local_api_token()
+    except Exception as exc:  # noqa: BLE001 — 鉴权引导失败不阻断启动
+        logger.warning("local API token bootstrap skipped: %s", exc)
+
     LOCAL_TOKEN_HEADER = "X-AlphaScope-Local-Token"
     # 浏览器导航/SSE 无法加自定义 header, 兼容用 query param 传 token(报告下载、任务事件流)。
     LOCAL_TOKEN_QUERY = "local_token"

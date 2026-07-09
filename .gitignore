@@ -36,6 +36,7 @@ data/uploads/
 data/datalake/
 data/logs/
 data/raw/
+data/runtime/
 cache/
 uploads/
 .first_run_complete

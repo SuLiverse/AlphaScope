@@ -132,6 +132,7 @@ class TestQuantBacktest:
                 "start_date": "2024-01-01",
                 "end_date": "2024-12-31",
                 "initial_capital": 1000000,
+                "allow_preview_data": True,
             },
         )
 
@@ -169,6 +170,31 @@ class TestQuantBacktest:
         assert data["error_code"] == "LOCAL_BACKTEST_ERROR"
         assert "策略不存在" in data["error"]
 
+    @pytest.mark.anyio
+    async def test_backtest_rejects_preview_without_opt_in(self, client, monkeypatch):
+        """无真实行情且未 allow_preview_data 时不得静默用合成 K 线。"""
+        import backend.api.quant as quant_api
+
+        monkeypatch.setattr(
+            quant_api,
+            "_load_local_bars",
+            lambda *a, **k: ([], "unavailable"),
+        )
+        resp = await client.post(
+            "/api/quant/backtest",
+            json={
+                "strategy_id": "macd_momentum",
+                "symbol": "ZZZZZZ",
+                "start_date": "2024-01-01",
+                "end_date": "2024-12-31",
+                "allow_preview_data": False,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert "真实行情不足" in (data.get("error") or "")
+
 
 class TestQuantRuns:
     """本地运行记录端点。"""
@@ -182,6 +208,7 @@ class TestQuantRuns:
                 "symbol": "000001",
                 "start_date": "2024-01-01",
                 "end_date": "2024-12-31",
+                "allow_preview_data": True,
             },
         )
         run_id = run_resp.json()["data"]["run_id"]

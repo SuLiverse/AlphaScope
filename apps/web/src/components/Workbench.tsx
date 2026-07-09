@@ -917,12 +917,15 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
     () => getWorkbenchPriceDomain(chartData, fallbackPrice),
     [chartData, fallbackPrice],
   );
+  const isSyntheticPreview = priceStatus === 'degraded';
   const priceSourceLabel = priceStatus === 'live'
     ? `${lastChartPoint?.source || 'provider'} · ${lastChartPoint?.date || ''}`
     : priceMessage;
   const chartSourceLabel = isPeriodDataTooShort
     ? `${activePeriodLabel}样本不足，仅显示上市以来可用K线`
-    : priceSourceLabel;
+    : isSyntheticPreview
+      ? `演示/预览数据（非真实行情）· ${priceMessage}`
+      : priceSourceLabel;
   const displayChartPoint = hoveredChartPoint ?? lastChartPoint;
   const displayChartPointUp = (displayChartPoint?.change ?? 0) >= 0;
   const showMa5Line = shouldShowMovingAverage(activePeriodConfig.frequency, chartData.length, 5);
@@ -1523,6 +1526,16 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
               transition={{ duration: 0.45, ease: 'easeOut' }}
               className="relative h-[360px] min-h-[320px] bg-black/40 p-5"
             >
+               {isSyntheticPreview && (
+                 <div
+                   data-testid="workbench-synthetic-banner"
+                   className="pointer-events-none absolute inset-x-5 top-4 z-20 flex justify-center"
+                 >
+                   <span className="rounded-md border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-center font-mono text-[11px] font-medium tracking-wide text-amber-200 shadow-lg backdrop-blur-sm">
+                     本地预览 / 合成 K 线 · 非真实行情 · 不可用于投资决策
+                   </span>
+                 </div>
+               )}
                <div className="pointer-events-none absolute right-6 top-6 text-[10px] font-mono text-neutral-600">{formatPrice(chartStats.high)}</div>
                <div className="pointer-events-none absolute right-6 bottom-24 text-[10px] font-mono text-neutral-600">{formatPrice(chartStats.low)}</div>
 
