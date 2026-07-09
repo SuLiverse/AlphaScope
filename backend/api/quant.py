@@ -31,7 +31,6 @@ from backend.api import quant_core
 from backend.api.quant_core import (
     _builtin_strategy_data,
     _extract_stock_pool_symbols,
-    _load_local_bars,
     _local_run_details,
     _local_runs,
     _local_status_payload,
@@ -46,14 +45,10 @@ from backend.api.quant_core import (
 )
 from backend.schemas.api import ApiResponse
 
-# Re-export schema bodies for tests that import from backend.api.quant
-from backend.api.quant_schemas import (  # noqa: F401
-    BacktestRequestBody as BacktestRequestBody,
-    ChipDistributionRequestBody as ChipDistributionRequestBody,
-    EvolveRequestBody as EvolveRequestBody,
-    StrategyCompareRequestBody as StrategyCompareRequestBody,
-    WalkForwardRequestBody as WalkForwardRequestBody,
-)
+# Historical re-exports for tests: `from backend.api.quant import X`
+_load_local_bars = quant_core._load_local_bars
+_require_bars = quant_core._require_bars
+_source_fields = quant_core._source_fields
 
 router = APIRouter(prefix="/api/quant", tags=["quant"])
 
@@ -68,6 +63,7 @@ def __getattr__(name: str) -> Any:
 # ============================================================
 # 端点
 # ============================================================
+
 
 @router.get("/status")
 async def get_status():
@@ -379,4 +375,3 @@ async def get_run(run_id: str):
     if not result:
         raise HTTPException(status_code=404, detail=f"运行记录不存在: {run_id}")
     return ApiResponse(success=True, data=result)
-
