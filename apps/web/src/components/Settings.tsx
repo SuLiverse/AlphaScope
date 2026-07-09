@@ -87,7 +87,7 @@ import {
   TextField,
   normalizeSettingTab,
   modelSelectOptions,
-} from './settings/support';
+} from './settings/index';
 
 export function Settings({ initialTab }: SettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingTab>(() => normalizeSettingTab(initialTab));
