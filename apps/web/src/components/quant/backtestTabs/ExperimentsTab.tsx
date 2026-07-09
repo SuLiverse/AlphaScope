@@ -1,6 +1,9 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type React from "react";
+import type { ExperimentRow } from "../backtestTypes";
+
 import { motion } from "motion/react";
 import {
   Database,
@@ -11,26 +14,39 @@ import { cn } from "../../../lib/utils";
 import { EXP_MODE_META } from "../backtestTypes";
 import { formatExpSummary } from "../backtestFormat";
 
-export function ExperimentsTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    setExpSelected,
-    expRows,
-    expLoading,
-    expError,
-    expModeFilter,
-    setExpModeFilter,
-    expSelected,
-    expTotal,
-    setExpRefresh,
-    expCompareRows,
-    setExpCompareRows,
-    runExpCompare,
-    deleteExperiment,
-    toggleExpSelect
-  } = props;
+export interface ExperimentsTabProps {
+  setExpSelected: React.Dispatch<React.SetStateAction<Set<string>>>;
+  expRows: ExperimentRow[];
+  expLoading: boolean;
+  expError: string | null;
+  expModeFilter: string;
+  setExpModeFilter: (v: string) => void;
+  expSelected: Set<string>;
+  expTotal: number;
+  setExpRefresh: React.Dispatch<React.SetStateAction<number>>;
+  expCompareRows: ExperimentRow[] | null;
+  setExpCompareRows: React.Dispatch<React.SetStateAction<ExperimentRow[] | null>>;
+  runExpCompare: () => void | Promise<void>;
+  deleteExperiment: (runId: string) => void | Promise<void>;
+  toggleExpSelect: (runId: string) => void;
+}
+
+export function ExperimentsTab({
+  setExpSelected,
+  expRows,
+  expLoading,
+  expError,
+  expModeFilter,
+  setExpModeFilter,
+  expSelected,
+  expTotal,
+  setExpRefresh,
+  expCompareRows,
+  setExpCompareRows,
+  runExpCompare,
+  deleteExperiment,
+  toggleExpSelect,
+}: ExperimentsTabProps) {
 
   return (
             <motion.div key="experiments" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>

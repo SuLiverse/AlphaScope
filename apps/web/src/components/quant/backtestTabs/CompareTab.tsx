@@ -1,6 +1,8 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type { AgentAccuracy, BacktestStats, PendingEval } from "../backtestTypes";
+
 import { motion } from "motion/react";
 import {
   Activity,
@@ -11,17 +13,23 @@ import {
 import { MetricCard } from "../MetricCard";
 import { formatFactor } from "../backtestFormat";
 
-export function CompareTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    stats,
-    pending,
-    compareLoading,
-    compareError,
-    agentAccuracyEntries
-  } = props;
+type AgentAccuracyEntry = NonNullable<AgentAccuracy["agents"]>[string];
+
+export interface CompareTabProps {
+  stats: BacktestStats | null;
+  pending: PendingEval[];
+  compareLoading: boolean;
+  compareError: string | null;
+  agentAccuracyEntries: Array<[string, AgentAccuracyEntry]>;
+}
+
+export function CompareTab({
+  stats,
+  pending,
+  compareLoading,
+  compareError,
+  agentAccuracyEntries,
+}: CompareTabProps) {
 
   return (
             <motion.div key="compare" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-6">
@@ -57,7 +65,7 @@ export function CompareTab(props: {
                     {compareLoading && (
                       <tr><td colSpan={5} className="px-5 py-8 text-center text-xs text-neutral-500">正在同步后验数据...</td></tr>
                     )}
-                    {!compareLoading && pending.map((item: any) => (
+                    {!compareLoading && pending.map((item: PendingEval) => (
                       <tr key={item.decision_id} className="border-b border-white/5 hover:bg-white/[0.025]">
                         <td className="px-5 py-3.5 font-mono text-neutral-500">{item.decision_id}</td>
                         <td className="px-5 py-3.5 font-mono text-indigo-300">{item.symbol}</td>

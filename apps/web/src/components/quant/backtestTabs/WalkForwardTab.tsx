@@ -1,6 +1,10 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type { ChangeEvent } from "react";
+import type { StockTarget } from "../../../lib/stocks";
+import type { StrategyInfo, WalkForwardData } from "../backtestTypes";
+
 import { motion } from "motion/react";
 import {
   Activity,
@@ -17,28 +21,43 @@ import { MetricCard } from "../MetricCard";
 import { AssumptionsCard } from "../AssumptionsCard";
 import { formatPercent, formatFactor } from "../backtestFormat";
 
-export function WalkForwardTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    strategiesAsync,
-    selectedSymbol,
-    setSelectedSymbol,
-    setSelectedStockName,
-    wfScheme,
-    setWfScheme,
-    wfSplits,
-    setWfSplits,
-    wfRunning,
-    wfResult,
-    wfError,
-    strategies,
-    selectedStrategy,
-    setSelectedStrategy,
-    runWalkForward,
-    stockOptions
-  } = props;
+export interface WalkForwardTabProps {
+  strategiesLoading: boolean;
+  selectedSymbol: string;
+  setSelectedSymbol: (symbol: string) => void;
+  setSelectedStockName: (name: string) => void;
+  wfScheme: 'anchored' | 'rolling';
+  setWfScheme: (v: 'anchored' | 'rolling') => void;
+  wfSplits: number;
+  setWfSplits: (n: number) => void;
+  wfRunning: boolean;
+  wfResult: WalkForwardData | null;
+  wfError: string | null;
+  strategies: StrategyInfo[];
+  selectedStrategy: string;
+  setSelectedStrategy: (id: string) => void;
+  runWalkForward: () => void | Promise<void>;
+  stockOptions: StockTarget[];
+}
+
+export function WalkForwardTab({
+  strategiesLoading,
+  selectedSymbol,
+  setSelectedSymbol,
+  setSelectedStockName,
+  wfScheme,
+  setWfScheme,
+  wfSplits,
+  setWfSplits,
+  wfRunning,
+  wfResult,
+  wfError,
+  strategies,
+  selectedStrategy,
+  setSelectedStrategy,
+  runWalkForward,
+  stockOptions,
+}: WalkForwardTabProps) {
 
   return (
             <motion.div key="walkforward" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
@@ -52,8 +71,8 @@ export function WalkForwardTab(props: {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">标的</p>
                   <select
                     value={selectedSymbol}
-                    onChange={(e: any) => {
-                      const stock = stockOptions.find((item: any) => item.symbol === e.target.value);
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
+                      const stock = stockOptions.find((item: StockTarget) => item.symbol === e.target.value);
                       if (stock) {
                         setSelectedSymbol(stock.symbol);
                         setSelectedStockName(stock.name);
@@ -61,7 +80,7 @@ export function WalkForwardTab(props: {
                     }}
                     className="mt-1 bg-transparent text-sm text-indigo-300 outline-none"
                   >
-                    {stockOptions.map((stock: any) => (
+                    {stockOptions.map((stock: StockTarget) => (
                       <option key={stock.symbol} value={stock.symbol} className="bg-[#0f0f15] text-neutral-200">
                         {stock.name} ({stock.symbol})
                       </option>
@@ -72,11 +91,11 @@ export function WalkForwardTab(props: {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">策略</p>
                   <select
                     value={selectedStrategy}
-                    onChange={(e: any) => setSelectedStrategy(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setSelectedStrategy(e.target.value)}
                     className="mt-1 max-w-[180px] bg-transparent text-sm text-emerald-300 outline-none"
                   >
-                    {strategies.length === 0 && <option value="">{strategiesAsync.loading ? '加载策略...' : '暂无策略'}</option>}
-                    {strategies.map((strategy: any) => (
+                    {strategies.length === 0 && <option value="">{strategiesLoading ? '加载策略...' : '暂无策略'}</option>}
+                    {strategies.map((strategy: StrategyInfo) => (
                       <option key={strategy.id || strategy.name} value={strategy.id || strategy.name} className="bg-[#0f0f15] text-neutral-200">
                         {strategy.name}
                       </option>
@@ -104,7 +123,7 @@ export function WalkForwardTab(props: {
                     min={2}
                     max={12}
                     value={wfSplits}
-                    onChange={(e: any) => setWfSplits(Math.max(2, Math.min(12, Number(e.target.value) || 5)))}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setWfSplits(Math.max(2, Math.min(12, Number(e.target.value) || 5)))}
                     className="mt-1 w-16 bg-transparent text-sm text-neutral-200 outline-none"
                   />
                 </div>

@@ -1,6 +1,9 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type { ChangeEvent } from "react";
+import type { StrategyInfo, TdxCompileResult } from "../backtestTypes";
+
 import { stripSymbolSuffix } from "../../../lib/dataFetch";
 import { motion } from "motion/react";
 import {
@@ -13,25 +16,41 @@ import {
 import { cn } from "../../../lib/utils";
 import { DEFAULT_TDX_FORMULA } from "../backtestTypes";
 
-export function WorkshopTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    strategiesAsync,
-    selectedSymbol,
-    tdxFormula,
-    setTdxFormula,
-    tdxCompile,
-    setTdxCompile,
-    tdxCompiling,
-    tdxRunning,
-    strategies,
-    selectedStrategy,
-    setSelectedStrategy,
-    compileTdx,
-    runTdxBacktest
-  } = props;
+export interface WorkshopTabProps {
+  strategiesLoading: boolean;
+  strategiesError?: string | null;
+  onRefreshStrategies?: () => void;
+  selectedSymbol: string;
+  tdxFormula: string;
+  setTdxFormula: (v: string) => void;
+  tdxCompile: TdxCompileResult | null;
+  setTdxCompile: (v: TdxCompileResult | null) => void;
+  tdxCompiling: boolean;
+  tdxRunning: boolean;
+  strategies: StrategyInfo[];
+  selectedStrategy: string;
+  setSelectedStrategy: (id: string) => void;
+  compileTdx: () => void | Promise<void>;
+  runTdxBacktest: () => void | Promise<void>;
+}
+
+export function WorkshopTab({
+  strategiesLoading,
+  strategiesError,
+  onRefreshStrategies,
+  selectedSymbol,
+  tdxFormula,
+  setTdxFormula,
+  tdxCompile,
+  setTdxCompile,
+  tdxCompiling,
+  tdxRunning,
+  strategies,
+  selectedStrategy,
+  setSelectedStrategy,
+  compileTdx,
+  runTdxBacktest,
+}: WorkshopTabProps) {
 
   return (
             <motion.div key="workshop" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -49,7 +68,7 @@ export function WorkshopTab(props: {
                 <div className="p-5">
                   <textarea
                     value={tdxFormula}
-                    onChange={(e: any) => setTdxFormula(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setTdxFormula(e.target.value)}
                     spellCheck={false}
                     className="h-56 w-full resize-none rounded-xl border border-white/10 bg-[#050505] p-4 font-mono text-[13px] leading-relaxed text-emerald-200/90 outline-none focus:border-indigo-500/50"
                   />
@@ -112,14 +131,18 @@ export function WorkshopTab(props: {
               <div className="min-h-[500px] rounded-2xl border border-white/5 bg-white/[0.02] p-5 shadow-xl">
                 <div className="mb-4 flex items-center justify-between">
                   <h3 className="text-sm font-medium text-white">内置策略管理器</h3>
-                  <button onClick={() => strategiesAsync.refresh()} className="text-xs font-medium text-indigo-400 hover:text-indigo-300">
-                    {strategiesAsync.loading ? '加载中...' : '刷新'}
+                  <button
+                    type="button"
+                    onClick={() => onRefreshStrategies?.()}
+                    className="text-xs font-medium text-indigo-400 hover:text-indigo-300"
+                  >
+                    {strategiesLoading ? '加载中...' : '刷新'}
                   </button>
                 </div>
-                {strategiesAsync.error && (
-                  <p className="mb-3 text-xs text-rose-300">策略加载失败：{strategiesAsync.error}</p>
+                {strategiesError && (
+                  <p className="mb-3 text-xs text-rose-300">策略加载失败：{strategiesError}</p>
                 )}
-                {strategies.map((strategy: any) => (
+                {strategies.map((strategy: StrategyInfo) => (
                   <div
                     key={strategy.id || strategy.name}
                     onClick={() => setSelectedStrategy(strategy.id || strategy.name)}
@@ -137,7 +160,7 @@ export function WorkshopTab(props: {
                     </span>
                   </div>
                 ))}
-                {strategies.length === 0 && !strategiesAsync.loading && (
+                {strategies.length === 0 && !strategiesLoading && (
                   <p className="text-xs text-neutral-500">暂无可用策略，请确认后端 /api/quant/strategies 可用。</p>
                 )}
               </div>

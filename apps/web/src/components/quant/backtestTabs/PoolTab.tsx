@@ -1,6 +1,11 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type { ChangeEvent } from "react";
+import type React from "react";
+import type { StockTarget } from "../../../lib/stocks";
+import type { FactorRow } from "../backtestTypes";
+
 import { motion } from "motion/react";
 import {
   Download,
@@ -9,22 +14,31 @@ import {
 import { cn } from "../../../lib/utils";
 import { formatFactor } from "../backtestFormat";
 
-export function PoolTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    poolRows,
-    poolStocks,
-    fileInputRef,
-    poolText,
-    setPoolText,
-    poolLoading,
-    poolSource,
-    handlePoolImport,
-    exportPool,
-    sortedPoolRows
-  } = props;
+export interface PoolTabProps {
+  poolRows: FactorRow[];
+  poolStocks: StockTarget[];
+  fileInputRef: React.RefObject<HTMLInputElement | null>;
+  poolText: string;
+  setPoolText: (v: string) => void;
+  poolLoading: boolean;
+  poolSource: string;
+  handlePoolImport: (e: ChangeEvent<HTMLInputElement>) => void;
+  exportPool: () => void | Promise<void>;
+  sortedPoolRows: FactorRow[];
+}
+
+export function PoolTab({
+  poolRows,
+  poolStocks,
+  fileInputRef,
+  poolText,
+  setPoolText,
+  poolLoading,
+  poolSource,
+  handlePoolImport,
+  exportPool,
+  sortedPoolRows,
+}: PoolTabProps) {
 
   return (
             <motion.div key="pool" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-1 gap-6 xl:grid-cols-[420px_minmax(0,1fr)]">

@@ -1,6 +1,10 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type { ChangeEvent } from "react";
+import type { StockTarget } from "../../../lib/stocks";
+import type { StrategyCompareData } from "../backtestTypes";
+
 import { motion } from "motion/react";
 import {
   Activity,
@@ -12,22 +16,31 @@ import { cn } from "../../../lib/utils";
 import { AssumptionsCard } from "../AssumptionsCard";
 import { formatPercent, formatFactor } from "../backtestFormat";
 
-export function LeaderboardTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    selectedSymbol,
-    setSelectedSymbol,
-    setSelectedStockName,
-    cmpRunning,
-    cmpResult,
-    cmpError,
-    cmpRankBy,
-    setCmpRankBy,
-    runStrategyComparison,
-    stockOptions
-  } = props;
+export interface LeaderboardTabProps {
+  selectedSymbol: string;
+  setSelectedSymbol: (symbol: string) => void;
+  setSelectedStockName: (name: string) => void;
+  cmpRunning: boolean;
+  cmpResult: StrategyCompareData | null;
+  cmpError: string | null;
+  cmpRankBy: 'sharpe_ratio' | 'total_return' | 'calmar_ratio';
+  setCmpRankBy: (v: 'sharpe_ratio' | 'total_return' | 'calmar_ratio') => void;
+  runStrategyComparison: () => void | Promise<void>;
+  stockOptions: StockTarget[];
+}
+
+export function LeaderboardTab({
+  selectedSymbol,
+  setSelectedSymbol,
+  setSelectedStockName,
+  cmpRunning,
+  cmpResult,
+  cmpError,
+  cmpRankBy,
+  setCmpRankBy,
+  runStrategyComparison,
+  stockOptions,
+}: LeaderboardTabProps) {
 
   return (
             <motion.div key="leaderboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
@@ -41,8 +54,8 @@ export function LeaderboardTab(props: {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">标的</p>
                   <select
                     value={selectedSymbol}
-                    onChange={(e: any) => {
-                      const stock = stockOptions.find((item: any) => item.symbol === e.target.value);
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
+                      const stock = stockOptions.find((item: StockTarget) => item.symbol === e.target.value);
                       if (stock) {
                         setSelectedSymbol(stock.symbol);
                         setSelectedStockName(stock.name);
@@ -50,7 +63,7 @@ export function LeaderboardTab(props: {
                     }}
                     className="mt-1 bg-transparent text-sm text-indigo-300 outline-none"
                   >
-                    {stockOptions.map((stock: any) => (
+                    {stockOptions.map((stock: StockTarget) => (
                       <option key={stock.symbol} value={stock.symbol} className="bg-[#0f0f15] text-neutral-200">
                         {stock.name} ({stock.symbol})
                       </option>

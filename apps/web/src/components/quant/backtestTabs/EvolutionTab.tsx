@@ -1,6 +1,10 @@
 /**
  * Extracted Backtesting tab panel (behavior-preserving move).
  */
+import type { ChangeEvent } from "react";
+import type { StockTarget } from "../../../lib/stocks";
+import type { EvolveData, StrategyInfo, TabID } from "../backtestTypes";
+
 import { motion } from "motion/react";
 import {
   Activity,
@@ -18,34 +22,55 @@ import { StableChartContainer } from "../../StableChartContainer";
 import { EVO_METRIC_LABELS } from "../backtestTypes";
 import { formatPercent, formatFactor, formatGenome } from "../backtestFormat";
 
-export function EvolutionTab(props: {
-  // Parent state/handlers bag (extract-without-rewrite)
-  [key: string]: any;
-}) {
-  const {
-    strategiesAsync,
-    setActiveTab,
-    selectedSymbol,
-    setSelectedSymbol,
-    setSelectedStockName,
-    evoMetric,
-    setEvoMetric,
-    evoPop,
-    setEvoPop,
-    evoGens,
-    setEvoGens,
-    evoSeed,
-    setEvoSeed,
-    evoRunning,
-    evoResult,
-    evoError,
-    strategies,
-    selectedStrategy,
-    setSelectedStrategy,
-    runEvolution,
-    stockOptions,
-    evoChartData
-  } = props;
+export interface EvolutionTabProps {
+  strategiesLoading: boolean;
+  setActiveTab: (tab: TabID) => void;
+  selectedSymbol: string;
+  setSelectedSymbol: (symbol: string) => void;
+  setSelectedStockName: (name: string) => void;
+  evoMetric: string;
+  setEvoMetric: (v: any) => void;
+  evoPop: number;
+  setEvoPop: (n: number) => void;
+  evoGens: number;
+  setEvoGens: (n: number) => void;
+  evoSeed: number;
+  setEvoSeed: (n: number) => void;
+  evoRunning: boolean;
+  evoResult: EvolveData | null;
+  evoError: string | null;
+  strategies: StrategyInfo[];
+  selectedStrategy: string;
+  setSelectedStrategy: (id: string) => void;
+  runEvolution: () => void | Promise<void>;
+  stockOptions: StockTarget[];
+  evoChartData: Array<{ gen: string; best: number | null; avg: number | null }>;
+}
+
+export function EvolutionTab({
+  strategiesLoading,
+  setActiveTab,
+  selectedSymbol,
+  setSelectedSymbol,
+  setSelectedStockName,
+  evoMetric,
+  setEvoMetric,
+  evoPop,
+  setEvoPop,
+  evoGens,
+  setEvoGens,
+  evoSeed,
+  setEvoSeed,
+  evoRunning,
+  evoResult,
+  evoError,
+  strategies,
+  selectedStrategy,
+  setSelectedStrategy,
+  runEvolution,
+  stockOptions,
+  evoChartData,
+}: EvolutionTabProps) {
 
   return (
             <motion.div key="evolution" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
@@ -59,8 +84,8 @@ export function EvolutionTab(props: {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">标的</p>
                   <select
                     value={selectedSymbol}
-                    onChange={(e: any) => {
-                      const stock = stockOptions.find((item: any) => item.symbol === e.target.value);
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => {
+                      const stock = stockOptions.find((item: StockTarget) => item.symbol === e.target.value);
                       if (stock) {
                         setSelectedSymbol(stock.symbol);
                         setSelectedStockName(stock.name);
@@ -68,7 +93,7 @@ export function EvolutionTab(props: {
                     }}
                     className="mt-1 bg-transparent text-sm text-fuchsia-300 outline-none"
                   >
-                    {stockOptions.map((stock: any) => (
+                    {stockOptions.map((stock: StockTarget) => (
                       <option key={stock.symbol} value={stock.symbol} className="bg-[#0f0f15] text-neutral-200">
                         {stock.name} ({stock.symbol})
                       </option>
@@ -79,11 +104,11 @@ export function EvolutionTab(props: {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">策略</p>
                   <select
                     value={selectedStrategy}
-                    onChange={(e: any) => setSelectedStrategy(e.target.value)}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setSelectedStrategy(e.target.value)}
                     className="mt-1 max-w-[160px] bg-transparent text-sm text-emerald-300 outline-none"
                   >
-                    {strategies.length === 0 && <option value="">{strategiesAsync.loading ? '加载策略...' : '暂无策略'}</option>}
-                    {strategies.map((strategy: any) => (
+                    {strategies.length === 0 && <option value="">{strategiesLoading ? '加载策略...' : '暂无策略'}</option>}
+                    {strategies.map((strategy: StrategyInfo) => (
                       <option key={strategy.id || strategy.name} value={strategy.id || strategy.name} className="bg-[#0f0f15] text-neutral-200">
                         {strategy.name}
                       </option>
@@ -94,7 +119,7 @@ export function EvolutionTab(props: {
                   <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">适应度</p>
                   <select
                     value={evoMetric}
-                    onChange={(e: any) => setEvoMetric(e.target.value as typeof evoMetric)}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setEvoMetric(e.target.value as typeof evoMetric)}
                     className="mt-1 bg-transparent text-sm text-fuchsia-300 outline-none"
                   >
                     <option value="sharpe_ratio" className="bg-[#0f0f15]">夏普比率</option>
@@ -111,7 +136,7 @@ export function EvolutionTab(props: {
                     min={4}
                     max={40}
                     value={evoPop}
-                    onChange={(e: any) => setEvoPop(Math.max(4, Math.min(40, Number(e.target.value) || 16)))}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setEvoPop(Math.max(4, Math.min(40, Number(e.target.value) || 16)))}
                     className="mt-1 w-14 bg-transparent text-sm text-neutral-200 outline-none"
                   />
                 </div>
@@ -122,7 +147,7 @@ export function EvolutionTab(props: {
                     min={1}
                     max={20}
                     value={evoGens}
-                    onChange={(e: any) => setEvoGens(Math.max(1, Math.min(20, Number(e.target.value) || 8)))}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setEvoGens(Math.max(1, Math.min(20, Number(e.target.value) || 8)))}
                     className="mt-1 w-14 bg-transparent text-sm text-neutral-200 outline-none"
                   />
                 </div>
@@ -131,7 +156,7 @@ export function EvolutionTab(props: {
                   <input
                     type="number"
                     value={evoSeed}
-                    onChange={(e: any) => setEvoSeed(Number(e.target.value) || 0)}
+                    onChange={(e: ChangeEvent<HTMLSelectElement | HTMLInputElement | HTMLTextAreaElement>) => setEvoSeed(Number(e.target.value) || 0)}
                     className="mt-1 w-16 bg-transparent text-sm text-neutral-200 outline-none"
                   />
                 </div>
