@@ -4,8 +4,8 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.13.x  | Yes |
-| < 0.13  | No |
+| 1.9.x   | Yes |
+| < 1.9   | Best effort |
 
 ## Reporting a Vulnerability
 
@@ -22,14 +22,32 @@ You should receive a response within 48 hours. We will work with you to understa
 
 ## Security Measures
 
-- **Prompt injection protection** — `sanitize_prompt_input()` filters injection patterns from user inputs before they reach LLM prompts
-- **Input validation** — stock codes validated via whitelist (`validate_stock_code()`)
-- **LLM base URL validation** — custom base URLs reject private/local addresses by default
-- **Credential isolation** — fallback LLM providers do not reuse primary provider API keys
-- **Thread safety** — database and vector store operations use double-checked locking
+### Local API authentication
+
+- **Source / uvicorn startup**: if `ALPHASCOPE_LOCAL_API_TOKEN` is unset, the backend **auto-generates** a token, persists it under `data/runtime/local_api_token.txt`, and writes `apps/web/public/runtime-config.js` so the Vite frontend can send `X-AlphaScope-Local-Token`.
+- **Packaged desktop**: `launcher.py` always generates a per-run token and injects it into runtime config.
+- **Sensitive GET** paths (conversations, credentials, audit, settings providers, research memory) require the token even for GET.
+- **Opt-out (dev/test only)**: set `ALPHASCOPE_ALLOW_OPEN_API=1` to disable token checks. Never use this on a non-localhost exposure.
+- **CORS**: defaults to localhost regex; `ALPHASCOPE_ALLOW_ALL_CORS=1` is discouraged.
+
+### Credentials
+
+- Provider API keys encrypted at rest with **AES-GCM** (`cryptography` + `AI_FINANCE_MASTER_KEY`).
+- **XOR encryption is not allowed for new keys** unless `AI_FINANCE_ALLOW_DEV_KEY_FALLBACK=1` (local dev only). Decrypt still accepts legacy `xor:` blobs.
+- Keys are not injected into `os.environ` for credential-store providers (table-first).
+
+### Network / data plane
+
+- **SSRF guard** (`backend/security/url_guard.py`) for TickFlow / URL fetch: blocks loopback, private, link-local, metadata endpoints; DNS rebinding checked via `getaddrinfo`.
+- **Data lake SQL**: select-only + blocklist for DuckDB file-read functions (`read_csv*`, `read_parquet`, …).
+- **Prompt injection** filters and stock-code validation on research paths.
+
+### Compliance
+
+- Research tool only: no live order placement, no guaranteed returns, disclaimer wrapping on agent outputs.
 
 ## Known Limitations
 
-- This is a research tool, not a production trading system
-- LLM outputs are not audited for financial advice compliance
-- No authentication or multi-user isolation currently
+- Single-user local research tool: **not multi-tenant SaaS auth**.
+- LLM outputs are not independently audited for financial advice compliance.
+- Binding the API to `0.0.0.0` on an untrusted network remains risky even with a local token; prefer `127.0.0.1`.

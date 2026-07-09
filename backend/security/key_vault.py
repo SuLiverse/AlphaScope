@@ -80,9 +80,20 @@ def encrypt_key(plain_key: str) -> str:
             payload = base64.urlsafe_b64encode(nonce + ct).decode("ascii")
             return f"aes:{payload}"
         except Exception as e:
-            logger.warning("AES-GCM 加密失败，降级为 XOR: %s", e)
+            if not _dev_fallback_enabled():
+                raise RuntimeError(
+                    "AES-GCM 加密失败且未允许开发降级。"
+                    "请安装 cryptography 或设置 AI_FINANCE_ALLOW_DEV_KEY_FALLBACK=1（仅本地开发）。"
+                ) from e
+            logger.warning("AES-GCM 加密失败，开发模式降级为 XOR: %s", e)
+    elif not _dev_fallback_enabled():
+        raise RuntimeError(
+            "cryptography 未安装，拒绝使用弱 XOR 加密。"
+            "请 pip install cryptography，或仅在本地设置 AI_FINANCE_ALLOW_DEV_KEY_FALLBACK=1。"
+        )
 
-    # XOR 降级
+    # XOR 仅在显式开发 opt-in 后可用（兼容旧密文解密仍见 decrypt_key）
+    logger.warning("正在使用 XOR 弱加密写入新密钥（开发模式）。请勿用于生产。")
     encrypted = bytes(d ^ key[i % len(key)] for i, d in enumerate(data))
     return "xor:" + base64.urlsafe_b64encode(encrypted).decode("ascii")
 

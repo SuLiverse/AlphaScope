@@ -257,6 +257,8 @@ export function StrategyLab() {
           start_date: fmt(startDate),
           end_date: fmt(endDate),
           initial_capital: capital,
+          // 低代码试跑：缺真实行情时允许演示样例（结果会标 local_preview）
+          allow_preview_data: true,
           params: {
             buy_rules: draft.buy_rules,
             sell_rules: draft.sell_rules,

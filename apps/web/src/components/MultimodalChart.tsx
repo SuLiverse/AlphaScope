@@ -1095,6 +1095,16 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
 
                 <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/60 p-5">
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:24px_24px]" />
+                  {priceStatus === 'degraded' && !visionSource.url && (
+                    <div
+                      data-testid="chart-synthetic-banner"
+                      className="pointer-events-none absolute inset-x-6 top-6 z-20 flex justify-center"
+                    >
+                      <span className="rounded-md border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-center font-mono text-[11px] font-medium text-amber-200 shadow-lg backdrop-blur-sm">
+                        本地预览 / 合成 K 线 · 非真实行情 · 不可用于投资决策
+                      </span>
+                    </div>
+                  )}
                   {visionSource.url ? (
                     <img
                       data-testid="chart-upload-preview"

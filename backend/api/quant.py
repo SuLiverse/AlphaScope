@@ -182,6 +182,8 @@ def _load_local_bars(
     start_date: str,
     end_date: str,
     initial_capital: float,
+    *,
+    allow_preview_data: bool = False,
 ) -> tuple[list[dict[str, Any]], str]:
     from backend.price_store import (
         get_market,
@@ -234,6 +236,11 @@ def _load_local_bars(
     except Exception:
         pass
 
+    # 默认不自动灌合成样例行情，避免用户误以为是真实行情（审查 P0）。
+    # 前端勾选「允许演示样例行情」或 API 传 allow_preview_data=true 时才生成。
+    if not allow_preview_data:
+        return [], "unavailable"
+
     return (
         _generate_preview_bars(
             normalized_symbol,
@@ -274,7 +281,13 @@ def _run_local_backtest(body: BacktestRequestBody) -> dict[str, Any]:
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
+        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
+    if data_source == "unavailable" or len(bars) < 30:
+        raise ValueError(
+            "真实行情不足（本地库与数据源均无可用 K 线）。"
+            "请检查网络/数据源，或在请求中设置 allow_preview_data=true 使用演示样例行情（仅预览，非真实）。"
+        )
     engine = BacktestEngine(initial_capital=body.initial_capital, commission_rate=0.001)
     result = engine.run(strategy, bars, body.symbol)
     performance = result.performance or {}
@@ -370,7 +383,10 @@ def _run_patterns_local(body: "PatternsRequestBody") -> dict[str, Any]:
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=1_000_000.0,
+        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
+    if data_source == "unavailable" or not bars:
+        raise ValueError("真实行情不足，无法识别形态。可设置 allow_preview_data=true 使用演示样例行情。")
     report = detect_patterns(bars, symbol=body.symbol, lookback=body.lookback)
     payload = report.to_dict()
     payload.update(
@@ -421,7 +437,10 @@ def _run_chip_distribution_local(body: "ChipDistributionRequestBody") -> dict[st
             start_date=body.start_date,
             end_date=body.end_date,
             initial_capital=100000.0,
+            allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
         )
+        if data_source == "unavailable" or not raw:
+            raise ValueError("真实行情不足，无法计算筹码分布。可设置 allow_preview_data=true 使用演示样例行情。")
 
     report = compute_chip_distribution(raw, symbol=body.symbol, price_levels=body.price_levels)
     now = datetime.now()
@@ -480,7 +499,10 @@ def _run_strategy_comparison_local(
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
+        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
+    if data_source == "unavailable" or len(bars) < 30:
+        raise ValueError("真实行情不足，无法对比策略。可设置 allow_preview_data=true 使用演示样例行情。")
 
     rows: list[dict[str, Any]] = []
     skipped: list[str] = []
@@ -579,7 +601,10 @@ def _run_walk_forward_local(body: "WalkForwardRequestBody") -> dict[str, Any]:
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
+        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
+    if data_source == "unavailable" or len(bars) < 30:
+        raise ValueError("真实行情不足，无法走查。可设置 allow_preview_data=true 使用演示样例行情。")
     report = run_walk_forward(
         body.strategy_id,
         bars,
@@ -635,7 +660,10 @@ def _run_evolution_local(body: "EvolveRequestBody") -> dict[str, Any]:
         start_date=body.start_date,
         end_date=body.end_date,
         initial_capital=body.initial_capital,
+        allow_preview_data=bool(getattr(body, "allow_preview_data", False)),
     )
+    if data_source == "unavailable" or len(bars) < 30:
+        raise ValueError("真实行情不足，无法进化寻优。可设置 allow_preview_data=true 使用演示样例行情。")
     report = run_evolution(
         body.strategy_id,
         bars,
@@ -685,6 +713,10 @@ class BacktestRequestBody(BaseModel):
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     initial_capital: float = Field(default=1000000.0, description="初始资金")
     params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
+    allow_preview_data: bool = Field(
+        default=False,
+        description="无真实行情时是否允许使用本地合成样例（仅演示，须显式 opt-in）",
+    )
 
 
 class WalkForwardRequestBody(BaseModel):
@@ -701,6 +733,7 @@ class WalkForwardRequestBody(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict, description="策略参数覆盖")
     n_splits: int = Field(default=5, description="样本外窗口数(2-12, 数据不足时自动收敛)")
     scheme: str = Field(default="anchored", description="切分方案: anchored(锚定) | rolling(滚动)")
+    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
 class ChipDistributionRequestBody(BaseModel):
@@ -710,6 +743,7 @@ class ChipDistributionRequestBody(BaseModel):
     start_date: str = Field(description="开始日期 YYYY-MM-DD")
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     price_levels: int = Field(default=100, description="价位离散桶数(20-400)")
+    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
 class PatternsRequestBody(BaseModel):
@@ -719,6 +753,7 @@ class PatternsRequestBody(BaseModel):
     start_date: str = Field(description="开始日期 YYYY-MM-DD")
     end_date: str = Field(description="结束日期 YYYY-MM-DD")
     lookback: int = Field(default=60, description="蜡烛形态扫描窗口(最近 N 根)")
+    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
 class StrategyCompareRequestBody(BaseModel):
@@ -732,6 +767,7 @@ class StrategyCompareRequestBody(BaseModel):
         default="sharpe_ratio",
         description="排名指标: sharpe_ratio|total_return|calmar_ratio",
     )
+    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
 class ExperimentCompareBody(BaseModel):
@@ -761,6 +797,7 @@ class EvolveRequestBody(BaseModel):
         description="适应度指标: sharpe_ratio|calmar_ratio|sortino_ratio|total_return|annualized_return|profit_factor|win_rate",
     )
     seed: int = Field(default=42, description="随机种子(决定可复现性)")
+    allow_preview_data: bool = Field(default=False, description="无真实行情时是否允许合成样例")
 
 
 class TdxCompileRequestBody(BaseModel):
