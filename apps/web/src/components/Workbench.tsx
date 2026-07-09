@@ -18,6 +18,13 @@ import {
 } from '../lib/aiModelRouting';
 import { ThemedSelect } from './ThemedSelect';
 import { StableChartContainer } from './StableChartContainer';
+import { SyntheticDataBanner } from './SyntheticDataBanner';
+import {
+  isLivePriceFeed,
+  isSyntheticPriceFeed,
+  resolvePriceFeed,
+  type PriceFeed,
+} from '../lib/priceFeed';
 // 专业 K 线懒加载, 把 lightweight-charts 拆出主包(Workbench 是默认页, 仍是首屏并行加载的独立分块)。
 const LightweightKLine = lazy(() => import('./LightweightKLine').then((m) => ({ default: m.LightweightKLine })));
 
@@ -850,7 +857,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
   const [chatStatus, setChatStatus] = useState('正在读取系统设置中的模型配置...');
   const [latestQuote, setLatestQuote] = useState<WorkbenchChartPoint | undefined>();
   const [hoveredChartPoint, setHoveredChartPoint] = useState<WorkbenchChartPoint | undefined>();
-  const [priceStatus, setPriceStatus] = useState<'loading' | 'live' | 'degraded'>('loading');
+  const [priceFeed, setPriceFeed] = useState<PriceFeed>('loading');
   const [priceMessage, setPriceMessage] = useState('正在同步行情...');
   const [priceRefreshKey, setPriceRefreshKey] = useState(0);
   const [financeCards, setFinanceCards] = useState<MetricCard[]>(LOADING_FINANCE_CARDS);
@@ -917,10 +924,13 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
     () => getWorkbenchPriceDomain(chartData, fallbackPrice),
     [chartData, fallbackPrice],
   );
-  const isSyntheticPreview = priceStatus === 'degraded';
-  const priceSourceLabel = priceStatus === 'live'
-    ? `${lastChartPoint?.source || 'provider'} · ${lastChartPoint?.date || ''}`
-    : priceMessage;
+  const isSyntheticPreview = isSyntheticPriceFeed(priceFeed);
+  const priceSourceLabel =
+    priceFeed === 'live'
+      ? `${lastChartPoint?.source || 'provider'} · ${lastChartPoint?.date || ''}`
+      : priceFeed === 'live_degraded'
+        ? `真实行情(源降级) · ${priceMessage}`
+        : priceMessage;
   const chartSourceLabel = isPeriodDataTooShort
     ? `${activePeriodLabel}样本不足，仅显示上市以来可用K线`
     : isSyntheticPreview
@@ -1070,7 +1080,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
     }
 
     async function loadPrices() {
-      setPriceStatus('loading');
+      setPriceFeed('loading');
       setPriceMessage('正在同步真实行情...');
       try {
         const symbol = encodeURIComponent(stripSymbolSuffix(currentStock.symbol));
@@ -1078,7 +1088,8 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
           `/api/prices/${symbol}?frequency=${period.frequency}&limit=${period.limit}`,
         );
         if (cancelled) return;
-        const nextData = payload.bars?.length ? enrichWorkbenchData(payload.bars) : fallback;
+        const hasBars = Boolean(payload.bars?.length);
+        const nextData = hasBars ? enrichWorkbenchData(payload.bars!) : fallback;
         let nextQuote = nextData[nextData.length - 1];
         if (period.frequency === 'intraday') {
           try {
@@ -1096,11 +1107,10 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
         }
         if (cancelled) return;
         setChartData(nextData);
-        if (payload.bars?.length) {
-          setPriceStatus(payload.degraded ? 'degraded' : 'live');
+        setPriceFeed(resolvePriceFeed({ hasBars, backendDegraded: payload.degraded }));
+        if (hasBars) {
           setPriceMessage(formatPricePayloadMessage(payload, activePeriodLabel));
         } else {
-          setPriceStatus('degraded');
           setPriceMessage('行情源暂无数据，已切换本地预览');
           setLatestQuote(undefined);
         }
@@ -1108,7 +1118,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
         if (cancelled) return;
         setChartData(fallback);
         setLatestQuote(undefined);
-        setPriceStatus('degraded');
+        setPriceFeed('synthetic');
         setPriceMessage(error instanceof Error ? error.message : '行情获取失败，已切换本地预览');
       }
     }
@@ -1406,8 +1416,8 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
             <span className={cn('flex items-center rounded border px-2 py-0.5 font-mono text-sm font-medium', displayIsUp ? 'border-rose-500/20 bg-rose-500/10 text-rose-500' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500')}>
               <span className="rotate-45 mr-1 text-lg leading-none">{displayIsUp ? '↗' : '↘'}</span>{displayIsUp ? '+' : ''}{displayChange.toFixed(2)}%
             </span>
-            <span className={cn('max-w-[22rem] truncate rounded border px-2 py-0.5 align-middle font-mono text-[10px]', priceStatus === 'live' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/20 bg-amber-500/10 text-amber-300')}>
-              {priceStatus === 'loading' ? '同步中' : priceSourceLabel}
+            <span className={cn('max-w-[22rem] truncate rounded border px-2 py-0.5 align-middle font-mono text-[10px]', isLivePriceFeed(priceFeed) ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/20 bg-amber-500/10 text-amber-300')}>
+              {priceFeed === 'loading' ? '同步中' : priceSourceLabel}
             </span>
           </div>
         </div>
@@ -1434,7 +1444,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
                  <h2 className="font-semibold text-neutral-200">行情走势</h2>
                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_5px_rgba(16,185,129,0.5)]"></span>
                  <span className="hidden max-w-[18rem] truncate rounded border border-white/10 bg-black/30 px-2 py-0.5 font-mono text-[10px] text-neutral-500 sm:inline">
-                   {priceStatus === 'loading' ? '正在同步行情' : chartSourceLabel}
+                   {priceFeed === 'loading' ? '正在同步行情' : chartSourceLabel}
                  </span>
               </div>
               <div className="flex items-center gap-2">
@@ -1444,7 +1454,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/40 text-neutral-400 transition-colors hover:bg-white/[0.05] hover:text-neutral-200"
                 title="刷新行情"
               >
-                <RefreshCw className={cn('h-3.5 w-3.5', priceStatus === 'loading' && 'animate-spin')} />
+                <RefreshCw className={cn('h-3.5 w-3.5', priceFeed === 'loading' && 'animate-spin')} />
               </button>
               <div className="flex flex-wrap rounded-lg border border-white/5 bg-black/40 p-1 shadow-inner">
                 {PERIOD_BUTTONS.map((period) => (
@@ -1526,16 +1536,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
               transition={{ duration: 0.45, ease: 'easeOut' }}
               className="relative h-[360px] min-h-[320px] bg-black/40 p-5"
             >
-               {isSyntheticPreview && (
-                 <div
-                   data-testid="workbench-synthetic-banner"
-                   className="pointer-events-none absolute inset-x-5 top-4 z-20 flex justify-center"
-                 >
-                   <span className="rounded-md border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-center font-mono text-[11px] font-medium tracking-wide text-amber-200 shadow-lg backdrop-blur-sm">
-                     本地预览 / 合成 K 线 · 非真实行情 · 不可用于投资决策
-                   </span>
-                 </div>
-               )}
+               {isSyntheticPreview && <SyntheticDataBanner testId="workbench-synthetic-banner" />}
                <div className="pointer-events-none absolute right-6 top-6 text-[10px] font-mono text-neutral-600">{formatPrice(chartStats.high)}</div>
                <div className="pointer-events-none absolute right-6 bottom-24 text-[10px] font-mono text-neutral-600">{formatPrice(chartStats.low)}</div>
 
