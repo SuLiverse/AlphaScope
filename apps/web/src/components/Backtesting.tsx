@@ -740,14 +740,13 @@ export function Backtesting() {
               qsError={qsError}
               computeQuantStats={computeQuantStats}
               strategies={strategies}
+              strategiesLoading={strategiesAsync.loading}
               selectedStrategy={selectedStrategy}
               setSelectedStrategy={setSelectedStrategy}
               runTest={runTest}
               equityData={equityData}
               perf={perf}
               stockOptions={stockOptions}
-            
-              strategiesAsync={strategiesAsync}
             />
           )}
 
