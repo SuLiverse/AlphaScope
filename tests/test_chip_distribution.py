@@ -198,10 +198,8 @@ class TestApiPayload:
         pytest.importorskip("fastapi")
         from unittest.mock import patch
 
-        from backend.api.quant import (
-            ChipDistributionRequestBody,
-            _run_chip_distribution_local,
-        )
+        from backend.api.quant_core import _run_chip_distribution_local
+        from backend.api.quant_schemas import ChipDistributionRequestBody
 
         bars = _make_bars(160, with_turnover=True)
         body = ChipDistributionRequestBody(
@@ -230,10 +228,8 @@ class TestApiPayload:
         pytest.importorskip("fastapi")
         from unittest.mock import patch
 
-        from backend.api.quant import (
-            ChipDistributionRequestBody,
-            _run_chip_distribution_local,
-        )
+        from backend.api.quant_core import _run_chip_distribution_local
+        from backend.api.quant_schemas import ChipDistributionRequestBody
 
         body = ChipDistributionRequestBody(symbol="600519", start_date="2024-01-01", end_date="2024-12-31")
         cleaned = [

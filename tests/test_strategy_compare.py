@@ -26,10 +26,8 @@ def _make_bars(n: int = 180):
 
 
 def _run(rank_by="sharpe_ratio"):
-    from backend.api.quant import (
-        StrategyCompareRequestBody,
-        _run_strategy_comparison_local,
-    )
+    from backend.api.quant_core import _run_strategy_comparison_local
+    from backend.api.quant_schemas import StrategyCompareRequestBody
 
     body = StrategyCompareRequestBody(
         symbol="600519",

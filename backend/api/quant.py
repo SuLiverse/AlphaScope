@@ -1,33 +1,16 @@
-"""量化实验室 API — 项目内置本地回测端点。
+"""量化实验室 API — FastAPI 路由层。
 
-本模块默认不探测、不监听外部量化服务。参考外部量化项目的策略/回测/报告思路，
-但运行链路固定使用当前项目内置策略、行情缓存、provider 取数和本地回测引擎。
-
-路由定义在此文件；业务实现见 quant_core（再导出以兼容既有测试 import 路径）。
+业务实现见 ``backend.api.quant_core``；schema 见 ``backend.api.quant_schemas``。
+本模块只挂路由，不 re-export 内部 helper（测试请直接 import quant_core）。
 """
 
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
-from backend.api.quant_schemas import (
-    BacktestRequestBody,
-    ChipDistributionRequestBody,
-    EvolveRequestBody,
-    ExperimentCompareBody,
-    LiveStartBody,
-    LiveStopBody,
-    PatternsRequestBody,
-    StockPoolExportRequest,
-    StrategyCompareRequestBody,
-    TdxCompileRequestBody,
-    WalkForwardRequestBody,
-)
-from backend.api import quant_core
 from backend.api.quant_core import (
     _builtin_strategy_data,
     _extract_stock_pool_symbols,
@@ -42,22 +25,22 @@ from backend.api.quant_core import (
     _run_walk_forward_local,
     _stock_pool_csv,
 )
+from backend.api.quant_schemas import (
+    BacktestRequestBody,
+    ChipDistributionRequestBody,
+    EvolveRequestBody,
+    ExperimentCompareBody,
+    LiveStartBody,
+    LiveStopBody,
+    PatternsRequestBody,
+    StockPoolExportRequest,
+    StrategyCompareRequestBody,
+    TdxCompileRequestBody,
+    WalkForwardRequestBody,
+)
 from backend.schemas.api import ApiResponse
 
-# Historical re-exports for tests: `from backend.api.quant import X`
-_load_local_bars = quant_core._load_local_bars
-_require_bars = quant_core._require_bars
-_source_fields = quant_core._source_fields
-run_local_backtest_payload = quant_core.run_local_backtest_payload
-
 router = APIRouter(prefix="/api/quant", tags=["quant"])
-
-
-def __getattr__(name: str) -> Any:
-    """Expose quant_core helpers on this module for historical imports."""
-    if hasattr(quant_core, name):
-        return getattr(quant_core, name)
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 # ============================================================

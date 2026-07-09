@@ -159,7 +159,8 @@ class TestApiPayload:
     def test_local_walk_forward_payload(self):
         from unittest.mock import patch
 
-        from backend.api.quant import WalkForwardRequestBody, _run_walk_forward_local
+        from backend.api.quant_core import _run_walk_forward_local
+        from backend.api.quant_schemas import WalkForwardRequestBody
 
         body = WalkForwardRequestBody(
             strategy_id="ma_crossover",
@@ -189,7 +190,8 @@ class TestApiPayload:
     def test_unknown_strategy_raises_value_error(self):
         import pytest
 
-        from backend.api.quant import WalkForwardRequestBody, _run_walk_forward_local
+        from backend.api.quant_core import _run_walk_forward_local
+        from backend.api.quant_schemas import WalkForwardRequestBody
 
         body = WalkForwardRequestBody(
             strategy_id="__nope__",
