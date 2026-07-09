@@ -30,7 +30,9 @@ import { findStockTarget, STOCK_UNIVERSE, StockTarget } from '../lib/stocks';
 import { API_BASE_URL, LOCAL_API_TOKEN, fetchApi } from '../lib/api';
 import { getPersistedStock, subscribeStockSelected } from '../lib/workspaceEvents';
 import { getErrorMessage, stripSymbolSuffix, useAsync } from '../lib/dataFetch';
+import { lookbackRange } from '../lib/quantDates';
 import { previewResultNote, useQuantPreviewOptIn } from '../lib/quantPreview';
+import { QuantPreviewCheckbox } from './quant/QuantPreviewCheckbox';
 import { StableChartContainer } from './StableChartContainer';
 
 type TabID = 'overview' | 'workshop' | 'leaderboard' | 'walkforward' | 'evolution' | 'chips' | 'experiments' | 'pool' | 'compare';
@@ -782,17 +784,13 @@ export function Backtesting() {
     setResult(null);
     setActionMessage(`正在运行「${selectedStrategy}」对 ${selectedStockName}(${stripSymbolSuffix(selectedSymbol)}) 的真实回测...`);
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const range = lookbackRange(days);
       const res = await fetchApi<BacktestResultData>('/api/quant/backtest', {
         method: 'POST',
         body: JSON.stringify({
           strategy_id: selectedStrategy,
           symbol: stripSymbolSuffix(selectedSymbol),
-          start_date: fmt(startDate),
-          end_date: fmt(endDate),
+          ...range,
           initial_capital: initialCapital,
           params: {},
           ...previewBody,
@@ -835,19 +833,13 @@ export function Backtesting() {
       // Walk-forward needs more history than a single backtest: n_splits+1 folds
       // of ≥20 trading bars each. Extend the lookback so the requested split
       // count actually fits (backend still degrades gracefully if not).
-      const lookbackDays = Math.max(days, (wfSplits + 1) * 45);
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - lookbackDays);
-      const fmt = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const range = lookbackRange(Math.max(days, (wfSplits + 1) * 45));
       const res = await fetchApi<WalkForwardData>('/api/quant/walk-forward', {
         method: 'POST',
         body: JSON.stringify({
           strategy_id: selectedStrategy,
           symbol: stripSymbolSuffix(selectedSymbol),
-          start_date: fmt(startDate),
-          end_date: fmt(endDate),
+          ...range,
           initial_capital: initialCapital,
           params: {},
           n_splits: wfSplits,
@@ -880,18 +872,12 @@ export function Backtesting() {
     setActionMessage(`正在重建 ${selectedStockName}(${stripSymbolSuffix(selectedSymbol)}) 的筹码(成本)分布...`);
     try {
       // 筹码分布需要较长历史以稳定扩散,至少回看半年。
-      const lookbackDays = Math.max(days, 180);
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - lookbackDays);
-      const fmt = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const range = lookbackRange(Math.max(days, 180));
       const res = await fetchApi<ChipDistributionData>('/api/quant/chip-distribution', {
         method: 'POST',
         body: JSON.stringify({
           symbol: stripSymbolSuffix(selectedSymbol),
-          start_date: fmt(startDate),
-          end_date: fmt(endDate),
+          ...range,
           price_levels: 100,
           ...previewBody,
         }),
@@ -926,19 +912,13 @@ export function Backtesting() {
     );
     try {
       // 进化需要足够长的历史样本作为适应度评估基底,至少回看一年。
-      const lookbackDays = Math.max(days, 365);
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - lookbackDays);
-      const fmt = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const range = lookbackRange(Math.max(days, 365));
       const res = await fetchApi<EvolveData>('/api/quant/evolve', {
         method: 'POST',
         body: JSON.stringify({
           strategy_id: selectedStrategy,
           symbol: stripSymbolSuffix(selectedSymbol),
-          start_date: fmt(startDate),
-          end_date: fmt(endDate),
+          ...range,
           initial_capital: initialCapital,
           params: {},
           param_space: {},
@@ -1062,18 +1042,13 @@ export function Backtesting() {
     setRunError(null);
     setActionMessage(`正在用 TDX 公式回测 ${selectedStockName}(${stripSymbolSuffix(selectedSymbol)})...`);
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      const fmt = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const range = lookbackRange(days);
       const res = await fetchApi<BacktestResultData>('/api/quant/backtest', {
         method: 'POST',
         body: JSON.stringify({
           strategy_id: 'tdx',
           symbol: stripSymbolSuffix(selectedSymbol),
-          start_date: fmt(startDate),
-          end_date: fmt(endDate),
+          ...range,
           initial_capital: initialCapital,
           params: { formula: tdxFormula },
           ...previewBody,
@@ -1102,18 +1077,12 @@ export function Backtesting() {
     setCmpResult(null);
     setActionMessage(`正在对 ${selectedStockName}(${stripSymbolSuffix(selectedSymbol)}) 横向对比全部内置策略...`);
     try {
-      const lookbackDays = Math.max(days, 120);
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - lookbackDays);
-      const fmt = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const range = lookbackRange(Math.max(days, 120));
       const res = await fetchApi<StrategyCompareData>('/api/quant/compare-strategies', {
         method: 'POST',
         body: JSON.stringify({
           symbol: stripSymbolSuffix(selectedSymbol),
-          start_date: fmt(startDate),
-          end_date: fmt(endDate),
+          ...range,
           initial_capital: initialCapital,
           rank_by: cmpRankBy,
           ...previewBody,
@@ -1245,18 +1214,11 @@ export function Backtesting() {
             </span>
           </h2>
           <p className="mt-2 text-sm font-mono tracking-wide text-neutral-400">调用后端 BacktestEngine 运行策略、股票池真实因子筛查与决策后验</p>
-          <label className="mt-3 inline-flex max-w-xl cursor-pointer items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-100/90">
-            <input
-              type="checkbox"
-              data-testid="allow-preview-data"
-              checked={allowPreviewData}
-              onChange={(e) => setAllowPreviewData(e.target.checked)}
-              className="mt-0.5 rounded border-amber-500/40 bg-black/40"
-            />
-            <span>
-              允许演示样例行情（无真实行情时才用合成数据；默认关闭，勾选后结果会标注「本地样例」）
-            </span>
-          </label>
+          <QuantPreviewCheckbox
+            checked={allowPreviewData}
+            onChange={setAllowPreviewData}
+            hint="允许演示样例行情（无真实行情时才用合成数据；默认关闭，勾选后结果会标注「本地样例」）"
+          />
         </div>
 
         <div className="flex rounded-xl border border-white/5 bg-black/60 p-1.5">

@@ -21,8 +21,10 @@ import {
 import { cn } from '../lib/utils';
 import { fetchApi } from '../lib/api';
 import { getErrorMessage } from '../lib/dataFetch';
+import { lookbackRange } from '../lib/quantDates';
 import { useQuantPreviewOptIn } from '../lib/quantPreview';
 import { getPersistedStock } from '../lib/workspaceEvents';
+import { QuantPreviewCheckbox } from './quant/QuantPreviewCheckbox';
 import { ThemedSelect } from './ThemedSelect';
 
 // 与后端 backend/quant/strategies/custom_rule.py FIELD_CATALOG 对齐。
@@ -246,18 +248,13 @@ export function StrategyLab() {
     setResult(null);
     setMessage(`正在回测「${draft.name}」 @ ${symbol} ...`);
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
-      const fmt = (d: Date) =>
-        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const range = lookbackRange(days);
       const res = await fetchApi<BacktestResult>('/api/quant/backtest', {
         method: 'POST',
         body: JSON.stringify({
           strategy_id: 'custom_rule',
           symbol,
-          start_date: fmt(startDate),
-          end_date: fmt(endDate),
+          ...range,
           initial_capital: capital,
           ...previewBody,
           params: {
@@ -352,16 +349,12 @@ export function StrategyLab() {
           <p className="mt-1 text-xs text-neutral-500">
             字段 + 操作符 + 阈值,无代码组合买卖信号 → 编译为 custom_rule 策略 → 复用真实回测引擎(T+1/印花税/滑点/防未来函数)。
           </p>
-          <label className="mt-2 inline-flex max-w-xl cursor-pointer items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-100/90">
-            <input
-              type="checkbox"
-              data-testid="strategy-lab-allow-preview"
-              checked={allowPreviewData}
-              onChange={(e) => setAllowPreviewData(e.target.checked)}
-              className="mt-0.5 rounded border-amber-500/40 bg-black/40"
-            />
-            <span>允许演示样例行情（无真实行情时；默认关闭，与「量化回测」一致）</span>
-          </label>
+          <QuantPreviewCheckbox
+            checked={allowPreviewData}
+            onChange={setAllowPreviewData}
+            testId="strategy-lab-allow-preview"
+            hint="允许演示样例行情（无真实行情时；默认关闭，与「量化回测」一致）"
+          />
         </div>
       </header>
 
