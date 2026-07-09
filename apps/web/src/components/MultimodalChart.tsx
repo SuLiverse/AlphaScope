@@ -42,6 +42,13 @@ import {
 import { StableChartContainer } from './StableChartContainer';
 import { ThemedSelect } from './ThemedSelect';
 import { LightweightKLine, type KLineMarker } from './LightweightKLine';
+import { SyntheticDataBanner } from './SyntheticDataBanner';
+import {
+  isLivePriceFeed,
+  isSyntheticPriceFeed,
+  resolvePriceFeed,
+  type PriceFeed,
+} from '../lib/priceFeed';
 
 type ChartTab = 'vision' | 'kline';
 type Indicator = 'macd' | 'rsi';
@@ -557,7 +564,7 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
   const [chartData, setChartData] = useState<KLinePoint[]>(() => generateKLineData(initialStock));
   const [latestQuote, setLatestQuote] = useState<KLinePoint | undefined>();
   const [hoveredKLinePoint, setHoveredKLinePoint] = useState<KLinePoint | undefined>();
-  const [priceStatus, setPriceStatus] = useState<'loading' | 'live' | 'degraded'>('loading');
+  const [priceFeed, setPriceFeed] = useState<PriceFeed>('loading');
   const [priceMessage, setPriceMessage] = useState('正在获取行情...');
   const [visionSource, setVisionSource] = useState<VisionSource>(() => buildVisionSource(initialStock));
   const [visionReport, setVisionReport] = useState('');
@@ -592,9 +599,12 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
   const lastPoint = latestQuote ?? chartData[chartData.length - 1] ?? generateKLineData(selectedStock, 1)[0];
   const firstPoint = chartData[0] ?? lastPoint;
   const rangeReturn = firstPoint?.open ? ((lastPoint.close - firstPoint.open) / firstPoint.open) * 100 : 0;
-  const chartSourceLabel = priceStatus === 'live'
-    ? `${lastPoint.source || 'provider'} · ${lastPoint.date}`
-    : priceMessage;
+  const chartSourceLabel =
+    priceFeed === 'live'
+      ? `${lastPoint.source || 'provider'} · ${lastPoint.date}`
+      : priceFeed === 'live_degraded'
+        ? `真实行情(源降级) · ${priceMessage}`
+        : priceMessage;
   const quoteLabel = latestQuote && latestQuote.frequency === 'intraday'
     ? `分时最新 · ${latestQuote.date}`
     : chartSourceLabel;
@@ -627,7 +637,7 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
     let cancelled = false;
 
     async function loadPrices() {
-      setPriceStatus('loading');
+      setPriceFeed('loading');
       setPriceMessage('正在获取真实行情...');
       const fallback = generateKLineData(selectedStock);
       try {
@@ -635,7 +645,8 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
           `/api/prices/${encodeURIComponent(stripSymbolSuffix(selectedStock.symbol))}?frequency=1d&limit=80`,
         );
         if (cancelled) return;
-        const nextData = payload.bars?.length ? enrichKLineData(payload.bars) : fallback;
+        const hasBars = Boolean(payload.bars?.length);
+        const nextData = hasBars ? enrichKLineData(payload.bars!) : fallback;
         let nextQuote = nextData[nextData.length - 1];
         try {
           const latest = await fetchApi<PriceBar>(`/api/prices/${encodeURIComponent(stripSymbolSuffix(selectedStock.symbol))}/latest`);
@@ -651,19 +662,20 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
         }
         if (cancelled) return;
         setChartData(nextData);
-        if (payload.bars?.length) {
-          setPriceStatus(payload.degraded ? 'degraded' : 'live');
-          setPriceMessage(payload.degraded ? '行情源降级，使用可用缓存' : '真实行情已同步');
-        } else {
-          setPriceStatus('degraded');
-          setPriceMessage('行情源暂无数据，已切换本地预览');
-        }
+        setPriceFeed(resolvePriceFeed({ hasBars, backendDegraded: payload.degraded }));
+        setPriceMessage(
+          hasBars
+            ? payload.degraded
+              ? '行情源降级，使用可用缓存'
+              : '真实行情已同步'
+            : '行情源暂无数据，已切换本地预览',
+        );
         setVisionSource((current) => buildVisionSource(selectedStock, current.kind, current.url, uploadedImage?.fileName, nextData));
       } catch (error) {
         if (cancelled) return;
         setLatestQuote(undefined);
         setChartData(fallback);
-        setPriceStatus('degraded');
+        setPriceFeed('synthetic');
         setPriceMessage(error instanceof Error ? error.message : '行情获取失败，已切换本地预览');
         setVisionSource((current) => buildVisionSource(selectedStock, current.kind, current.url, uploadedImage?.fileName, fallback));
       }
@@ -906,7 +918,7 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
           `涨跌：${lastPoint.change >= 0 ? '+' : ''}${formatNumber(lastPoint.change)} / ${lastPoint.changePct >= 0 ? '+' : ''}${formatNumber(lastPoint.changePct)}%`,
           `区间收益：${rangeReturn >= 0 ? '+' : ''}${formatNumber(rangeReturn)}%`,
           '',
-          priceStatus === 'live'
+          isLivePriceFeed(priceFeed)
             ? '当前结论基于后端行情源返回的真实 K 线数据。'
             : '当前行情源不可用或为空，页面已明确切换到本地预览数据，请不要把该结果当作实时行情。'
         ].join('\n');
@@ -1086,7 +1098,7 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
                     {visionSource.kind === 'uploaded' ? `用户上传 · ${uploadedImage?.fileName || '读取中'}` : chartSourceLabel} · {selectedStock.symbol}
                   </span>
                   {!visionSource.url && <KLineHoverStrip point={displayHoverPoint} mode="指针行情" />}
-                  {priceStatus !== 'live' && !visionSource.url && (
+                  {priceFeed !== 'live' && !visionSource.url && (
                     <span className="rounded-md border border-amber-500/20 bg-amber-500/10 px-2 py-1 text-[10px] text-amber-100">
                       {priceMessage}
                     </span>
@@ -1095,15 +1107,8 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
 
                 <div className="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/60 p-5">
                   <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:24px_24px]" />
-                  {priceStatus === 'degraded' && !visionSource.url && (
-                    <div
-                      data-testid="chart-synthetic-banner"
-                      className="pointer-events-none absolute inset-x-6 top-6 z-20 flex justify-center"
-                    >
-                      <span className="rounded-md border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-center font-mono text-[11px] font-medium text-amber-200 shadow-lg backdrop-blur-sm">
-                        本地预览 / 合成 K 线 · 非真实行情 · 不可用于投资决策
-                      </span>
-                    </div>
+                  {isSyntheticPriceFeed(priceFeed) && !visionSource.url && (
+                    <SyntheticDataBanner testId="chart-synthetic-banner" className="inset-x-6 top-6" />
                   )}
                   {visionSource.url ? (
                     <img
@@ -1190,7 +1195,7 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
                       className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[10px] text-neutral-300 transition-colors hover:bg-white/[0.06]"
                       title="刷新行情"
                     >
-                      <RefreshCw className={cn('h-3.5 w-3.5', priceStatus === 'loading' && 'animate-spin')} />
+                      <RefreshCw className={cn('h-3.5 w-3.5', priceFeed === 'loading' && 'animate-spin')} />
                       刷新行情
                     </button>
                     <label className="flex cursor-pointer items-center gap-2 text-xs text-neutral-400">
@@ -1407,8 +1412,16 @@ export function MultimodalChart({ onOpenModelSettings }: MultimodalChartProps) {
             </div>
             <div className="rounded-xl border border-white/5 bg-black/25 p-3">
               <p className="mb-1 text-[10px] text-neutral-500">数据形态</p>
-              <p className="font-semibold text-neutral-200">{visionSource.kind === 'uploaded' ? '上传截图' : priceStatus === 'live' ? '真实行情K线' : '本地预览K线'}</p>
-              <p className={cn('mt-1 font-mono text-[10px]', priceStatus === 'live' || visionSource.kind === 'uploaded' ? 'text-emerald-300' : 'text-amber-300')}>
+              <p className="font-semibold text-neutral-200">
+                {visionSource.kind === 'uploaded'
+                  ? '上传截图'
+                  : isLivePriceFeed(priceFeed)
+                    ? priceFeed === 'live_degraded'
+                      ? '真实行情K线(源降级)'
+                      : '真实行情K线'
+                    : '本地预览K线'}
+              </p>
+              <p className={cn('mt-1 font-mono text-[10px]', isLivePriceFeed(priceFeed) || visionSource.kind === 'uploaded' ? 'text-emerald-300' : 'text-amber-300')}>
                 {visionSource.kind === 'uploaded' ? `图片 ${uploadedImage ? '已读取' : '读取中'}` : chartSourceLabel}
               </p>
             </div>
