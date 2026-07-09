@@ -1,0 +1,11 @@
+# 与 CI (.github/workflows/ci.yml) 的 ruff check + format --check 对齐。
+# 可选安装: pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.13
+    hooks:
+      - id: ruff
+        args: [--fix]
+        types_or: [python]
+      - id: ruff-format
+        types_or: [python]
