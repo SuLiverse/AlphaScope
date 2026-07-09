@@ -1,4 +1,4 @@
-# 研策中枢 AlphaScope｜AI 投研与本地量化决策工作台
+﻿# 研策中枢 AlphaScope｜AI 投研与本地量化决策工作台
 
 [![CI](https://github.com/TIANWEN-cpu/AlphaScope/actions/workflows/ci.yml/badge.svg)](https://github.com/TIANWEN-cpu/AlphaScope/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12-blue)](https://www.python.org/)
@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-100%2B%20APIs-009688)](docs/api.md)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.9.49-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
+[![Release](https://img.shields.io/badge/release-v1.9.50-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
 
 > **把 AI 选股从「黑箱结论」变成「可复核的研究流程」。**
 >

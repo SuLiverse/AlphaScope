@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.9.50 - 2026-07-09
+
+> **审查收口工程**: 安全默认、数据诚实、侧栏整理与量化页拆分；**不砍功能**。
+
+### 安全与诚实
+- 源码启动默认生成 `ALPHASCOPE_LOCAL_API_TOKEN`（lifespan）；`ALPHASCOPE_ALLOW_OPEN_API=1` 可关（仅开发/测试）
+- 共享 `backend/security/runtime_config.py` 写 `runtime-config.js`；`apps/web/public/runtime-config.js` 改 example + gitignore（防提交本机 token）
+- 回测等量化 API 默认不静默使用合成样例；须 `allow_preview_data=true`；响应带 `is_preview`
+- 行情展示三态 `live` / `live_degraded` / `synthetic`；合成横幅仅 synthetic
+- `key_vault`：非开发 opt-in 禁止 XOR 写新密钥；`SECURITY.md` 更新
+
+### 产品整理
+- 侧栏新增「高级工具」分组（证据聚合 / TickFlow / 数据湖 / 因子 / 集成中心），能力保留
+
+### 工程
+- `PreviewOptIn` + `_require_bars`；请求体 `backend/api/quant_schemas.py`（`quant.py` 压到 1k 行以下）
+- 前端 `quantPreview` / `quantDates` / Backtesting 类型与卡片拆分到 `components/quant/`
+- pre-commit：ruff check + format（与 CI 对齐）
+
+### 验证
+- `pytest tests/test_quant_api.py tests/test_local_token_bootstrap.py tests/test_local_api_boundary.py`
+- `ruff check` 相关模块；`npx tsc --noEmit`（apps/web）
+
 ## v1.9.49 - 2026-07-05
 
 > **README 视觉素材占位收尾**: 接手 Claude Code 早期 P0 清单中剩余的"v1.9 截图/GIF 仍为占位"问题, 把首屏黄金路径和界面预览切到当前版本真实截图。
