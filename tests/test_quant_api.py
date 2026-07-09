@@ -173,10 +173,10 @@ class TestQuantBacktest:
     @pytest.mark.anyio
     async def test_backtest_rejects_preview_without_opt_in(self, client, monkeypatch):
         """无真实行情且未 allow_preview_data 时不得静默用合成 K 线。"""
-        import backend.api.quant as quant_api
+        import backend.api.quant_core as quant_core
 
         monkeypatch.setattr(
-            quant_api,
+            quant_core,
             "_load_local_bars",
             lambda *a, **k: ([], "unavailable"),
         )
