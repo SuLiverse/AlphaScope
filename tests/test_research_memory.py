@@ -62,6 +62,12 @@ class TestBuildSnapshot:
             },
             "risk_gate": {"vetoed": False},
             "data_verification": {"overall": "ok"},
+            "research_trust": {"score": 82, "grade": "high"},
+            "research_snapshot": {
+                "snapshot_id": "snap-123",
+                "effective_as_of": "2026-06-26",
+                "research_question": "利润增长是否可持续？",
+            },
         }
 
     def test_maps_all_fields(self):
@@ -82,6 +88,11 @@ class TestBuildSnapshot:
         assert snap["divergence"] == "中"
         assert snap["risk_vetoed"] is False
         assert snap["data_status"] == "ok"
+        assert snap["trust_score"] == 82
+        assert snap["trust_grade"] == "high"
+        assert snap["research_snapshot_id"] == "snap-123"
+        assert snap["as_of"] == "2026-06-26"
+        assert snap["research_question"] == "利润增长是否可持续？"
         assert snap["close"] == 1720.5
         assert snap["mode"] == "deep"
         assert snap["snapshot_id"].startswith("600519-")
@@ -129,9 +140,9 @@ class TestComputeChanges:
 class TestSummarizeHistory:
     def test_distribution_and_changes(self):
         snaps = [
-            _snap("买入", 70, "2026-06-01"),
-            _snap("买入", 60, "2026-06-02"),
-            _snap("观望", 50, "2026-06-03"),
+            {**_snap("买入", 70, "2026-06-01"), "trust_score": 60},
+            {**_snap("买入", 60, "2026-06-02"), "trust_score": 75},
+            {**_snap("观望", 50, "2026-06-03"), "trust_score": 90},
         ]
         s = rm.summarize_history(snaps)
         assert s["count"] == 3
@@ -141,10 +152,14 @@ class TestSummarizeHistory:
         assert s["avg_confidence"] == 60.0
         assert s["first_date"] == "2026-06-01"
         assert s["latest_date"] == "2026-06-03"
+        assert s["latest_trust_score"] == 90
+        assert s["avg_trust_score"] == 75
+        assert s["trust_count"] == 3
 
     def test_empty(self):
         s = rm.summarize_history([])
         assert s["count"] == 0 and s["change_count"] == 0
+        assert s["trust_count"] == 0
 
 
 # ----------------------------- DB 组(临时 SQLite 隔离) -----------------------------

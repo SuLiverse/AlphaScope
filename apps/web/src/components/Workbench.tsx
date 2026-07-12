@@ -1,11 +1,11 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Bot, Maximize2, RefreshCw, Send, Settings2, Sparkles, ChevronDown, ImagePlus } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid, Cell, Tooltip } from 'recharts';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import { cn } from '../lib/utils';
 import { ChatMessage } from '../types';
-import { STOCK_UNIVERSE, StockTarget, findStockTarget, formatStockLabel, resolveStockTarget } from '../lib/stocks';
+import { STOCK_UNIVERSE, StockTarget, findStockTarget, resolveStockTarget } from '../lib/stocks';
 import { getPersistedStock, subscribeStockSelected, subscribeSettingsChanged } from '../lib/workspaceEvents';
 import { fetchApi, API_BASE_URL, API_KEY, LOCAL_API_TOKEN } from '../lib/api';
 import {
@@ -46,11 +46,9 @@ import {
   LOADING_FUND_CARDS,
   LOADING_QUANT_CARDS,
   ANALYSIS_MODES,
-  PANEL_TABS,
   getCustomLimitOptions,
   generateKlineData,
   getErrorMessage,
-  formatMessageHtml,
   stripSymbolSuffix,
   formatAxisDate,
   getMinimumPeriodBars,
@@ -649,10 +647,10 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
-      className="mx-auto max-w-[1600px] p-6 text-neutral-300 lg:p-8"
+      className="mx-auto max-w-[1600px] p-4 text-neutral-300 sm:p-6 lg:p-8"
     >
       {/* Top Header */}
-      <div className="relative z-10 mb-8 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+      <div className="relative z-10 mb-6 flex flex-col gap-5 md:mb-8 md:flex-row md:items-end md:justify-between">
         <div className="min-w-0">
           <h1 className="mb-3 flex min-w-0 flex-wrap items-center gap-3 text-2xl font-medium tracking-tight text-white sm:text-3xl">
             {currentStock.name}
@@ -673,7 +671,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
 
         <div className="grid w-full grid-cols-2 gap-3 sm:grid-cols-4 md:w-auto md:max-w-[48rem]">
           {financeCards.slice(0, 4).map((item, i) => (
-            <div key={`${item.label}-${i}`} title={item.detail} className="flex min-w-0 flex-col rounded-xl border border-white/5 bg-white/[0.03] px-4 py-3 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.05]">
+            <div key={`${item.label}-${i}`} title={item.detail} className="flex min-w-0 flex-col rounded-lg border border-white/[0.07] bg-white/[0.035] px-4 py-3 shadow-sm transition-colors duration-200 hover:border-white/10 hover:bg-white/[0.05]">
               <span className="mb-1.5 truncate text-xs text-neutral-500">{item.label}</span>
               <span className={cn("truncate text-sm font-mono font-medium tracking-wide", metricToneClass(item.tone))}>
                 {item.value}
@@ -683,12 +681,12 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-8 relative z-10">
+      <div className="relative z-10 grid grid-cols-1 gap-5 sm:gap-6 xl:grid-cols-3 xl:gap-8">
         {/* Left Column: Chart & Info */}
-        <div className="xl:col-span-2 flex flex-col gap-8">
+        <div className="flex flex-col gap-5 sm:gap-6 xl:col-span-2 xl:gap-8">
           {/* Chart Panel */}
-          <div className="flex h-[500px] min-h-0 flex-col overflow-hidden rounded-2xl border border-white/5 bg-white/[0.04] shadow-2xl">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 bg-white/[0.01] px-5 py-4">
+          <div className="flex h-[500px] min-h-0 flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-white/[0.035] shadow-[0_18px_55px_rgba(0,0,0,0.26)]">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 bg-white/[0.01] px-4 py-3.5 sm:px-5 sm:py-4">
               <div className="flex items-center gap-3">
                  <h2 className="font-semibold text-neutral-200">行情走势</h2>
                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_5px_rgba(16,185,129,0.5)]"></span>
@@ -696,7 +694,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
                    {priceFeed === 'loading' ? '正在同步行情' : chartSourceLabel}
                  </span>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 items-center justify-end gap-2">
               <button
                 type="button"
                 onClick={handleRefreshChart}
@@ -705,14 +703,14 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
               >
                 <RefreshCw className={cn('h-3.5 w-3.5', priceFeed === 'loading' && 'animate-spin')} />
               </button>
-              <div className="flex flex-wrap rounded-lg border border-white/5 bg-black/40 p-1 shadow-inner">
+              <div className="custom-scrollbar flex min-w-0 flex-nowrap overflow-x-auto rounded-lg border border-white/5 bg-black/40 p-1 shadow-inner">
                 {PERIOD_BUTTONS.map((period) => (
                   <button 
                     key={period}
                     data-testid={getPeriodTestId(period)}
                     onClick={() => handlePeriodChange(period)}
                     className={cn(
-                      "px-3 py-1.5 text-xs rounded-md font-medium transition-all cursor-pointer sm:px-5",
+                      "shrink-0 px-3 py-1.5 text-xs rounded-md font-medium transition-all cursor-pointer sm:px-5",
                       activePeriod === period ? "bg-white/10 text-white shadow-sm border border-white/10" : "text-neutral-500 hover:text-neutral-300 border border-transparent"
                     )}
                   >
@@ -749,7 +747,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-white/5 bg-black/20 px-5 py-3 font-mono text-[11px]">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-white/5 bg-black/20 px-4 py-3 font-mono text-[11px] sm:gap-x-6 sm:px-5">
                <span className={cn('flex items-center gap-2', showMa5Line ? 'text-yellow-500/90' : 'text-neutral-600')}><div className={cn('h-0.5 w-2', showMa5Line ? 'bg-yellow-500/90' : 'bg-neutral-700')}></div>MA5: {showMa5Line ? formatPrice(chartStats.ma5) : '--'}</span>
                <span className={cn('flex items-center gap-2', showMa10Line ? 'text-indigo-400/90' : 'text-neutral-600')}><div className={cn('h-0.5 w-2', showMa10Line ? 'bg-indigo-400/90' : 'bg-neutral-700')}></div>MA10: {showMa10Line ? formatPrice(chartStats.ma10) : '--'}</span>
                <span className={cn('flex items-center gap-2', showMa20Line ? 'text-emerald-400/90' : 'text-neutral-600')}><div className={cn('h-0.5 w-2', showMa20Line ? 'bg-emerald-400/90' : 'bg-neutral-700')}></div>MA20: {showMa20Line ? formatPrice(chartStats.ma20) : '--'}</span>
@@ -783,7 +781,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: 'easeOut' }}
-              className="relative h-[360px] min-h-[320px] bg-black/40 p-5"
+              className="relative h-[360px] min-h-[320px] bg-black/40 p-3 sm:p-5"
             >
                {isSyntheticPreview && <SyntheticDataBanner testId="workbench-synthetic-banner" />}
                <div className="pointer-events-none absolute right-6 top-6 text-[10px] font-mono text-neutral-600">{formatPrice(chartStats.high)}</div>
@@ -880,7 +878,6 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
         modeMenuOpen={modeMenuOpen}
         onOpenModelSettings={onOpenModelSettings}
         selectedChatModel={selectedChatModel}
-        selectedChatModelKey={selectedChatModelKey}
         selectedMode={selectedMode}
         setAutoEvidence={setAutoEvidence}
         setInput={setInput}

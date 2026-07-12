@@ -141,6 +141,8 @@ def build_snapshot(
     debate = result.get("debate") if isinstance(result.get("debate"), dict) else {}
     risk_gate = result.get("risk_gate") if isinstance(result.get("risk_gate"), dict) else {}
     dv = result.get("data_verification") if isinstance(result.get("data_verification"), dict) else {}
+    trust = result.get("research_trust") if isinstance(result.get("research_trust"), dict) else {}
+    snapshot = result.get("research_snapshot") if isinstance(result.get("research_snapshot"), dict) else {}
 
     signal = _norm_signal(summary.get("final"))
     sid = f"{symbol}-{now.strftime('%Y%m%d%H%M%S%f')}"
@@ -159,6 +161,11 @@ def build_snapshot(
         "divergence": str(debate.get("divergence_level") or ""),
         "risk_vetoed": bool(risk_gate.get("vetoed")),
         "data_status": str(dv.get("overall") or ""),
+        "trust_score": _num(trust.get("score")),
+        "trust_grade": str(trust.get("grade") or ""),
+        "research_snapshot_id": str(snapshot.get("snapshot_id") or ""),
+        "as_of": str(snapshot.get("effective_as_of") or ""),
+        "research_question": str(snapshot.get("research_question") or ""),
         "close": _num(stock_data.get("close")),
         "mode": str(result.get("mode") or result.get("mode_name") or ""),
     }
@@ -220,15 +227,21 @@ def summarize_history(snapshots: list[dict[str, Any]]) -> dict[str, Any]:
             "signal_distribution": {},
             "change_count": 0,
             "avg_confidence": 0.0,
+            "latest_trust_score": 0.0,
+            "avg_trust_score": 0.0,
+            "trust_count": 0,
         }
     dist: dict[str, int] = {}
     confs: list[float] = []
+    trust_scores: list[float] = []
     for s in snaps:
         sig = _norm_signal(s.get("signal"))
         dist[sig] = dist.get(sig, 0) + 1
         c = _num(s.get("confidence"))
         if c:
             confs.append(c)
+        if "trust_score" in s:
+            trust_scores.append(_num(s.get("trust_score")))
     changes = compute_changes(snaps)
     latest = snaps[-1]
     return {
@@ -240,6 +253,9 @@ def summarize_history(snapshots: list[dict[str, Any]]) -> dict[str, Any]:
         "signal_distribution": dist,
         "change_count": len(changes),
         "avg_confidence": round(sum(confs) / len(confs), 2) if confs else 0.0,
+        "latest_trust_score": _num(latest.get("trust_score")),
+        "avg_trust_score": round(sum(trust_scores) / len(trust_scores), 2) if trust_scores else 0.0,
+        "trust_count": len(trust_scores),
     }
 
 

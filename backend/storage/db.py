@@ -219,7 +219,7 @@ class Database:
                     item.get("license_level", "research_only"),
                 ),
             )
-        self._conn.commit()
+            self._conn.commit()
 
     def insert_report(self, item: dict) -> None:
         """插入研报条目"""

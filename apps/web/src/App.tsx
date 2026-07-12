@@ -4,7 +4,7 @@ import { GoldenPathTour } from './components/GoldenPathTour';
 import { subscribeTabChange } from './lib/workspaceEvents';
 import type { ErrorInfo, ReactNode } from 'react';
 import { KeepAlive } from './components/KeepAlive';
-import { Sidebar } from './components/Sidebar';
+import { MobileNav, Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { Workbench } from './components/Workbench';
 import type { TabID } from './types';
@@ -139,13 +139,8 @@ export default function App() {
   useEffect(() => subscribeTabChange((tab) => setCurrentTab(tab as TabID)), []);
 
   return (
-    <div className="flex h-screen w-full bg-[#050505] text-neutral-300 font-sans selection:bg-indigo-500/30 overflow-hidden relative">
-      {/* Absolute background effects */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-[500px] h-[500px] bg-indigo-500/10 rounded-full blur-[120px] mix-blend-screen mix-blend-lighten" />
-        <div className="absolute bottom-0 right-1/4 w-[600px] h-[600px] bg-emerald-500/5 rounded-full blur-[150px] mix-blend-screen mix-blend-lighten" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0.7px,transparent_0.7px)] bg-[length:6px_6px] opacity-[0.025] mix-blend-overlay"></div>
-      </div>
+    <div className="relative flex h-screen w-full overflow-hidden bg-[#07080b] font-sans text-neutral-300 selection:bg-indigo-500/30">
+      <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0.7px,transparent_0.7px)] bg-[length:7px_7px] opacity-[0.018]" />
       
       <div className="relative z-10 flex w-full h-full">
         <Sidebar currentTab={currentTab} setCurrentTab={setCurrentTab} />
@@ -154,7 +149,7 @@ export default function App() {
           <TopBar />
           
           <main className="flex-1 overflow-hidden relative">
-            <div className="h-full overflow-y-auto custom-scrollbar">
+            <div className="custom-scrollbar h-full overflow-y-auto pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
               <ModuleErrorBoundary resetKey={currentTab}>
                 <Suspense fallback={<ModuleLoading />}>
                   {/* 切页优化：
@@ -230,6 +225,7 @@ export default function App() {
           </div>
         </main>
       </div>
+      <MobileNav currentTab={currentTab} setCurrentTab={setCurrentTab} />
     </div>
     <Onboarding />
     <GoldenPathTour onNavigate={(tab) => setCurrentTab(tab as TabID)} />

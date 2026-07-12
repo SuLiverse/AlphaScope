@@ -21,7 +21,9 @@ from backend.agents.base import (
     _agent_config_from_dict,
 )
 from backend.agents.chairman import summarize_with_chairman
+from backend.quality.research_trust import assess_agent_research
 from backend.runtime.rating import compute_rating
+from backend.runtime.research_snapshot import as_of_timestamp, build_research_snapshot
 
 try:
     from backend.agent_modes import AnalysisMode, AgentModeConfig, get_mode_resolver
@@ -215,6 +217,8 @@ def _build_research_report_body(
     model_status: Dict[str, Any],
     critic_block: Optional[dict] = None,
     chairman_summary: Optional[str] = None,
+    research_trust: Optional[dict] = None,
+    research_snapshot: Optional[dict] = None,
 ) -> str:
     name = stock_data.get("name") or "未知标的"
     symbol = stock_data.get("symbol") or ""
@@ -274,12 +278,27 @@ def _build_research_report_body(
     if chairman_summary and "失败" not in chairman_summary:
         chairman_note = f"\n\n【投委会主席补充】\n{chairman_summary.strip()}"
 
+    trust = research_trust or {}
+    trust_metrics = trust.get("metrics") or {}
+    trust_warnings = trust.get("warnings") or []
+    trust_warning_lines = [
+        f"- {item.get('message', '')}" for item in trust_warnings[:4] if isinstance(item, dict) and item.get("message")
+    ]
+    if not trust_warning_lines:
+        trust_warning_lines = ["- 当前机械评分未发现显著的来源、日期或交叉验证缺口。"]
+    snapshot = research_snapshot or {}
+    question_line = f"- 研究问题: {snapshot.get('research_question')}\n" if snapshot.get("research_question") else ""
+
     return f"""【完整研报正文】
 
 一、核心结论
 - 标的: {name} ({symbol})
 - 综合评级: {final}
 - 平均置信度: {avg_conf:.1f}%
+- 研究可信度: {trust.get("score", 0)}/100 ({trust.get("label", "证据不足")})
+- 数据截止日: {snapshot.get("effective_as_of", "未指定")}；行情日期: {snapshot.get("price_data_date", "未知") or "未知"}
+- 研究快照: {snapshot.get("snapshot_id", "未生成")}
+{question_line.rstrip()}
 - 生成状态: {model_status.get("message", "模型推理完成。")}
 - 操作含义: 当前报告先给出研究框架和风险收益约束；若模型链路降级，不建议把它视为最终投资结论。
 
@@ -294,11 +313,17 @@ def _build_research_report_body(
 - 专家席位: {len(ok_agents)} / {len(results)} 完成，{failed_count} 个席位降级。
 {chr(10).join(agent_lines)}
 
-四、风控与反证
+四、证据与可信度审计
+- 证据数量: {trust.get("evidence_count", 0)} 条，独立来源: {trust.get("source_count", 0)} 个。
+- 证据覆盖率: {_safe_float(trust_metrics.get("coverage")):.0%}，来源完整度: {_safe_float(trust_metrics.get("source_completeness")):.0%}。
+- 日期完整度: {_safe_float(trust_metrics.get("date_completeness")):.0%}，时效性: {_safe_float(trust_metrics.get("freshness")):.0%}。
+{chr(10).join(trust_warning_lines)}
+
+五、风控与反证
 {chr(10).join(risk_lines)}
 - 风控复核: {critic_text}
 
-五、后续跟踪清单
+六、后续跟踪清单
 - 重新检测 Provider 连通性后，补跑专家推理、主席摘要和 Critic 反证。
 - 补充财务质量、行业景气、公告事件、研报评级和资金流向证据，避免只依赖 K 线结论。
 - 重点观察价格是否继续站稳 MA20、成交是否放大、以及负面新闻或公告是否改变原有假设。{chairman_note}
@@ -402,22 +427,34 @@ def run_agents_with_mode(
 
     from backend.runtime.context_builder import (
         build_market_brief,
-        fetch_evidence_context,
         fetch_evidence_pool,
         fetch_factor_context,
+        format_evidence_context,
     )
 
     symbol = stock_data.get("symbol", "")
     stock_name = stock_data.get("name", "")
+    as_of = str(stock_data.get("as_of") or "")
+    research_question = str(stock_data.get("research_question") or "")
 
     evidence_ctx = ""
     factor_ctx = ""
+    factor_data_policy = "not_enabled"
     evidence_pool: List[dict] = []
     if config.enable_evidence:
-        evidence_pool = fetch_evidence_pool(symbol, stock_name)
-        evidence_ctx = fetch_evidence_context(symbol, stock_name)
-    if config.enable_factors:
+        evidence_pool = fetch_evidence_pool(
+            symbol,
+            stock_name,
+            as_of=as_of,
+            research_question=research_question,
+        )
+        evidence_ctx = format_evidence_context(evidence_pool, as_of=as_of)
+    if config.enable_factors and not as_of:
         factor_ctx = fetch_factor_context(symbol, stock_name)
+        factor_data_policy = "current"
+    elif config.enable_factors:
+        factor_ctx = "【量化因子】历史截止模式下已排除未版本化的实时因子，避免未来数据穿越。"
+        factor_data_policy = "excluded_unversioned"
 
     # 简报里的证据编号 [n] → 真实 evidence_id 映射, 供 Agent 结论反链溯源。
     number_to_id = {item["number"]: item["evidence_id"] for item in evidence_pool}
@@ -426,11 +463,16 @@ def run_agents_with_mode(
     # 证据池就绪后重算核验(纳入 evidence 维度), 并把「严禁编造缺失维度」提示注入简报。
     verification = verify_data(stock_data, evidence_pool=evidence_pool)
     brief += verification.brief_warning()
+    research_snapshot = build_research_snapshot(
+        {**stock_data, "factor_data_policy": factor_data_policy},
+        evidence_pool,
+    )
     api_keys = api_keys or {}
 
     active = [_agent_config_from_dict(a) for a in agent_configs if bool(a.get("enabled", True))]
     if not active:
         model_status = _build_model_status({})
+        research_trust = assess_agent_research({}, evidence_pool, now=as_of_timestamp(as_of))
         summary = {
             "final": "建议观望",
             "buy": 0,
@@ -447,11 +489,15 @@ def run_agents_with_mode(
                 {},
                 summary,
                 model_status,
+                research_trust=research_trust,
+                research_snapshot=research_snapshot,
             ),
             "agent_order": [],
             "critic": None,
             "chairman_summary": None,
             "evidence_pool": evidence_pool,
+            "research_trust": research_trust,
+            "research_snapshot": research_snapshot,
             "risk_gate": None,
             "debate": None,
             "model_status": model_status,
@@ -569,6 +615,12 @@ def run_agents_with_mode(
         "rating": rating["rating"],
         "rating_breakdown": rating["breakdown"],
     }
+    research_trust = assess_agent_research(
+        results,
+        evidence_pool,
+        critic_block,
+        now=as_of_timestamp(as_of),
+    )
     model_status = _build_model_status(results, critic_block, chairman_summary)
     research_report = _build_research_report_body(
         stock_data,
@@ -577,6 +629,8 @@ def run_agents_with_mode(
         model_status,
         critic_block,
         chairman_summary,
+        research_trust,
+        research_snapshot,
     )
 
     # 研报发布前风控 gate(v1.9.x): 评估黑名单/集中度/置信度等, critical 触发一票否决。
@@ -633,6 +687,8 @@ def run_agents_with_mode(
         "research_report": research_report,
         "model_status": model_status,
         "evidence_pool": evidence_pool,
+        "research_trust": research_trust,
+        "research_snapshot": research_snapshot,
         "risk_gate": risk_gate,
         "debate": debate,
         "data_verification": verification.to_dict(),
@@ -696,23 +752,24 @@ def _run_auto_mode(
 
     # Check if escalation is needed
     if pre_confidence < config.escalate_below or pre_confidence > config.escalate_above:
+        pre_screen_agents = {
+            "pre_screen": {
+                "key": "pre_screen",
+                "name": "🔍 快速预筛",
+                "signal": pre_signal,
+                "confidence": pre_confidence,
+                "reason": pre_reason,
+                "evidence": [],
+                "invalid_if": "",
+                "risks": [],
+                "vendor": config.pre_screen_provider,
+                "model": config.pre_screen_model,
+                "ok": True,
+                "evidence_ids": [],
+            }
+        }
         return {
-            "agents": {
-                "pre_screen": {
-                    "key": "pre_screen",
-                    "name": "🔍 快速预筛",
-                    "signal": pre_signal,
-                    "confidence": pre_confidence,
-                    "reason": pre_reason,
-                    "evidence": [],
-                    "invalid_if": "",
-                    "risks": [],
-                    "vendor": config.pre_screen_provider,
-                    "model": config.pre_screen_model,
-                    "ok": True,
-                    "evidence_ids": [],
-                }
-            },
+            "agents": pre_screen_agents,
             "summary": {
                 "final": f"建议{'买入' if pre_signal == '买入' else '卖出' if pre_signal == '卖出' else '观望'}",
                 "buy": 1 if pre_signal == "买入" else 0,
@@ -725,6 +782,15 @@ def _run_auto_mode(
             "critic": None,
             "chairman_summary": None,
             "evidence_pool": [],
+            "research_trust": assess_agent_research(
+                pre_screen_agents,
+                [],
+                now=as_of_timestamp(stock_data.get("as_of")),
+            ),
+            "research_snapshot": build_research_snapshot(
+                {**stock_data, "factor_data_policy": "not_enabled"},
+                [],
+            ),
             "risk_gate": None,
             "data_verification": verification.to_dict(),
             "mode": "auto",

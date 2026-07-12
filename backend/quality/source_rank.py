@@ -6,14 +6,13 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-
 import yaml
+
+from backend.project_paths import CONFIG_DIR
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_CONFIG_PATH = _PROJECT_ROOT / "config" / "data_sources.yaml"
+_CONFIG_PATH = CONFIG_DIR / "data_sources.yaml"
 
 # 可信度等级对应的分值范围
 _TRUST_SCORE_RANGES = {

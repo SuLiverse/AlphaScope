@@ -159,6 +159,11 @@ def build_demo_report(stock_data: Dict[str, Any]) -> Dict[str, Any]:
         "hold": 0,
         "avg_confidence": 0,
     }
+    from backend.quality.research_trust import assess_agent_research
+    from backend.runtime.research_snapshot import build_research_snapshot
+
+    research_trust = assess_agent_research({}, [])
+    research_snapshot = build_research_snapshot({**stock_data, "factor_data_policy": "not_enabled"}, [])
 
     return {
         "agents": {},
@@ -169,6 +174,8 @@ def build_demo_report(stock_data: Dict[str, Any]) -> Dict[str, Any]:
         "critic": None,
         "chairman_summary": None,
         "evidence_pool": [],
+        "research_trust": research_trust,
+        "research_snapshot": research_snapshot,
         "risk_gate": None,
         "model_status": model_status,
         "demo_sample": True,

@@ -43,6 +43,7 @@ class TestReportGenerator:
                             "type": "fundamental",
                             "claim": "ROE稳定在25%以上",
                             "source": "CNInfo",
+                            "data_date": "2026-05-20",
                         }
                     ],
                     "summary": {"buy": 4, "hold": 1, "sell": 0},
@@ -79,6 +80,8 @@ class TestReportGenerator:
         assert "证据链" in report
         assert "ROE稳定在25%以上" in report
         assert "CNInfo" in report
+        assert "研究可信度" in report
+        assert "来源完整度" in report
 
     def test_generate_report_disclaimer(self):
         """测试深度分析报告包含免责声明"""

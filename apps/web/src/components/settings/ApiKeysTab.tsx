@@ -30,7 +30,7 @@ import {
   type SettingsState,
 } from "./types";
 import { getModelCapabilityClass, getModelCapabilityLabel } from "./helpers";
-import { SettingCard, TextField, ToggleRow } from "./fields";
+import { TextField, ToggleRow } from "./fields";
 
 export interface ApiKeysTabProps {
   settings: SettingsState;

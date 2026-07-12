@@ -1,5 +1,5 @@
 import { fetchApi, API_BASE_URL, LOCAL_API_TOKEN } from './api';
-import { AgentOpinion, AnalysisResult, DebatePoint, DebateResult, ProviderEvidence, ProviderTrace, SourceAppendixItem } from '../types';
+import { AgentOpinion, AnalysisResult, DebatePoint, DebateResult, EvidencePoolItem, ProviderEvidence, ProviderTrace, ResearchSnapshot, ResearchTrust, SourceAppendixItem } from '../types';
 import { mockAnalysisResult } from './mockAnalysisData';
 import { getEnabledAgentRuntimeConfigs } from './agentConfigs';
 
@@ -241,6 +241,76 @@ function normalizeSourceAppendix(value: unknown): SourceAppendixItem[] {
   });
 }
 
+function normalizeEvidencePool(value: unknown): EvidencePoolItem[] {
+  return asArray(value).map((item, index) => {
+    const record = asRecord(item);
+    return {
+      number: Number(record.number) || index + 1,
+      evidence_id: formatInlineValue(record.evidence_id || record.id || ''),
+      doc_type: formatInlineValue(record.doc_type || record.type || ''),
+      source: formatInlineValue(record.source || ''),
+      source_url: formatInlineValue(record.source_url || record.url || ''),
+      published_at: formatInlineValue(record.published_at || record.data_date || ''),
+      preview: formatTextValue(record.preview || record.claim || record.title || ''),
+    };
+  }).filter((item) => Boolean(item.evidence_id));
+}
+
+function normalizeResearchTrust(value: unknown): ResearchTrust | undefined {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) return undefined;
+  const metrics = asRecord(record.metrics);
+  const penalties = asRecord(record.penalties);
+  const gradeValue = formatInlineValue(record.grade);
+  const grade: ResearchTrust['grade'] = ['high', 'medium', 'low', 'insufficient'].includes(gradeValue)
+    ? gradeValue as ResearchTrust['grade']
+    : 'insufficient';
+  const metric = (key: string) => Math.max(0, Math.min(1, Number(metrics[key]) || 0));
+  return {
+    score: Math.max(0, Math.min(100, Number(record.score) || 0)),
+    grade,
+    label: formatInlineValue(record.label || '证据不足'),
+    evidence_count: Math.max(0, Number(record.evidence_count) || 0),
+    source_count: Math.max(0, Number(record.source_count) || 0),
+    metrics: {
+      coverage: metric('coverage'),
+      source_completeness: metric('source_completeness'),
+      date_completeness: metric('date_completeness'),
+      freshness: metric('freshness'),
+      source_quality: metric('source_quality'),
+      source_diversity: metric('source_diversity'),
+    },
+    penalties: {
+      contradictions: Math.max(0, Number(penalties.contradictions) || 0),
+      missing_evidence: Math.max(0, Number(penalties.missing_evidence) || 0),
+    },
+    warnings: asArray(record.warnings).map((item) => {
+      const warning = asRecord(item);
+      return {
+        code: formatInlineValue(warning.code || 'review'),
+        message: formatTextValue(warning.message || ''),
+      };
+    }).filter((warning) => Boolean(warning.message)),
+  };
+}
+
+function normalizeResearchSnapshot(value: unknown): ResearchSnapshot | undefined {
+  const record = asRecord(value);
+  if (!Object.keys(record).length) return undefined;
+  return {
+    snapshot_id: formatInlineValue(record.snapshot_id || ''),
+    requested_as_of: formatInlineValue(record.requested_as_of || ''),
+    effective_as_of: formatInlineValue(record.effective_as_of || ''),
+    cutoff_enforced: Boolean(record.cutoff_enforced),
+    price_data_date: formatInlineValue(record.price_data_date || ''),
+    latest_evidence_date: formatInlineValue(record.latest_evidence_date || ''),
+    evidence_count: Math.max(0, Number(record.evidence_count) || 0),
+    undated_evidence_count: Math.max(0, Number(record.undated_evidence_count) || 0),
+    research_question: formatTextValue(record.research_question || ''),
+    warnings: normalizeStringArray(record.warnings),
+  };
+}
+
 function normalizeDebate(value: unknown): DebateResult | undefined {
   const rec = asRecord(value);
   if (!Object.keys(rec).length) return undefined;
@@ -286,6 +356,9 @@ export function normalizeAnalysisResult(raw: any): AnalysisResult {
   const evidence = normalizeEvidenceItems(raw?.evidence || raw?.result?.evidence || []);
   const provider_traces = normalizeProviderTraces(raw?.provider_traces || raw?.result?.provider_traces || []);
   const source_appendix = normalizeSourceAppendix(raw?.source_appendix || raw?.result?.source_appendix || []);
+  const evidence_pool = normalizeEvidencePool(raw?.evidence_pool || raw?.result?.evidence_pool || []);
+  const research_trust = normalizeResearchTrust(raw?.research_trust || raw?.result?.research_trust);
+  const research_snapshot = normalizeResearchSnapshot(raw?.research_snapshot || raw?.result?.research_snapshot);
   const degraded = raw?.degraded ?? raw?.result?.degraded ?? false;
   const source_errors = asArray(raw?.source_errors || raw?.result?.source_errors || []);
   const summary = formatTextValue(raw?.summary || raw?.result?.summary || raw?.brief || raw?.result?.brief || '');
@@ -346,6 +419,7 @@ export function normalizeAnalysisResult(raw: any): AnalysisResult {
       model: formatInlineValue(agentRecord.model || ''),
       risk_points: normalizeStringArray(agentRecord.risk_points || agentRecord.risks || []),
       evidence_refs: uniqueRefs,
+      evidence_ids: normalizeStringArray(agentRecord.evidence_ids),
     };
   }
 
@@ -361,6 +435,9 @@ export function normalizeAnalysisResult(raw: any): AnalysisResult {
     model_status,
     agents: normalizedAgents,
     evidence,
+    evidence_pool,
+    research_trust,
+    research_snapshot,
     provider_traces,
     source_appendix,
     degraded,
@@ -413,6 +490,8 @@ export async function runAnalysisWithFallback(
   mode: string = 'deep',
   useMockForcefully: boolean = false,
   globalAiSettings?: Record<string, unknown>,
+  researchQuestion: string = '',
+  asOf: string = '',
 ): Promise<AnalysisResult> {
   if (useMockForcefully) {
     console.log('[Adapter] Using forced mock data');
@@ -430,6 +509,8 @@ export async function runAnalysisWithFallback(
         mode: mode,
         agent_configs: getEnabledAgentRuntimeConfigs(),
         global_ai_settings: globalAiSettings,
+        research_question: researchQuestion,
+        as_of: asOf || null,
       })
     });
     
@@ -454,6 +535,8 @@ export async function startAsyncAnalysis(
   useMockForcefully: boolean = false,
   globalAiSettings?: Record<string, unknown>,
   reportTemplate?: string,
+  researchQuestion: string = '',
+  asOf: string = '',
 ): Promise<string> {
   if (useMockForcefully) {
     return 'mock-task-123';
@@ -470,6 +553,8 @@ export async function startAsyncAnalysis(
         agent_configs: getEnabledAgentRuntimeConfigs(),
         global_ai_settings: globalAiSettings,
         report_template: reportTemplate || 'standard',
+        research_question: researchQuestion,
+        as_of: asOf || null,
       })
     });
     return rawResult.task_id;

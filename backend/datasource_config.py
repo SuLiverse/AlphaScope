@@ -16,18 +16,17 @@ from __future__ import annotations
 import logging
 import os
 import time
-from pathlib import Path
 from typing import Any, Optional
 
 import yaml
 
 from backend.security.key_vault import decrypt_key, encrypt_key, mask_key
 from backend.storage.db import Database
+from backend.project_paths import CONFIG_DIR
 
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent
-_CONFIG_PATH = _PROJECT_ROOT / "config" / "data_sources.yaml"
+_CONFIG_PATH = CONFIG_DIR / "data_sources.yaml"
 
 # ruamel round-trip YAML (保留注释与顺序); 不可用时回退 PyYAML
 try:

@@ -9,11 +9,16 @@ import os
 def test_ensure_token_open_mode(monkeypatch, tmp_path):
     monkeypatch.setenv("ALPHASCOPE_ALLOW_OPEN_API", "1")
     monkeypatch.delenv("ALPHASCOPE_LOCAL_API_TOKEN", raising=False)
+    shared = tmp_path / "shared-runtime"
+    monkeypatch.setenv("ALPHASCOPE_RUNTIME_CONFIG_DIR", str(shared))
     from backend.security import local_token as lt
 
     monkeypatch.setattr(lt, "_repo_root", lambda: tmp_path)
     monkeypatch.setattr(lt, "_token_file", lambda: tmp_path / "tok.txt")
     assert lt.ensure_local_api_token() == ""
+    payload_text = (shared / "runtime-config.js").read_text(encoding="utf-8")
+    payload = json.loads(payload_text.split(" = ", 1)[1].rstrip(";\n"))
+    assert payload["localApiToken"] == ""
 
 
 def test_ensure_token_auto_generates_and_writes_runtime_config(monkeypatch, tmp_path):
@@ -61,3 +66,18 @@ def test_launcher_write_runtime_config_uses_shared_helper(tmp_path, monkeypatch)
         )
     )
     assert text == expected
+
+
+def test_runtime_config_can_be_written_to_shared_container_dir(tmp_path, monkeypatch):
+    from backend.security.runtime_config import write_dev_runtime_configs
+
+    shared = tmp_path / "shared-runtime"
+    monkeypatch.setenv("ALPHASCOPE_RUNTIME_CONFIG_DIR", str(shared))
+    monkeypatch.setenv("VITE_API_BASE_URL", "http://localhost:8123")
+
+    write_dev_runtime_configs(tmp_path, "container-secret")
+
+    payload_text = (shared / "runtime-config.js").read_text(encoding="utf-8")
+    payload = json.loads(payload_text.split(" = ", 1)[1].rstrip(";\n"))
+    assert payload["apiBaseUrl"] == "http://localhost:8123"
+    assert payload["localApiToken"] == "container-secret"

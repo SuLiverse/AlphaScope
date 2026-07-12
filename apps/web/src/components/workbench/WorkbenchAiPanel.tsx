@@ -36,7 +36,6 @@ export interface WorkbenchAiPanelProps {
   modeMenuOpen: boolean;
   onOpenModelSettings: (() => void) | undefined;
   selectedChatModel: ModelOption | undefined;
-  selectedChatModelKey: string;
   selectedMode: { id: string; label: string; desc: string };
   setAutoEvidence: React.Dispatch<React.SetStateAction<boolean>>;
   setInput: React.Dispatch<React.SetStateAction<string>>;
@@ -68,7 +67,6 @@ export function WorkbenchAiPanel({
   modeMenuOpen,
   onOpenModelSettings,
   selectedChatModel,
-  selectedChatModelKey,
   selectedMode,
   setAutoEvidence,
   setInput,
@@ -84,13 +82,12 @@ export function WorkbenchAiPanel({
       {/* Right AI Engine Panel */}
       {/* 注意: 此面板不能用 overflow-hidden — 模式选择菜单 (absolute top-8) 会向下弹出
           被 overflow-hidden 裁切, 导致主页「切换不了分析模式」。glow 的 blur 轻微外溢可接受。 */}
-      <div className="bg-white/[0.04] border border-white/5 rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] flex flex-col h-[912px] sticky top-8 relative">
-        {/* Glow effect at top */}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-indigo-500/10 blur-[50px] pointer-events-none rounded-2xl overflow-hidden"></div>
+      <div className="relative mt-6 flex h-[720px] flex-col rounded-lg border border-white/[0.08] bg-[#0b0c11] shadow-[0_20px_65px_rgba(0,0,0,0.3)] sm:mt-8">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-indigo-400/60" />
 
         <div className="px-5 py-4 border-b border-white/5 flex justify-between items-center bg-white/[0.01] relative z-30">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600/20 to-indigo-400/20 flex items-center justify-center border border-indigo-400/20 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-400/20 bg-indigo-500/10">
               <Sparkles className="w-4 h-4 text-indigo-400" />
             </div>
             <h2 className="font-semibold text-neutral-200 tracking-wide">AI 分析引擎</h2>

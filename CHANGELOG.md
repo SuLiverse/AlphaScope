@@ -1,5 +1,40 @@
 # Changelog
 
+## v1.9.51 - 2026-07-12
+
+> **全面审查修复**：收紧本地鉴权，修复 Docker/发布复现性、依赖安装和资源边界，并清零前端质量告警。
+
+### 安全与运行边界
+- 本地 Token 默认保护全部 `/api/**` 读写请求，仅健康检查、API 文档等显式公开路径匿名可达。
+- Docker API/Web 通过命名卷共享运行时 Token；构建上下文排除本机 token，避免镜像烘焙旧凭据。
+- CSV/知识库/通用上传改为限量读取；视觉 Base64、上下文和模型字段增加长度上限。
+- Provider 超时调用增加全局并发槽位，限制超时后仍运行的 daemon thread 数量。
+- SQLite `insert_news` 的提交重新纳入同一写锁。
+
+### 构建与发布
+- 修正量化 extra 的 PyPI 名称为 `Riskfolio-Lib` / `PyPortfolioOpt`；项目依赖补入 MCP server 所需的 `mcp`。
+- Release workflow 从 `docs/releases/` 读取说明；Windows 产物上传改为幂等创建 Release。
+- Seed 行情库纳入版本控制，Windows CI 构建前后均验证 Demo 数据存在。
+- Web CI 增加 Vitest；升级 Vitest 修复安全公告，`npm audit` 回到 0 漏洞。
+
+### 前端工程
+- 清理拆分遗留的 51 条 lint warning 与未使用依赖。
+- Recharts、Lightweight Charts、D3、Motion 独立分包，入口 chunk 从约 867 KB 降到约 344 KB。
+
+### 研究可信度
+- 新增确定性的 `research_trust` 评分卡，统一衡量证据覆盖率、来源与日期完整度、分类型时效性、来源质量和交叉验证。
+- 主 Agent 编排、证据链、Markdown 报告与研报发布门控共享同一评分口径；无证据时明确标记为“证据不足”。
+- 新增 `/api/quality/research-trust` 与 `/api/quality/research-compare`，可用相同数据快照比较单模型基线和多 Agent 候选方案。
+- 报告生成页展示可信度明细与复核提示；研究记忆记录最新/平均可信度并绘制历史趋势。
+- 新增可复现研究快照：同步/异步分析支持研究问题与数据截止日，行情和 RAG 证据共享截止约束并生成稳定 `snapshot_id`。
+- 主编排改为单次检索证据池，Prompt 编号、`evidence_id` 反链和评分使用同一列表；历史模式排除无日期证据与未版本化实时因子。
+
+### 验证
+- 后端非网络全量：**1831 passed, 5 skipped, 1 deselected**。
+- `ruff check` / `ruff format --check` / `git diff --check` 通过。
+- 前端 `lint`（0 warning）、Vitest（12 passed）、生产构建、`npm audit`（0 漏洞）通过。
+- `docker compose config` 与 `pip install --dry-run --no-deps .` 通过。
+
 ## v1.9.50 - 2026-07-09
 
 > **审查收口工程**: 安全默认、数据诚实、侧栏整理与量化页拆分；**不砍功能**。

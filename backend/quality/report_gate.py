@@ -46,6 +46,8 @@ class ReportBlockedError(RuntimeError):
 COVERAGE_WARN = 0.60  # 证据覆盖率低于此 → warning
 COVERAGE_CRIT = 0.40  # 低于此 → critical
 CONFIDENCE_WARN = 0.30  # 综合置信度低于此 → warning
+TRUST_WARN = 60
+TRUST_CRIT = 35
 MIN_REPORT_CHARS = 80
 
 # 空泛废话:出现即视为质量缺陷(经典三件套判 critical)
@@ -217,6 +219,37 @@ def check_low_confidence(ctx: dict) -> list[Issue]:
     return []
 
 
+def check_research_trust(ctx: dict) -> list[Issue]:
+    trust = ctx["ec"].get("trust") or {}
+    if "score" not in trust:
+        return []
+    score = float(trust.get("score") or 0)
+    warning_text = "; ".join(
+        str(item.get("message", "")) for item in trust.get("warnings", [])[:3] if isinstance(item, dict)
+    )
+    if score < TRUST_CRIT:
+        return [
+            Issue(
+                severity="critical",
+                category="trust",
+                issue=f"研究可信度仅 {score:.0f}/100(< {TRUST_CRIT}, 不应发布方向性结论)",
+                evidence=warning_text,
+                suggested_fix="补齐证据来源、数据日期与独立交叉验证后重新生成报告",
+            )
+        ]
+    if score < TRUST_WARN:
+        return [
+            Issue(
+                severity="warning",
+                category="trust",
+                issue=f"研究可信度偏低 {score:.0f}/100(< {TRUST_WARN})",
+                evidence=warning_text,
+                suggested_fix="根据可信度告警补证，并在结论中明确不确定性",
+            )
+        ]
+    return []
+
+
 def check_disclaimer(ctx: dict) -> list[Issue]:
     text = ctx["text"]
     if not any(h in text for h in DISCLAIMER_HINTS):
@@ -270,6 +303,7 @@ CHECKS = [
     check_missing_evidence,
     check_unresolved_contradictions,
     check_low_confidence,
+    check_research_trust,
     check_disclaimer,
     check_critic_flags,
 ]

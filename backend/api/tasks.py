@@ -5,11 +5,12 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from datetime import date, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from backend.schemas.api import ApiResponse
 
@@ -35,16 +36,24 @@ def _moving_average(bars: list[dict[str, Any]], window: int) -> float | None:
     return round(sum(values) / len(values), 4)
 
 
-def _build_analysis_stock_data(symbol: str, stock_name: str) -> dict[str, Any]:
+def _build_analysis_stock_data(
+    symbol: str,
+    stock_name: str,
+    *,
+    as_of: Optional[date] = None,
+    research_question: str = "",
+) -> dict[str, Any]:
     """Build a real market snapshot for report generation instead of empty zeros."""
     from backend.price_quality import filter_incompatible_price_bars
     from backend.price_store import get_prices, normalize_symbol, save_price_bars
     from backend.providers.registry import get_registry
 
     code = normalize_symbol(symbol) or symbol
+    end_date = as_of.isoformat() if as_of else ""
     bars = get_prices(
         symbol=code,
         frequency="1d",
+        end_date=end_date or None,
         limit=90,
         include_incompatible=True,
     )
@@ -52,18 +61,17 @@ def _build_analysis_stock_data(symbol: str, stock_name: str) -> dict[str, Any]:
 
     if len(bars) < 30:
         try:
-            from datetime import datetime, timedelta
-
             registry = get_registry()
-            end_date = datetime.now().strftime("%Y%m%d")
-            start_date = (datetime.now() - timedelta(days=240)).strftime("%Y%m%d")
+            cutoff = as_of or date.today()
+            provider_end_date = cutoff.strftime("%Y%m%d")
+            start_date = (cutoff - timedelta(days=240)).strftime("%Y%m%d")
             fetched = registry.get(
                 data_type="prices",
                 market="HK" if len(code) == 5 else "CN",
                 symbol=code,
                 limit=120,
                 start_date=start_date,
-                end_date=end_date,
+                end_date=provider_end_date,
                 period="daily",
                 frequency="1d",
                 adjust="",
@@ -74,6 +82,7 @@ def _build_analysis_stock_data(symbol: str, stock_name: str) -> dict[str, Any]:
                     get_prices(
                         symbol=code,
                         frequency="1d",
+                        end_date=end_date or None,
                         limit=90,
                         include_incompatible=True,
                     )
@@ -119,6 +128,9 @@ def _build_analysis_stock_data(symbol: str, stock_name: str) -> dict[str, Any]:
         "ma60": _moving_average(bars, 60) or "N/A",
         "data_status": "ok" if latest_close > 0 and bars else "missing",
         "fundamentals": "暂无",
+        "as_of": end_date,
+        "price_data_date": str(latest.get("date") or ""),
+        "research_question": research_question.strip(),
     }
 
 
@@ -176,10 +188,19 @@ class AsyncAnalysisRequest(BaseModel):
     conversation_id: str = Field(default="", description="会话 ID")
     agent_configs: Optional[list[dict[str, Any]]] = Field(default=None, description="Agent 配置覆盖")
     global_ai_settings: Optional[dict[str, Any]] = Field(default=None, description="全局 AI 模型设置")
+    as_of: Optional[date] = Field(default=None, description="研究数据截止日；为空表示使用当前可用数据")
+    research_question: str = Field(default="", max_length=2_000, description="本次研究要回答的具体问题")
     report_template: str = Field(
         default="standard",
         description="研报大纲范式: standard(个股深度) / macro(行业专题) / risk(黑天鹅预警)",
     )
+
+    @field_validator("as_of")
+    @classmethod
+    def reject_future_as_of(cls, value: Optional[date]) -> Optional[date]:
+        if value and value > date.today():
+            raise ValueError("研究数据截止日不能晚于今天")
+        return value
 
 
 @router.get("/api/tasks")
@@ -296,7 +317,12 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
             "auto": AnalysisMode.AUTO,
         }
         mode = mode_map.get(req.mode, AnalysisMode.DEEP)
-        stock_data = _build_analysis_stock_data(req.stock_symbol, req.stock_name)
+        stock_data = _build_analysis_stock_data(
+            req.stock_symbol,
+            req.stock_name,
+            as_of=req.as_of,
+            research_question=req.research_question,
+        )
         result = run_agents_with_mode(
             stock_data=stock_data,
             mode=mode,
@@ -319,6 +345,8 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
             "report_template": req.report_template,
             "agent_configs": req.agent_configs,
             "global_ai_settings": req.global_ai_settings,
+            "as_of": req.as_of.isoformat() if req.as_of else "",
+            "research_question": req.research_question,
         },
     )
     return ApiResponse(success=True, data={"task_id": task_id, "status": "pending"})

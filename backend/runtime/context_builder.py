@@ -12,13 +12,22 @@ Context Builder: 市场简报与上下文构建。
 import logging
 from typing import Any, Dict, List
 
+from backend.runtime.research_snapshot import evidence_on_or_before, normalize_date
+
 logger = logging.getLogger(__name__)
 
 
 _TYPE_ICON = {"news": "📰", "report": "📊", "announcement": "📋"}
 
 
-def fetch_evidence_pool(symbol: str, stock_name: str = "", limit: int = 8) -> List[Dict[str, Any]]:
+def fetch_evidence_pool(
+    symbol: str,
+    stock_name: str = "",
+    limit: int = 8,
+    *,
+    as_of: str = "",
+    research_question: str = "",
+) -> List[Dict[str, Any]]:
     """检索相关证据, 返回结构化证据池 (v1.9.x)
 
     每条证据带稳定 `evidence_id`(DB 主键), 供 Agent 结论反链溯源。
@@ -28,40 +37,44 @@ def fetch_evidence_pool(symbol: str, stock_name: str = "", limit: int = 8) -> Li
     try:
         from backend.pipeline import search_evidence
 
-        query = f"{stock_name} {symbol} 投资分析"
-        results = search_evidence(query, symbol=symbol, n_results=limit)
+        query = f"{stock_name} {symbol} {research_question or '投资分析'}"
+        search_limit = limit * 4 if normalize_date(as_of) else limit
+        results = search_evidence(query, symbol=symbol, n_results=search_limit)
     except Exception as e:
         logger.debug("RAG 证据检索失败: %s", e)
         return []
 
     pool: List[Dict[str, Any]] = []
-    for i, r in enumerate(results, 1):
+    for r in results:
         meta = r.get("metadata", {}) or {}
         doc_type = meta.get("doc_type", "unknown")
+        published_at = meta.get("published_at") or meta.get("data_date") or meta.get("date") or ""
+        if not evidence_on_or_before(published_at, as_of):
+            continue
+        number = len(pool) + 1
         pool.append(
             {
-                "number": i,
+                "number": number,
                 "evidence_id": str(meta.get("id") or r.get("id") or ""),
                 "doc_type": doc_type,
                 "source": meta.get("source", "unknown"),
                 "source_url": meta.get("source_url", ""),
-                "published_at": meta.get("published_at", ""),
+                "published_at": published_at,
                 "preview": (r.get("text", "") or "")[:120],
             }
         )
+        if len(pool) >= limit:
+            break
     return pool
 
 
-def fetch_evidence_context(symbol: str, stock_name: str = "", limit: int = 8) -> str:
-    """从 RAG 检索相关证据, 格式化为简报上下文 (v0.40)
-
-    每条证据包含编号、来源、时间、URL，供 Agent 引用。
-    编号与 fetch_evidence_pool() 返回的 `number` 一一对应。
-    """
-    pool = fetch_evidence_pool(symbol, stock_name, limit=limit)
+def format_evidence_context(pool: List[Dict[str, Any]], *, as_of: str = "") -> str:
+    """Format the exact pool used for ID binding; never performs another search."""
     if not pool:
         return ""
     lines = ["【可用证据 (来自数据源平台)】"]
+    if normalize_date(as_of):
+        lines.append(f"数据截止日: {normalize_date(as_of)}。严禁引用该日期之后或无日期的材料。")
     lines.append("请在分析中引用证据编号 [1] [2] ...，以支撑你的观点。")
     for item in pool:
         type_icon = _TYPE_ICON.get(item["doc_type"], "📄")
@@ -72,6 +85,29 @@ def fetch_evidence_context(symbol: str, stock_name: str = "", limit: int = 8) ->
         )
     lines.append(f"\n共检索到 {len(pool)} 条相关证据, 覆盖新闻/研报/公告。")
     return "\n".join(lines)
+
+
+def fetch_evidence_context(
+    symbol: str,
+    stock_name: str = "",
+    limit: int = 8,
+    *,
+    as_of: str = "",
+    research_question: str = "",
+) -> str:
+    """从 RAG 检索相关证据, 格式化为简报上下文 (v0.40)
+
+    每条证据包含编号、来源、时间、URL，供 Agent 引用。
+    编号与 fetch_evidence_pool() 返回的 `number` 一一对应。
+    """
+    pool = fetch_evidence_pool(
+        symbol,
+        stock_name,
+        limit=limit,
+        as_of=as_of,
+        research_question=research_question,
+    )
+    return format_evidence_context(pool, as_of=as_of)
 
 
 def fetch_factor_context(symbol: str, stock_name: str = "", days: int = 30) -> str:
@@ -105,8 +141,19 @@ def build_market_brief(stock_data: Dict[str, Any], evidence_context: str = "", f
     price_note = ""
     if close <= 0:
         price_note = "\n- 行情状态: 暂无可用价格数据，请结合数据源状态判断。"
+    research_question = str(stock_data.get("research_question") or "").strip()
+    as_of = normalize_date(stock_data.get("as_of"))
+    constraints = ""
+    if research_question or as_of:
+        constraints = "\n【研究约束】\n"
+        if research_question:
+            constraints += f"- 研究问题: {research_question}\n"
+        if as_of:
+            constraints += f"- 数据截止日: {as_of}；不得使用该日期之后的信息。\n"
+
     base = f"""
 【标的】{name} ({symbol})
+{constraints}
 
 【价格信息】
 - 最新价: ¥{close:.2f}

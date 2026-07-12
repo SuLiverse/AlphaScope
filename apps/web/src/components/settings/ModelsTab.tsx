@@ -5,8 +5,9 @@ import { Bot, RefreshCw, Save, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { AI_ROUTE_LABELS, getModelKey, type AiModelRoutes, type AiRouteKey, type ModelOption, type ModelProvider } from "../../lib/aiModelRouting";
 import { ThemedSelect } from "../ThemedSelect";
-import { SettingCard, modelSelectOptions } from "./fields";
+import { SettingCard } from "./fields";
 import { modelOptionLabel } from "./helpers";
+import { modelSelectOptions } from "./modelOptions";
 
 export interface ModelsTabProps {
   providers: ModelProvider[];

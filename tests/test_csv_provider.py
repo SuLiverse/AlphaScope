@@ -143,6 +143,15 @@ def test_save_upload_rejects_bad_extension(tmp_path, monkeypatch):
         pass
 
 
+def test_save_upload_rejects_oversized_content(tmp_path, monkeypatch):
+    monkeypatch.setattr(cp, "_csv_dir", lambda: tmp_path)
+    try:
+        cp.save_upload("too-large.csv", b"x" * (cp.MAX_UPLOAD_BYTES + 1))
+        assert False, "应拒绝超过上传上限的文件"
+    except ValueError as exc:
+        assert "20MB" in str(exc)
+
+
 def test_provider_capability_ok():
     cap = CsvUploadProvider().capability()
     assert cap["name"] == "csv_upload"

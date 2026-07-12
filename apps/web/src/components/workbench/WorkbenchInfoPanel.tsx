@@ -36,8 +36,8 @@ export function WorkbenchInfoPanel({
   handlePanelItemSelect,
 }: WorkbenchInfoPanelProps) {
   return (
-    <div className="bg-white/[0.04] border border-white/5 rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[380px]">
-      <div className="flex items-center gap-8 px-6 border-b border-white/5 bg-white/[0.01] pt-1">
+    <div className="flex h-[500px] flex-col overflow-hidden rounded-lg border border-white/[0.07] bg-white/[0.035] shadow-[0_18px_55px_rgba(0,0,0,0.26)]">
+      <div className="flex items-center justify-between gap-2 border-b border-white/5 bg-white/[0.01] px-4 pt-1">
         {PANEL_TABS.map((tab) => (
           <button
             key={tab.id}
@@ -45,7 +45,7 @@ export function WorkbenchInfoPanel({
             data-testid={`workbench-info-tab-${tab.id}`}
             onClick={() => handlePanelTabChange(tab.id)}
             className={cn(
-              "flex items-center gap-2 py-4 text-xs font-medium border-b-2 transition-colors relative focus:outline-none focus:ring-2 focus:ring-indigo-500/40",
+              "relative flex shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 py-4 text-[11px] font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/40 2xl:gap-2 2xl:text-xs",
               activePanelTab === tab.id
                 ? "border-indigo-400 text-indigo-400"
                 : "border-transparent text-neutral-500 hover:text-neutral-300",
@@ -99,16 +99,13 @@ export function WorkbenchInfoPanel({
                   }
                   className="w-full px-4 py-3 text-left border-b border-white/5 hover:bg-white/[0.02] transition-colors cursor-pointer group focus:outline-none focus:bg-indigo-500/[0.04]"
                 >
-                  <div className="flex gap-4">
-                    <div className="text-[10px] font-mono text-neutral-500 group-hover:text-neutral-400 mt-1 flex items-center gap-2">
-                      {news.time}
-                    </div>
+                  <div className="min-w-0">
                     <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1.5">
+                      <div className="mb-1.5 flex items-center gap-2">
                         <span className="px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-400 border border-orange-500/20 text-[9px] font-mono uppercase">
                           {news.source}
                         </span>
-                        <div className="w-1.5 h-1.5 rounded-full bg-white/10"></div>
+                        <span className="font-mono text-[10px] text-neutral-500 group-hover:text-neutral-400">{news.time}</span>
                       </div>
                       <h4 className="text-sm text-neutral-200 font-medium leading-relaxed group-hover:text-indigo-300 transition-colors">
                         {news.title}
@@ -127,7 +124,7 @@ export function WorkbenchInfoPanel({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="p-4 grid grid-cols-2 lg:grid-cols-4 gap-4"
+              className="grid grid-cols-2 gap-3 p-3 2xl:gap-4 2xl:p-4"
             >
               {financeCards.map((item, i) => (
                 <button
@@ -140,7 +137,7 @@ export function WorkbenchInfoPanel({
                       `当前值 ${item.value}。${item.detail}。请结合 ${currentStock.name} 最新财报、行业均值和估值假设复核。`,
                     )
                   }
-                  className="bg-white/[0.03] border border-white/5 p-4 rounded-xl flex flex-col justify-center hover:bg-white/[0.05] transition-colors text-left focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  className="flex flex-col justify-center rounded-lg border border-white/[0.07] bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                 >
                   <span className="text-xs text-neutral-500 mb-2">{item.label}</span>
                   <span className={cn("text-2xl font-mono font-medium", metricToneClass(item.tone))}>{item.value}</span>
@@ -156,7 +153,7 @@ export function WorkbenchInfoPanel({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="p-4 grid grid-cols-2 lg:grid-cols-4 gap-4"
+              className="grid grid-cols-2 gap-3 p-3 2xl:gap-4 2xl:p-4"
             >
               {fundFlowCards.map((item, i) => (
                 <button
@@ -169,7 +166,7 @@ export function WorkbenchInfoPanel({
                       `${item.label} 当前为 ${item.value}。${item.detail}。资金项需要和换手率、价格方向、龙虎榜/两融数据交叉验证。`,
                     )
                   }
-                  className="bg-white/[0.03] border border-white/5 p-4 rounded-xl flex flex-col justify-center hover:bg-white/[0.05] transition-colors text-left focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  className="flex flex-col justify-center rounded-lg border border-white/[0.07] bg-white/[0.03] p-4 text-left transition-colors hover:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                 >
                   <span className="text-xs text-neutral-500 mb-2">{item.label}</span>
                   <span className={cn("text-2xl font-mono font-medium", metricToneClass(item.tone))}>{item.value}</span>
@@ -185,7 +182,7 @@ export function WorkbenchInfoPanel({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="grid h-full grid-cols-2 gap-4 p-4"
+              className="grid h-full grid-cols-2 gap-3 p-3 2xl:gap-4 2xl:p-4"
             >
               {quantCards.map((factor, i) => (
                 <button
@@ -195,7 +192,7 @@ export function WorkbenchInfoPanel({
                   onClick={() =>
                     handlePanelItemSelect(factor.label, `${factor.detail}。该因子当前只作为研究辅助，不构成投资建议。`)
                   }
-                  className="rounded-xl border border-indigo-500/20 bg-indigo-500/10 p-4 text-left text-indigo-200 transition-colors hover:bg-indigo-500/15 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
+                  className="rounded-lg border border-indigo-500/20 bg-indigo-500/10 p-4 text-left text-indigo-200 transition-colors hover:bg-indigo-500/15 focus:outline-none focus:ring-2 focus:ring-indigo-500/40"
                 >
                   <span className="block text-[10px] font-mono uppercase tracking-widest text-indigo-300/70">
                     {factor.label}

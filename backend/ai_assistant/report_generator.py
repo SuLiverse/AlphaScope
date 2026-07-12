@@ -103,9 +103,15 @@ def generate_report(
     if all_evidence:
         try:
             from backend.quality.evidence_chain import build_evidence_chain
+            from backend.quality.research_trust import format_research_trust_markdown
 
             chain = build_evidence_chain(all_evidence)
             bundles = chain.get("bundles", [])
+            trust = chain.get("trust") or {}
+
+            if trust:
+                lines.extend(format_research_trust_markdown(trust).splitlines())
+                lines.append("")
 
             if bundles:
                 lines.append("## 证据链")

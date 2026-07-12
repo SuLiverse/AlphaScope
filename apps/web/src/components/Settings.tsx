@@ -1,35 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { ComponentType, ReactNode } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion } from 'motion/react';
 import {
-  Bell,
-  Bot,
-  BrainCircuit,
-  CheckCircle2,
-  CircleMinus,
-  CirclePlus,
-  Eye,
-  EyeOff,
-  Filter,
-  Layers3,
-  Monitor,
-  Plus,
-  RefreshCw,
   RotateCcw,
   Save,
-  Search,
-  Server,
-  Shield,
-  Sparkles,
-  SlidersHorizontal,
-  Trash2,
-  X,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
-import { API_BASE_URL } from '../lib/api';
-import { ProviderHealthPanel } from './ProviderHealthPanel';
-import { DataSourceConfigPanel } from './DataSourceConfigPanel';
-import { NotifierSettings } from './NotifierSettings';
 import {
   AI_ROUTE_LABELS,
   AiModelRoutes,
@@ -57,7 +32,7 @@ import {
   loadAgentConfigs,
   saveAgentConfigs,
 } from '../lib/agentConfigs';
-import { ThemedSelect, type ThemedSelectOption } from './ThemedSelect';
+import { type ThemedSelectOption } from './ThemedSelect';
 import { dispatchSettingsChanged } from '../lib/workspaceEvents';
 import {
   type SettingTab,
@@ -71,20 +46,12 @@ import {
   SETTINGS_STORAGE_KEY,
   LEGACY_SETTINGS_STORAGE_KEY,
   DRAFT_PROVIDER_ID,
-  AGENT_ICON_MAP,
-  AGENT_ICON_OPTIONS,
   createEmptyProviderDraft,
   draftToProviderListItem,
   draftFromProvider,
   modelInfoToConfigModel,
-  getModelCapabilityLabel,
-  getModelCapabilityClass,
-  modelOptionLabel,
   loadSettings,
   requestSettingsApi,
-  SettingCard,
-  ToggleRow,
-  TextField,
   normalizeSettingTab,
   modelSelectOptions,
   ModelsTab,

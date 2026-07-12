@@ -44,6 +44,8 @@ class TestBuildDemoReport:
             "research_report",
             "model_status",
             "demo_sample",
+            "research_trust",
+            "research_snapshot",
         ):
             assert key in result
 
@@ -66,6 +68,8 @@ class TestBuildDemoReport:
         assert result["summary"]["avg_confidence"] == 0
         assert result["critic"] is None
         assert result["chairman_summary"] is None
+        assert result["research_trust"]["grade"] == "insufficient"
+        assert result["research_snapshot"]["snapshot_id"]
 
     def test_report_contains_demo_banner_and_key_prompt(self):
         from backend.agents.demo_fallback import build_demo_report

@@ -38,7 +38,7 @@ jobs:
           RELEASE_TAG: ${{ steps.release.outputs.tag }}
         run: |
           title="${RELEASE_TAG}"
-          notes_file="RELEASE-NOTES-${RELEASE_TAG}.md"
+          notes_file="docs/releases/RELEASE-NOTES-${RELEASE_TAG}.md"
 
           create_notes_args=(--generate-notes)
           edit_notes_args=()

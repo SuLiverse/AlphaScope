@@ -93,7 +93,7 @@ export function DragonTiger() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅按 symbol 变化重新加载
+
   }, [stock?.symbol]);
 
   const iv = data?.inst_vs_youzi;

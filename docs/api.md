@@ -115,6 +115,20 @@ uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 | POST | `/api/tasks/{id}/cancel` | 取消任务 |
 | POST | `/api/analysis/async` | 异步运行分析（返回 task_id） |
 
+同步与异步分析均支持：
+
+```json
+{
+  "stock_symbol": "600519",
+  "stock_name": "贵州茅台",
+  "mode": "deep",
+  "as_of": "2026-06-30",
+  "research_question": "利润增长是否可持续？"
+}
+```
+
+`as_of` 会同时约束行情与 RAG 证据，响应中的 `research_snapshot.snapshot_id` 用于确认两次实验是否使用相同数据版本。详见 `docs/reproducible-research.md`。
+
 ### Agent/专家团管理
 
 | 方法 | 路径 | 说明 |

@@ -207,10 +207,10 @@ export function TopBar() {
   };
 
   return (
-    <header className="relative z-[80] h-[60px] flex-shrink-0 overflow-visible border-b border-white/[0.04] bg-[#06070c] px-6 text-neutral-400 shadow-[0_18px_60px_rgba(0,0,0,0.32)]">
-      <div className="flex h-full items-center justify-between gap-6">
+    <header className="relative z-[80] h-14 flex-shrink-0 overflow-visible border-b border-white/[0.05] bg-[#08090d]/95 px-3 text-neutral-400 shadow-[0_14px_45px_rgba(0,0,0,0.28)] backdrop-blur-xl sm:h-[60px] sm:px-4 lg:px-6">
+      <div className="flex h-full items-center justify-between gap-2 sm:gap-4 lg:gap-6">
         <div className="flex min-w-0 flex-1 items-center gap-4">
-          <div className="group relative z-[90] flex w-[min(42vw,36rem)] min-w-[20rem] max-w-[36rem] items-center">
+          <div className="group relative z-[90] flex min-w-0 flex-1 items-center sm:max-w-[36rem]">
             <Search className="w-4 h-4 absolute left-3.5 text-neutral-500 group-focus-within:text-indigo-400 transition-colors" />
             <input 
               data-testid="global-stock-search"
@@ -296,7 +296,7 @@ export function TopBar() {
               </div>
             )}
           </div>
-          <div className="h-5 w-px bg-white/10 mx-1"></div>
+          <div className="mx-1 hidden h-5 w-px bg-white/10 lg:block"></div>
           <span className="hidden shrink-0 items-center gap-2 text-sm font-medium tracking-wide text-neutral-400 md:flex">
             A股 研究工作台
             <span className="px-1.5 py-0.5 rounded text-[10px] bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-mono">PRO</span>
@@ -306,8 +306,8 @@ export function TopBar() {
             已同步 {lastSelected}
           </span>
         </div>
-        <div className="relative flex shrink-0 items-center gap-5">
-          <div className="relative">
+        <div className="relative flex shrink-0 items-center gap-1 sm:gap-3 lg:gap-5">
+          <div className="relative hidden sm:block">
             <button
               type="button"
               onClick={() => setCostOpen((open) => !open)}
@@ -384,7 +384,7 @@ export function TopBar() {
                 initial={{ opacity: 0, y: -6, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                className="absolute right-24 top-11 z-[120] w-[22rem] max-h-[28rem] flex flex-col rounded-2xl border border-white/10 bg-[#0b0c12] shadow-2xl ring-1 ring-black/70"
+                className="absolute right-0 top-11 z-[120] flex max-h-[28rem] w-[min(22rem,calc(100vw-1.5rem))] flex-col rounded-lg border border-white/10 bg-[#0b0c12] shadow-2xl ring-1 ring-black/70 sm:right-20"
               >
                 <div className="flex items-center justify-between p-4 pb-3">
                   <h3 className="text-sm font-semibold text-neutral-100">
@@ -472,7 +472,7 @@ export function TopBar() {
               </motion.div>
             )}
           </AnimatePresence>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
+          <div className="hidden items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1.5 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.1)] lg:flex">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_5px_rgba(16,185,129,0.5)]"></div>
             <span className="text-[11px] font-medium tracking-wider">系统在线</span>
           </div>

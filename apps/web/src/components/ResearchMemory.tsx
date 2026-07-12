@@ -8,6 +8,7 @@ import {
   ArrowRight,
   Trash2,
   ShieldAlert,
+  ShieldCheck,
   Activity,
 } from 'lucide-react';
 import {
@@ -63,6 +64,11 @@ interface Snapshot {
   divergence: string;
   risk_vetoed: boolean;
   data_status: string;
+  trust_score?: number;
+  trust_grade?: 'high' | 'medium' | 'low' | 'insufficient' | string;
+  research_snapshot_id?: string;
+  as_of?: string;
+  research_question?: string;
   close: number;
   mode: string;
 }
@@ -91,6 +97,9 @@ interface Timeline {
     signal_distribution: Record<string, number>;
     change_count: number;
     avg_confidence: number;
+    latest_trust_score: number;
+    avg_trust_score: number;
+    trust_count: number;
   };
 }
 
@@ -171,6 +180,7 @@ export const ResearchMemory: React.FC = () => {
       (timeline?.snapshots || []).map((s) => ({
         date: fmtDay(s.created_at),
         confidence: Number(s.confidence) || 0,
+        trust: typeof s.trust_score === 'number' ? s.trust_score : null,
         signal: s.signal,
         close: Number(s.close) || 0,
       })),
@@ -272,7 +282,7 @@ export const ResearchMemory: React.FC = () => {
               className="flex flex-col gap-4"
             >
               {/* 总结卡 */}
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
                 <StatCard label="研究次数" value={`${timeline.summary.count}`} sub={`${fmtDay(timeline.summary.first_date)} 起`} index={0} />
                 <StatCard
                   label="最新结论"
@@ -283,6 +293,13 @@ export const ResearchMemory: React.FC = () => {
                 />
                 <StatCard label="结论变化" value={`${timeline.summary.change_count} 次`} sub="信号转折点" index={2} />
                 <StatCard label="平均置信度" value={`${timeline.summary.avg_confidence}`} sub={`最新 ${timeline.summary.latest_confidence}`} index={3} />
+                <StatCard
+                  label="研究可信度"
+                  value={timeline.summary.trust_count ? `${timeline.summary.latest_trust_score}` : '—'}
+                  sub={timeline.summary.trust_count ? `历史均值 ${timeline.summary.avg_trust_score}` : '等待新评分快照'}
+                  valueColor={timeline.summary.trust_count && timeline.summary.latest_trust_score >= 60 ? '#34d399' : '#f59e0b'}
+                  index={4}
+                />
               </div>
 
               {/* 结论变化轨迹 */}
@@ -324,10 +341,12 @@ export const ResearchMemory: React.FC = () => {
                 )}
               </div>
 
-              {/* 置信度趋势 */}
+              {/* 置信度与研究可信度趋势 */}
               {chartData.length > 1 && (
                 <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-                  <h3 className="mb-3 text-sm font-medium text-neutral-200">置信度趋势</h3>
+                  <h3 className="mb-3 flex items-center gap-2 text-sm font-medium text-neutral-200">
+                    <ShieldCheck className="h-4 w-4 text-emerald-300" /> 置信度与研究可信度趋势
+                  </h3>
                   <div className="h-48">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 6, right: 12, bottom: 0, left: -18 }}>
@@ -339,6 +358,7 @@ export const ResearchMemory: React.FC = () => {
                           labelStyle={{ color: '#a3a3a3' }}
                         />
                         <Line type="monotone" dataKey="confidence" stroke="#818cf8" strokeWidth={2} dot={{ r: 3 }} name="置信度" />
+                        <Line type="monotone" dataKey="trust" connectNulls stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} name="研究可信度" />
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -355,6 +375,7 @@ export const ResearchMemory: React.FC = () => {
                         <th className="py-2 pr-3 font-normal">时间</th>
                         <th className="py-2 pr-3 font-normal">结论</th>
                         <th className="py-2 pr-3 font-normal">置信度</th>
+                        <th className="py-2 pr-3 font-normal">研究可信度</th>
                         <th className="py-2 pr-3 font-normal">多空裁决</th>
                         <th className="py-2 pr-3 font-normal">分歧</th>
                         <th className="py-2 pr-3 font-normal">风控</th>
@@ -366,7 +387,10 @@ export const ResearchMemory: React.FC = () => {
                         const meta = signalMeta(s.signal);
                         return (
                           <tr key={s.snapshot_id} className="border-b border-white/[0.03] text-neutral-300">
-                            <td className="py-2 pr-3 text-neutral-400">{fmtDate(s.created_at)}</td>
+                            <td className="py-2 pr-3 text-neutral-400" title={s.research_snapshot_id || undefined}>
+                              {fmtDate(s.created_at)}
+                              {s.as_of && <div className="mt-0.5 text-[10px] text-neutral-600">截止 {s.as_of}</div>}
+                            </td>
                             <td className="py-2 pr-3">
                               <span className={`inline-flex items-center gap-1 rounded border px-1.5 py-0.5 ${meta.chip}`}>
                                 {meta.icon}
@@ -374,6 +398,15 @@ export const ResearchMemory: React.FC = () => {
                               </span>
                             </td>
                             <td className="py-2 pr-3">{s.confidence || '—'}</td>
+                            <td className="py-2 pr-3">
+                              {typeof s.trust_score === 'number' ? (
+                                <span className={s.trust_score >= 80 ? 'text-emerald-300' : s.trust_score >= 60 ? 'text-sky-300' : s.trust_score >= 35 ? 'text-amber-300' : 'text-rose-300'}>
+                                  {s.trust_score} · {s.trust_grade || '未分级'}
+                                </span>
+                              ) : (
+                                <span className="text-neutral-600">—</span>
+                              )}
+                            </td>
                             <td className="py-2 pr-3">
                               {s.consensus || '—'}
                               {s.consensus_score ? <span className="text-neutral-600"> ({s.consensus_score})</span> : null}

@@ -18,8 +18,9 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 from typing import Any, Dict, Optional
+
+from backend.project_paths import CONFIG_DIR
 
 from . import (
     CRITICAL,
@@ -32,7 +33,7 @@ from . import (
 
 logger = logging.getLogger(__name__)
 
-_DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "risk_rules.yaml"
+_DEFAULT_CONFIG_PATH = CONFIG_DIR / "risk_rules.yaml"
 
 # 引擎失败时的安全默认: 宁可放过也不误伤(研报场景, 风控 gate 是提示而非阻断交易)。
 _SAFE_FALLBACK_CONFIG: Dict[str, Any] = {

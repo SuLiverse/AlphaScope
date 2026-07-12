@@ -1,4 +1,4 @@
-# 研策中枢 AlphaScope Dockerfile (v0.12)
+# 研策中枢 AlphaScope Dockerfile (v1.9.51)
 # 多阶段构建, 最小化镜像体积
 
 FROM python:3.11-slim AS base
