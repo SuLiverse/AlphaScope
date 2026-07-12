@@ -154,3 +154,55 @@ async def test_analysis_run_marks_all_agent_model_failures_unsuccessful(client):
     assert data["error_code"] == "analysis_all_agents_failed"
     assert data["data"]["result"]["model_status"]["ok_agents"] == 0
     assert data["data"]["result"]["model_status"]["total_agents"] == 3
+
+
+@pytest.mark.anyio
+async def test_analysis_run_propagates_research_cutoff_and_question(client):
+    bars = [
+        {"date": "2026-06-29", "open": 99, "close": 100, "high": 101, "low": 98, "volume": 1000},
+        {"date": "2026-06-30", "open": 100, "close": 110, "high": 111, "low": 99, "volume": 1200},
+    ]
+    captured = {}
+
+    def fake_run_agents_with_mode(*, stock_data, **_kwargs):
+        captured.update(stock_data)
+        return {
+            "mode": "deep",
+            "summary": {"final": "观望"},
+            "agents": {},
+            "model_status": {"ok_agents": 0, "total_agents": 0},
+            "research_snapshot": {"snapshot_id": "snap-1"},
+        }
+
+    with (
+        patch("backend.api.main.get_prices", return_value=bars) as get_prices,
+        patch("backend.runtime.orchestrator.run_agents_with_mode", side_effect=fake_run_agents_with_mode),
+    ):
+        resp = await client.post(
+            "/api/analysis/run",
+            json={
+                "stock_symbol": "600519",
+                "stock_name": "贵州茅台",
+                "mode": "deep",
+                "as_of": "2026-06-30",
+                "research_question": "利润增长是否可持续？",
+            },
+        )
+
+    assert resp.status_code == 200
+    assert get_prices.call_args.kwargs["end_date"] == "2026-06-30"
+    assert captured["as_of"] == "2026-06-30"
+    assert captured["price_data_date"] == "2026-06-30"
+    assert captured["research_question"] == "利润增长是否可持续？"
+    assert captured["day_change"] == 10.0
+    assert resp.json()["data"]["result"]["research_snapshot"] == {"snapshot_id": "snap-1"}
+
+
+@pytest.mark.anyio
+async def test_analysis_run_rejects_future_cutoff(client):
+    resp = await client.post(
+        "/api/analysis/run",
+        json={"stock_symbol": "600519", "as_of": "2099-01-01"},
+    )
+
+    assert resp.status_code == 422

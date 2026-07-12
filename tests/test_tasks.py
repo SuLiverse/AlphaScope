@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from datetime import date
 from unittest.mock import patch
 
 import pytest
@@ -108,6 +109,36 @@ async def test_cancel_task_not_found(client):
 
 
 @pytest.mark.anyio
+async def test_async_analysis_records_cutoff_and_question_in_task_input(client):
+    with patch("backend.task_queue.TaskQueue.submit", return_value="snap1234") as submit:
+        resp = await client.post(
+            "/api/analysis/async",
+            json={
+                "stock_symbol": "600519",
+                "stock_name": "贵州茅台",
+                "as_of": "2026-06-30",
+                "research_question": "利润增长是否可持续？",
+            },
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["data"]["task_id"] == "snap1234"
+    input_data = submit.call_args.kwargs["input_data"]
+    assert input_data["as_of"] == "2026-06-30"
+    assert input_data["research_question"] == "利润增长是否可持续？"
+
+
+@pytest.mark.anyio
+async def test_async_analysis_rejects_future_cutoff(client):
+    resp = await client.post(
+        "/api/analysis/async",
+        json={"stock_symbol": "600519", "as_of": "2099-01-01"},
+    )
+
+    assert resp.status_code == 422
+
+
+@pytest.mark.anyio
 async def test_submit_task():
     """TaskQueue.submit 返回 task_id 并执行任务"""
     from backend.task_queue import TaskQueue
@@ -167,3 +198,32 @@ async def test_task_failure():
         assert "test error" in task["error"]
     finally:
         TaskQueue._instance = original
+
+
+def test_build_analysis_stock_data_honors_cutoff_and_records_price_date():
+    from backend.api.tasks import _build_analysis_stock_data
+
+    bars = [
+        {
+            "date": f"2026-06-{day:02d}",
+            "open": 100 + day,
+            "high": 102 + day,
+            "low": 99 + day,
+            "close": 101 + day,
+            "volume": 1000,
+            "amount": 10000,
+        }
+        for day in range(1, 31)
+    ]
+    with patch("backend.price_store.get_prices", return_value=bars) as get_prices:
+        result = _build_analysis_stock_data(
+            "600519",
+            "贵州茅台",
+            as_of=date(2026, 6, 30),
+            research_question="利润增长是否可持续？",
+        )
+
+    assert get_prices.call_args.kwargs["end_date"] == "2026-06-30"
+    assert result["as_of"] == "2026-06-30"
+    assert result["price_data_date"] == "2026-06-30"
+    assert result["research_question"] == "利润增长是否可持续？"

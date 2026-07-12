@@ -44,7 +44,14 @@ jobs:
         env:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
-        run: python build.py --installer --zip
+        run: |
+          if (-not (Test-Path "seed/ai_finance.db")) {
+            throw "Tracked seed/ai_finance.db is required for the zero-key demo release."
+          }
+          python build.py --installer --zip
+          if (-not (Test-Path "dist/AlphaScope/data/db/ai_finance.db")) {
+            throw "Seed database was not included in the portable build."
+          }
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
@@ -59,9 +66,17 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "${env:GITHUB_REF_NAME}" *> $null
-          if ($LASTEXITCODE -ne 0) {
-            throw "Release ${env:GITHUB_REF_NAME} must be created by release.yml before installer assets can be uploaded."
+          $releaseReady = $false
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            gh release view "${env:GITHUB_REF_NAME}" *> $null
+            if ($LASTEXITCODE -eq 0) {
+              $releaseReady = $true
+              break
+            }
+            Start-Sleep -Seconds 10
+          }
+          if (-not $releaseReady) {
+            throw "Release ${env:GITHUB_REF_NAME} was not created within 5 minutes."
           }
           gh release upload "${env:GITHUB_REF_NAME}" installer/installer-output/AlphaScope-Setup-*.exe --clobber
           gh release upload "${env:GITHUB_REF_NAME}" dist/AlphaScope-portable.zip --clobber

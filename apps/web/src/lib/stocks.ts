@@ -1,3 +1,5 @@
+import { fetchApi } from './api';
+
 export interface StockTarget {
   name: string;
   symbol: string;
@@ -193,7 +195,6 @@ export async function resolveStockTarget(query: string): Promise<StockTarget | u
   if (cached && cached.source !== 'symbol-fallback') return cached;
 
   try {
-    const { fetchApi } = await import('./api');
     const identity = await fetchApi<BackendStockIdentity>(`/api/stocks/resolve?q=${encodeURIComponent(query)}`);
     const resolved = backendIdentityToStock(identity, query);
     if (resolved) {
@@ -216,7 +217,6 @@ export async function searchStockTargetsRemote(query: string, limit = 8): Promis
   if (!query.trim()) return local;
 
   try {
-    const { fetchApi } = await import('./api');
     const payload = await fetchApi<BackendStockSearchResponse>(
       `/api/stocks/search?q=${encodeURIComponent(query)}&limit=${limit}`,
     );

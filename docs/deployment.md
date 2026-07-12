@@ -49,7 +49,7 @@ cd apps/web && npm install && npm run dev
 cp .env.example .env
 # 编辑 .env，至少配置 DEEPSEEK_API_KEY
 
-# 启动全部服务 (Streamlit + FastAPI + Vite React + Redis)
+# 启动全部服务 (Streamlit + FastAPI + Vite React)
 docker-compose up -d
 
 # 仅启动 Streamlit (port 8501)
@@ -70,9 +70,10 @@ docker-compose up -d app api web
 | 服务 | 端口 | 说明 |
 |------|------|------|
 | `app` | 8501 | Streamlit 界面（传统 UI） |
-| `api` | 8000 | FastAPI REST API（27 端点） |
+| `api` | 8000 | FastAPI REST / SSE API（100+ 端点） |
 | `web` | 3000 | Vite React 前端（预览服务） |
-| `redis` | 6379 | Redis 缓存 |
+
+API 首次启动会生成本地 Token，并通过 Compose 命名卷把 `runtime-config.js` 只读共享给 Web 容器。若浏览器不在 Docker 主机上，启动前设置 `ALPHASCOPE_PUBLIC_API_BASE_URL=http://<主机地址>:8000`。
 
 健康检查：
 ```bash

@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "alphascope"
-version = "1.9.50"
+version = "1.9.51"
 description = "AlphaScope multi-agent financial analysis workbench"
 readme = "README.md"
 license = "MIT"
@@ -10,7 +14,6 @@ keywords = ["finance", "ai", "multi-agent", "analysis"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Financial and Insurance Industry",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Office/Business :: Financial",
@@ -33,6 +36,7 @@ dependencies = [
     "apscheduler==3.11.0",
     "cryptography>=43.0",
     "python-multipart>=0.0.20",
+    "mcp>=1.0",
 ]
 
 [project.scripts]
@@ -51,8 +55,8 @@ quant = [
     "backtrader>=1.9.78",
     "lib-pybroker>=1.2.0",
     "skfolio>=0.20",
-    "riskfolio>=7.0",
-    "pypfopt>=1.5",
+    "Riskfolio-Lib>=7.0",
+    "PyPortfolioOpt>=1.5",
     "bt>=1.2",
 ]
 mlops = [
@@ -65,6 +69,18 @@ mlops = [
     "opentelemetry-sdk>=1.20",
 ]
 all = ["alphascope[api,rag,dev,quant,mlops]"]
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[tool.setuptools.data-files]
+"share/alphascope/config" = ["config/*.yaml"]
+"share/alphascope/prompts" = ["prompts/*.md"]
+"share/alphascope/prompts/compliance" = ["prompts/compliance/*.md"]
+"share/alphascope/prompts/experts" = ["prompts/experts/*.md"]
+"share/alphascope/prompts/teams" = ["prompts/teams/*.md"]
+"share/alphascope/prompts/vision" = ["prompts/vision/*.md"]
+"share/alphascope/seed" = ["seed/*.db"]
 
 [tool.ruff]
 line-length = 120

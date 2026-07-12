@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import math
 import re
 import time
 from collections import defaultdict
@@ -12,14 +11,11 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 from backend.quality.source_rank import SourceRanker
+from backend.quality.research_trust import assess_research_trust, evidence_freshness
 
 # 信号关键词（用于反方证据检测）
 _BUY_KEYWORDS = {"买入", "看多", "增持", "buy", "long", "bull"}
 _SELL_KEYWORDS = {"卖出", "看空", "减持", "sell", "short", "bear"}
-
-# 时间衰减参数
-HALF_LIFE_DAYS = 30.0
-DECAY_LAMBDA = math.log(2) / HALF_LIFE_DAYS
 
 # 置信度参数
 BASE_CONFIDENCE = 0.6
@@ -67,6 +63,13 @@ def build_evidence_chain(
 
     # 综合置信度
     overall = _calculate_overall_confidence(bundles)
+    trust = assess_research_trust(
+        evidence_items,
+        agent_signals=agent_signals,
+        contradictions=contradictions,
+        missing_evidence=missing,
+        now=now,
+    )
 
     return {
         "bundles": bundles,
@@ -74,6 +77,7 @@ def build_evidence_chain(
         "missing_evidence": missing,
         "coverage": round(coverage, 2),
         "overall_confidence": round(overall, 2),
+        "trust": trust,
     }
 
 
@@ -98,9 +102,9 @@ def _group_by_claim(items: list[dict], ranker: SourceRanker, now: float) -> list
         for item in group_items:
             source = item.get("source", "unknown")
             sources.add(source)
-            trust_scores.append(ranker.get_trust_score(source))
-            decay_factors.append(_time_decay(item.get("data_date", ""), now))
-            confidences.append(item.get("confidence", 0.7))
+            trust_scores.append(ranker.get_trust_score(str(source).casefold()))
+            decay_factors.append(_time_decay(item.get("data_date", ""), now, item.get("type", "other")))
+            confidences.append(_normalize_confidence(item.get("confidence", 0.7)))
 
         source_count = len(sources)
         avg_trust = sum(trust_scores) / len(trust_scores) if trust_scores else 0.3
@@ -145,28 +149,21 @@ def _claim_key(claim: str) -> str:
     return cleaned[:20].lower() if cleaned else claim[:20].lower()
 
 
-def _time_decay(data_date: str, now: float) -> float:
-    """计算时间衰减因子，30 天半衰期"""
+def _time_decay(data_date: str, now: float, evidence_type: str = "other") -> float:
+    """计算按证据类型区分的时间衰减因子。"""
     if not data_date:
-        return 0.8  # 无日期给中等衰减
+        return 0.0
+    return max(evidence_freshness(data_date, evidence_type, now=now), MIN_CONFIDENCE)
 
+
+def _normalize_confidence(value: Any) -> float:
     try:
-        from datetime import datetime
-
-        date_str = data_date.strip()
-        for fmt in ("%Y-%m-%d", "%Y/%m/%d", "%Y-%m-%d %H:%M:%S", "%Y%m%d"):
-            try:
-                dt = datetime.strptime(date_str, fmt)
-                days_old = (now - dt.timestamp()) / 86400
-                if days_old < 0:
-                    days_old = 0
-                return max(math.exp(-DECAY_LAMBDA * days_old), MIN_CONFIDENCE)
-            except ValueError:
-                continue
-    except Exception:
-        pass
-
-    return 0.8
+        confidence = float(value)
+    except (TypeError, ValueError):
+        return 0.7
+    if confidence > 1:
+        confidence /= 100
+    return max(0.0, min(1.0, confidence))
 
 
 def _detect_contradictions(bundles: list[dict]) -> list[str]:
@@ -236,10 +233,12 @@ def _calculate_overall_confidence(bundles: list[dict]) -> float:
 
 
 def _empty_result(agent_signals: list[dict] | None = None) -> dict[str, Any]:
+    missing = _detect_missing_evidence(agent_signals, [])
     return {
         "bundles": [],
         "contradictions": [],
-        "missing_evidence": _detect_missing_evidence(agent_signals, []),
+        "missing_evidence": missing,
         "coverage": _calculate_coverage(agent_signals, []),
         "overall_confidence": 0.0,
+        "trust": assess_research_trust([], agent_signals=agent_signals, missing_evidence=missing),
     }

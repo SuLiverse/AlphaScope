@@ -28,6 +28,8 @@ import { AgentOpinionCards } from './report/AgentOpinionCards';
 import { SourceTracePanel } from './report/SourceTracePanel';
 import { FieldSourceTable } from './report/FieldSourceTable';
 import { EvidenceAppendix } from './report/EvidenceAppendix';
+import { ResearchTrustPanel } from './report/ResearchTrustPanel';
+import { ResearchSnapshotBar } from './report/ResearchSnapshotBar';
 import { mockAnalysisResult } from '../lib/mockAnalysisData';
 import { STOCK_UNIVERSE, findStockTarget, formatStockLabel } from '../lib/stocks';
 import { dispatchStockSelected, getPersistedStock, subscribeStockSelected, subscribeSettingsChanged } from '../lib/workspaceEvents';
@@ -57,6 +59,12 @@ interface ReportGeneratorProps {
 function formatModelOption(option?: ModelOption) {
   if (!option) return '未配置';
   return `${option.providerName} / ${option.modelId}`;
+}
+
+function todayLocalDate() {
+  const now = new Date();
+  const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
 }
 
 function splitReportParagraphs(text?: string) {
@@ -461,6 +469,8 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   const [selectedTarget, setSelectedTarget] = useState(() => getPersistedStock() ?? STOCK_UNIVERSE[0]);
   const selectedStock = formatStockLabel(selectedTarget);
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
+  const [researchQuestion, setResearchQuestion] = useState('');
+  const [asOf, setAsOf] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationStep, setGenerationStep] = useState(0);
   const [progressPercent, setProgressPercent] = useState(0);
@@ -686,7 +696,16 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         : undefined;
 
       // Real API Flow with SSE
-      const taskId = await startAsyncAnalysis(symbol, name, 'deep', false, globalAiSettings, selectedTemplate);
+      const taskId = await startAsyncAnalysis(
+        symbol,
+        name,
+        'deep',
+        false,
+        globalAiSettings,
+        selectedTemplate,
+        researchQuestion.trim(),
+        asOf,
+      );
       setCurrentTaskId(taskId);
       setProgressPercent(8);
       setGenerationStatus(`任务已启动：${taskId}`);
@@ -760,7 +779,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0 overflow-hidden">
         
         {/* Left configurations Column */}
-        <div className="flex flex-col gap-6 min-h-0 bg-white/[0.01] border border-white/5 rounded-2xl p-5">
+        <div className="flex min-h-0 flex-col gap-6 overflow-y-auto bg-white/[0.01] border border-white/5 rounded-2xl p-5 custom-scrollbar">
           <span className="text-xs font-mono uppercase tracking-widest text-[#6366f1] font-bold block mb-1">投研参数定制</span>
           
           <div className="space-y-2">
@@ -780,6 +799,30 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                 value: formatStockLabel(stock),
                 label: formatStockLabel(stock),
               }))}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-neutral-400 select-none">研究问题</label>
+            <textarea
+              value={researchQuestion}
+              onChange={(event) => setResearchQuestion(event.target.value.slice(0, 2000))}
+              placeholder="例如：未来两个季度的利润增长是否可持续？"
+              rows={3}
+              disabled={isGenerating}
+              className="w-full resize-none rounded-lg border border-white/10 bg-black/40 px-3 py-2 text-xs leading-relaxed text-neutral-200 outline-none placeholder:text-neutral-600 focus:border-indigo-500/50 disabled:opacity-50"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-neutral-400 select-none">数据截止日</label>
+            <input
+              type="date"
+              value={asOf}
+              max={todayLocalDate()}
+              onChange={(event) => setAsOf(event.target.value)}
+              disabled={isGenerating}
+              className="h-10 w-full rounded-lg border border-white/10 bg-black/40 px-3 text-xs text-neutral-200 outline-none [color-scheme:dark] focus:border-indigo-500/50 disabled:opacity-50"
             />
           </div>
 
@@ -993,6 +1036,9 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                     stockName={selectedTarget.name}
                     result={analysisResult}
                   />
+
+                  <ResearchSnapshotBar snapshot={analysisResult.research_snapshot} />
+                  <ResearchTrustPanel trust={analysisResult.research_trust} />
 
                   <GeneratedResearchReport result={analysisResult} symbol={selectedTarget.symbol} stockName={selectedTarget.name} onOpenModelSettings={onOpenModelSettings} />
 

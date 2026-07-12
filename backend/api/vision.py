@@ -16,12 +16,12 @@ VISION_ANALYSIS_TIMEOUT_SECONDS = 25.0
 
 
 class VisionAnalyzeRequest(BaseModel):
-    image_base64: str = Field(description="图片 base64 编码")
-    mime_type: str = Field(default="image/png", description="MIME 类型")
-    user_context: str = Field(default="", description="用户上下文")
-    vendor: str = Field(default="deepseek", description="视觉模型供应商")
-    model: str = Field(default="deepseek-chat", description="模型名称")
-    ticker: str = Field(default="", description="股票代码（可选）")
+    image_base64: str = Field(max_length=28 * 1024 * 1024, description="图片 base64 编码")
+    mime_type: str = Field(default="image/png", max_length=80, description="MIME 类型")
+    user_context: str = Field(default="", max_length=10_000, description="用户上下文")
+    vendor: str = Field(default="deepseek", max_length=80, description="视觉模型供应商")
+    model: str = Field(default="deepseek-chat", max_length=160, description="模型名称")
+    ticker: str = Field(default="", max_length=32, description="股票代码（可选）")
 
 
 @router.post("/analyze")

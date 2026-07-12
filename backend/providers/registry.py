@@ -11,13 +11,13 @@ from typing import Optional
 
 import yaml
 
+from backend.project_paths import CONFIG_DIR, CUSTOM_PROVIDERS_DIR
+
 from .base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
-# 项目根目录
-_PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-_DATA_SOURCES_CONFIG = _PROJECT_ROOT / "config" / "data_sources.yaml"
+_DATA_SOURCES_CONFIG = CONFIG_DIR / "data_sources.yaml"
 
 
 class ProviderRegistry:
@@ -297,7 +297,7 @@ def _discover_and_register(registry: ProviderRegistry) -> None:
     """
     providers_dir = Path(__file__).parent
     commercial_dir = providers_dir / "commercial"
-    custom_dir = _PROJECT_ROOT / "custom_providers"
+    custom_dir = CUSTOM_PROVIDERS_DIR
 
     all_classes: list[tuple[type, str]] = []
 

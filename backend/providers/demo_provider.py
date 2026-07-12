@@ -44,9 +44,9 @@ def _seed_db_path() -> Path:
         pass
     # Fallback: the in-repo seed copy used during development.
     try:
-        from backend.project_paths import PROJECT_ROOT
+        from backend.project_paths import SEED_DIR
 
-        dev = PROJECT_ROOT / "seed" / "ai_finance.db"
+        dev = SEED_DIR / "ai_finance.db"
         if dev.exists():
             return dev
     except Exception:

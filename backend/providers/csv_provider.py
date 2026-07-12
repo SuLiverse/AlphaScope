@@ -31,6 +31,8 @@ from .base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024
+
 # 规范字段 → 可识别的表头别名(小写匹配英文, 原样匹配中文)
 _COLUMN_ALIASES: Dict[str, List[str]] = {
     "date": [
@@ -241,6 +243,8 @@ def save_upload(filename: str, content: bytes) -> Dict[str, Any]:
     文件名只取 basename 并校验扩展名, 防目录穿越。
     """
     safe = Path(filename).name
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise ValueError("文件大小超过 20MB 限制")
     suffix = Path(safe).suffix.lower()
     if suffix not in (".csv", ".txt", ".xlsx", ".xls"):
         raise ValueError(f"不支持的文件类型: {suffix}(仅 csv/txt/xlsx/xls)")

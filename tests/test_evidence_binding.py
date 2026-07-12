@@ -88,14 +88,14 @@ def test_standard_mode_binds_evidence_ids_to_each_agent():
     with (
         patch("backend.agent_store.list_agents", return_value=managed_agents),
         patch("backend.runtime.context_builder.build_market_brief", return_value="brief"),
-        patch("backend.runtime.context_builder.fetch_evidence_pool", return_value=_pool()),
-        patch("backend.runtime.context_builder.fetch_evidence_context", return_value="ctx"),
+        patch("backend.runtime.context_builder.fetch_evidence_pool", return_value=_pool()) as fetch_pool,
+        patch("backend.runtime.context_builder.format_evidence_context", return_value="ctx") as format_context,
         patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
         patch(
             "backend.critic.run_batch_critic",
             return_value={"agents": {}, "divergence": {"level": "无"}, "ok": False},
         ),
-        patch("backend.agents.chairman.summarize_with_chairman", return_value="主席总结"),
+        patch("backend.runtime.orchestrator.summarize_with_chairman", return_value="主席总结"),
         patch("backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent),
     ):
         result = orchestrator.run_agents_with_mode({"symbol": "600519", "name": "贵州茅台"}, mode=AnalysisMode.DEEP)
@@ -103,6 +103,9 @@ def test_standard_mode_binds_evidence_ids_to_each_agent():
     agent = result["agents"]["fundamental"]
     assert agent["evidence_ids"] == ["ev-news-1"]  # [9] 被丢弃
     assert result["evidence_pool"] == _pool()
+    fetch_pool.assert_called_once()
+    format_context.assert_called_once_with(_pool(), as_of="")
+    assert result["research_snapshot"]["evidence_count"] == 2
 
 
 def test_standard_mode_no_evidence_pool_yields_empty_ids():
@@ -157,3 +160,60 @@ def test_auto_mode_direct_prescreen_carries_empty_evidence_contract():
         )
     assert result["evidence_pool"] == []
     assert result["agents"]["pre_screen"]["evidence_ids"] == []
+
+
+def test_historical_mode_uses_cutoff_for_trust_and_excludes_live_factors():
+    managed_agents = [
+        {
+            "id": "fundamental",
+            "name": "基本面",
+            "system_prompt": "",
+            "provider": "deepseek",
+            "model": "deepseek-chat",
+            "enabled": True,
+        }
+    ]
+    pool = [
+        {
+            "number": 1,
+            "evidence_id": "ev-historical",
+            "doc_type": "announcement",
+            "source": "cninfo",
+            "source_url": "",
+            "published_at": "2020-06-30",
+            "preview": "历史公告",
+        }
+    ]
+
+    def fake_agent(config, *_args, **_kwargs):
+        return {
+            "key": config["key"],
+            "signal": "观望",
+            "confidence": 60,
+            "reason": "参考[1]",
+            "evidence": [],
+            "ok": True,
+        }
+
+    with (
+        patch("backend.agent_store.list_agents", return_value=managed_agents),
+        patch("backend.runtime.context_builder.fetch_evidence_pool", return_value=pool),
+        patch("backend.runtime.context_builder.fetch_factor_context") as fetch_factors,
+        patch("backend.agents.financial_agents.run_custom_agent", side_effect=fake_agent),
+        patch("backend.agents.chairman.summarize_with_chairman", return_value="主席总结"),
+        patch("backend.critic.run_batch_critic", return_value={"agents": {}, "ok": True}),
+    ):
+        result = orchestrator.run_agents_with_mode(
+            {
+                "symbol": "600519",
+                "name": "贵州茅台",
+                "as_of": "2020-06-30",
+                "price_data_date": "2020-06-30",
+            },
+            mode=AnalysisMode.DEEP,
+        )
+
+    fetch_factors.assert_not_called()
+    assert result["research_snapshot"]["factor_data_policy"] == "excluded_unversioned"
+    assert result["research_trust"]["metrics"]["freshness"] > 0.99
+    assert "未来数据穿越" in result["brief"]

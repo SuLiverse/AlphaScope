@@ -26,7 +26,8 @@ You should receive a response within 48 hours. We will work with you to understa
 
 - **Source / uvicorn startup**: if `ALPHASCOPE_LOCAL_API_TOKEN` is unset, the backend **auto-generates** a token, persists it under `data/runtime/local_api_token.txt`, and writes `apps/web/public/runtime-config.js` so the Vite frontend can send `X-AlphaScope-Local-Token`.
 - **Packaged desktop**: `launcher.py` always generates a per-run token and injects it into runtime config.
-- **Sensitive GET** paths (conversations, credentials, audit, settings providers, research memory) require the token even for GET.
+- **All business API paths** under `/api/` require the token for both reads and writes. Only `/`, `/health`, `/docs`, `/redoc`, and `/openapi.json` are public.
+- **Docker Compose** shares the generated runtime config through a named volume; the token is not baked into the Web image.
 - **Opt-out (dev/test only)**: set `ALPHASCOPE_ALLOW_OPEN_API=1` to disable token checks. Never use this on a non-localhost exposure.
 - **CORS**: defaults to localhost regex; `ALPHASCOPE_ALLOW_ALL_CORS=1` is discouraged.
 
@@ -38,7 +39,7 @@ You should receive a response within 48 hours. We will work with you to understa
 
 ### Network / data plane
 
-- **SSRF guard** (`backend/security/url_guard.py`) for TickFlow / URL fetch: blocks loopback, private, link-local, metadata endpoints; DNS rebinding checked via `getaddrinfo`.
+- **SSRF guard** (`backend/security/url_guard.py`) for TickFlow / URL fetch: blocks loopback, private, link-local, metadata endpoints and preflights resolved DNS addresses.
 - **Data lake SQL**: select-only + blocklist for DuckDB file-read functions (`read_csv*`, `read_parquet`, …).
 - **Prompt injection** filters and stock-code validation on research paths.
 
@@ -51,3 +52,4 @@ You should receive a response within 48 hours. We will work with you to understa
 - Single-user local research tool: **not multi-tenant SaaS auth**.
 - LLM outputs are not independently audited for financial advice compliance.
 - Binding the API to `0.0.0.0` on an untrusted network remains risky even with a local token; prefer `127.0.0.1`.
+- DNS validation and the subsequent HTTP connection are separate operations; hostile DNS rebinding cannot be ruled out without transport-level IP pinning.

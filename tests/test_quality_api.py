@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import pytest
 
 pytest.importorskip("fastapi")
@@ -45,6 +47,39 @@ def test_report_gate_clean_passes():
     )
     assert resp.status_code == 200
     assert resp.json()["data"]["passed"] is True
+
+
+def test_research_trust_and_comparison_endpoints():
+    today = date.today().isoformat()
+    candidate = {
+        "as_of": today,
+        "evidence": [
+            {"claim": "公告确认收入增长", "source": "cninfo", "type": "announcement", "data_date": today},
+            {"claim": "数据源确认收入增长", "source": "tushare", "type": "fundamental", "data_date": today},
+            {"claim": "媒体确认收入增长", "source": "cls", "type": "news", "data_date": today},
+        ],
+    }
+    trust_response = client.post("/api/quality/research-trust", json=candidate)
+    assert trust_response.status_code == 200
+    assert trust_response.json()["data"]["score"] >= 80
+
+    compare_response = client.post(
+        "/api/quality/research-compare",
+        json={"baseline": {"evidence": [{"claim": "无来源结论"}]}, "candidate": candidate, "as_of": today},
+    )
+    assert compare_response.status_code == 200
+    comparison = compare_response.json()["data"]
+    assert comparison["verdict"] == "candidate_better"
+    assert comparison["score_delta"] > 0
+
+
+def test_research_quality_endpoints_reject_future_cutoff():
+    response = client.post(
+        "/api/quality/research-trust",
+        json={"evidence": [], "as_of": "2099-01-01"},
+    )
+
+    assert response.status_code == 422
 
 
 def test_export_with_gate_appends_section(monkeypatch):

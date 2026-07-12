@@ -21,18 +21,18 @@ from __future__ import annotations
 import json
 import os
 import sys
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import llm_agents as _llm_agents  # noqa: E402
+from backend.project_paths import PROMPTS_DIR  # noqa: E402
 
 call_llm = getattr(_llm_agents, "call_llm", _llm_agents._call_with)
 _extract_json = _llm_agents._extract_json
 VENDORS = _llm_agents.VENDORS
 
-PROMPT_FILE = Path(__file__).resolve().parent.parent / "prompts" / "critic.md"
+PROMPT_FILE = PROMPTS_DIR / "critic.md"
 
 # 默认审稿模型:用与主席相同的高端模型,因为我们关心的是判断质量而非速度。
 DEFAULT_CRITIC_MODEL = ("claude", "claude-opus-4-7")

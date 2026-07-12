@@ -63,7 +63,7 @@ def write_runtime_config_dir(
 
 
 def write_dev_runtime_configs(repo_root: Path, local_api_token: str) -> None:
-    """源码开发：写入 public/ 与 dist/（若存在）的 runtime-config.js。"""
+    """源码开发：写入 public/dist，并可写入容器共享运行时目录。"""
     base = os.environ.get("VITE_API_BASE_URL") or "http://localhost:8000"
     payload = runtime_config_payload(
         api_base_url=base,
@@ -71,8 +71,15 @@ def write_dev_runtime_configs(repo_root: Path, local_api_token: str) -> None:
         api_key=os.environ.get("VITE_API_KEY", ""),
         packaged=False,
     )
-    for rel in ("apps/web/public/runtime-config.js", "apps/web/dist/runtime-config.js"):
-        path = repo_root / rel
+    paths = [
+        repo_root / "apps/web/public/runtime-config.js",
+        repo_root / "apps/web/dist/runtime-config.js",
+    ]
+    shared_dir = os.environ.get("ALPHASCOPE_RUNTIME_CONFIG_DIR", "").strip()
+    if shared_dir:
+        paths.append(Path(shared_dir) / "runtime-config.js")
+
+    for path in paths:
         try:
             write_runtime_config_file(path, payload)
         except OSError as exc:

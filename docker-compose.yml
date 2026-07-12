@@ -1,4 +1,4 @@
-# 研策中枢 AlphaScope Docker Compose (v0.40.7)
+# 研策中枢 AlphaScope Docker Compose (v1.9.51)
 # Services: Streamlit Dashboard + FastAPI API + Vite Frontend
 #
 # Usage:
@@ -54,8 +54,11 @@ services:
       - ./data:/app/data
       - ./.env:/app/.env:ro
       - ./config:/app/config:ro
+      - runtime-config:/runtime
     environment:
       - PYTHONPATH=/app
+      - ALPHASCOPE_RUNTIME_CONFIG_DIR=/runtime
+      - VITE_API_BASE_URL=${ALPHASCOPE_PUBLIC_API_BASE_URL:-http://localhost:8000}
     restart: unless-stopped
     deploy:
       resources:
@@ -84,8 +87,12 @@ services:
     container_name: alphascope-web
     ports:
       - "3000:3000"
-    environment:
-      - VITE_API_BASE_URL=http://localhost:8000
+    volumes:
+      - runtime-config:/runtime:ro
+    command:
+      - sh
+      - -c
+      - ln -sf /runtime/runtime-config.js /app/dist/runtime-config.js && npm run preview -- --host 0.0.0.0 --port 3000
     depends_on:
       api:
         condition: service_healthy
@@ -104,3 +111,6 @@ services:
 networks:
   alphascope-net:
     driver: bridge
+
+volumes:
+  runtime-config:

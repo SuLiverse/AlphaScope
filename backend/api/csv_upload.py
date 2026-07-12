@@ -44,10 +44,10 @@ async def csv_upload(file: UploadFile = File(...)):
 
     文件建议以「股票代码」命名(如 ``600519.csv``), 以便按代码匹配。
     """
-    from backend.providers.csv_provider import save_upload
+    from backend.providers.csv_provider import MAX_UPLOAD_BYTES, save_upload
 
     try:
-        content = await file.read()
+        content = await file.read(MAX_UPLOAD_BYTES + 1)
         summary = save_upload(file.filename or "upload.csv", content)
     except ValueError as e:
         return ApiResponse(success=False, error=str(e))

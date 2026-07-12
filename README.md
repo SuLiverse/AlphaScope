@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-100%2B%20APIs-009688)](docs/api.md)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.9.50-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
+[![Release](https://img.shields.io/badge/release-v1.9.51-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
 
 > **把 AI 选股从「黑箱结论」变成「可复核的研究流程」。**
 >
@@ -146,7 +146,7 @@ flowchart TB
 
 - FastAPI 后端提供 100+ REST / SSE 接口。
 - 数据源采用 Provider 插件化设计，可扩展行情、新闻、公告、研报、宏观和自定义数据源。
-- 后端核心路径有测试覆盖，当前主分支验证状态为 `886 passed, 2 skipped`。
+- 后端核心路径有 1800+ 项自动化测试覆盖，并在 Python 3.11 / 3.12 上执行非网络套件。
 - 保留 Streamlit 调试台，便于快速实验和诊断。
 
 ## 版本里程碑
@@ -465,6 +465,8 @@ scripts\start_local.bat
 cp .env.example .env
 docker-compose up -d
 ```
+
+API 容器会生成本地 Token，并通过只读共享卷把运行时配置交给 Web 容器；无需把 Token 写进镜像。远程访问时可设置 `ALPHASCOPE_PUBLIC_API_BASE_URL` 为浏览器可达的 API 地址。
 
 默认服务：
 

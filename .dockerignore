@@ -17,6 +17,9 @@ venvs/
 # Cache
 cache/
 *.log
+data/runtime/
+apps/web/public/runtime-config.js
+apps/web/dist/runtime-config.js
 
 # Docs
 reports/archive/

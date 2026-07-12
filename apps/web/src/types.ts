@@ -156,6 +156,45 @@ export interface RatingBreakdown {
   risk_vetoed: boolean;
 }
 
+export interface ResearchTrustWarning {
+  code: string;
+  message: string;
+}
+
+export interface ResearchTrust {
+  score: number;
+  grade: 'high' | 'medium' | 'low' | 'insufficient';
+  label: string;
+  evidence_count: number;
+  source_count: number;
+  metrics: {
+    coverage: number;
+    source_completeness: number;
+    date_completeness: number;
+    freshness: number;
+    source_quality: number;
+    source_diversity: number;
+  };
+  penalties: {
+    contradictions: number;
+    missing_evidence: number;
+  };
+  warnings: ResearchTrustWarning[];
+}
+
+export interface ResearchSnapshot {
+  snapshot_id: string;
+  requested_as_of: string;
+  effective_as_of: string;
+  cutoff_enforced: boolean;
+  price_data_date: string;
+  latest_evidence_date: string;
+  evidence_count: number;
+  undated_evidence_count: number;
+  research_question: string;
+  warnings: string[];
+}
+
 export interface AnalysisResult {
   summary?: string;
   brief?: string;
@@ -168,6 +207,8 @@ export interface AnalysisResult {
   debate?: DebateResult;
   model_status?: AnalysisModelStatus;
   evidence_pool?: EvidencePoolItem[];
+  research_trust?: ResearchTrust;
+  research_snapshot?: ResearchSnapshot;
   evidence: ProviderEvidence[];
   provider_traces: ProviderTrace[];
   source_appendix: SourceAppendixItem[];

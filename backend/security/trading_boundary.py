@@ -25,6 +25,8 @@ from typing import Any
 
 import yaml
 
+from backend.project_paths import CONFIG_DIR
+
 # 必须恒为 False 的标志 (改动即违背项目定位)。
 # 这里的名字与 legal_boundaries.yaml 的键一一对应。
 _MUST_BE_FALSE_FLAGS: tuple[str, ...] = (
@@ -56,7 +58,7 @@ _DEFAULT_FLAGS: dict[str, bool] = {
     "allow_real_api_secret_for_trading": False,
 }
 
-_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "legal_boundaries.yaml"
+_CONFIG_PATH = CONFIG_DIR / "legal_boundaries.yaml"
 
 
 class BoundaryViolation(RuntimeError):

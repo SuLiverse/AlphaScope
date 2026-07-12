@@ -56,6 +56,7 @@ def ensure_local_api_token() -> str:
 
     if _open_api_allowed():
         logger.warning("ALPHASCOPE_ALLOW_OPEN_API 已开启：本地 API 无 token 鉴权。仅用于开发/测试，勿在局域网暴露。")
+        write_dev_runtime_configs(_repo_root(), "")
         return ""
 
     token_path = _token_file()

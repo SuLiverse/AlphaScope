@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Generic, Optional, TypeVar
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 T = TypeVar("T")
 
@@ -65,17 +65,26 @@ class AnalysisRequest(BaseModel):
     mode: str = Field(default="deep", description="分析模式: standard/deep/auto")
     agent_configs: Optional[list[dict[str, Any]]] = Field(default=None, description="Agent 配置覆盖")
     global_ai_settings: Optional[dict[str, Any]] = Field(default=None, description="全局 AI 设置")
+    as_of: Optional[date] = Field(default=None, description="研究数据截止日；为空表示使用当前可用数据")
+    research_question: str = Field(default="", max_length=2_000, description="本次研究要回答的具体问题")
+
+    @field_validator("as_of")
+    @classmethod
+    def reject_future_as_of(cls, value: Optional[date]) -> Optional[date]:
+        if value and value > date.today():
+            raise ValueError("研究数据截止日不能晚于今天")
+        return value
 
 
 class VisionRequest(BaseModel):
     """图片分析请求"""
 
-    image_base64: str = Field(description="图片 base64 编码")
-    mime_type: str = Field(default="image/png", description="图片 MIME 类型")
-    user_context: str = Field(default="", description="用户上下文说明")
-    vendor: str = Field(default="deepseek", description="视觉模型供应商")
-    model: str = Field(default="deepseek-chat", description="视觉模型名称")
-    ticker: str = Field(default="", description="用户提供的股票代码（可选，跳过识别追问）")
+    image_base64: str = Field(max_length=28 * 1024 * 1024, description="图片 base64 编码")
+    mime_type: str = Field(default="image/png", max_length=80, description="图片 MIME 类型")
+    user_context: str = Field(default="", max_length=10_000, description="用户上下文说明")
+    vendor: str = Field(default="deepseek", max_length=80, description="视觉模型供应商")
+    model: str = Field(default="deepseek-chat", max_length=160, description="视觉模型名称")
+    ticker: str = Field(default="", max_length=32, description="用户提供的股票代码（可选，跳过识别追问）")
 
 
 class ConversationCreate(BaseModel):

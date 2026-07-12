@@ -61,7 +61,7 @@ async def upload_document(file: UploadFile = File(...)):
     except ValueError as exc:
         return ApiResponse(success=False, error=str(exc))
 
-    content = await file.read()
+    content = await file.read(MAX_FILE_SIZE + 1)
     if len(content) > MAX_FILE_SIZE:
         return ApiResponse(success=False, error="文件大小超过 20MB 限制")
 

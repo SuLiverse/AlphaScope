@@ -1,6 +1,7 @@
-node_modules
-dist
-.next
-.git
+node_modules/
+dist/
+.next/
+.git/
 .env
 .env.local
+public/runtime-config.js
