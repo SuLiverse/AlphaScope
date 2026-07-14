@@ -17,11 +17,19 @@ import {
   CheckCircle2,
   XCircle,
   BarChart3,
-  Download
+  Download,
+  Gauge,
+  Link2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { startAsyncAnalysis, getTaskResult, getTaskEventsUrl, getTaskStatus, getReportExportUrl } from '../lib/analysisAdapter';
-import { AnalysisResult, DebateResult, RatingBreakdown } from '../types';
+import {
+  AnalysisResult,
+  CitationValidationResult,
+  DebateResult,
+  QuantRefereeResult,
+  RatingBreakdown,
+} from '../types';
 import { DecisionSummary } from './report/DecisionSummary';
 import { ReportCharts } from './ReportCharts';
 import { AgentOpinionCards } from './report/AgentOpinionCards';
@@ -380,6 +388,102 @@ function DebatePanel({ debate }: { debate: DebateResult }) {
   );
 }
 
+const REFEREE_STANCE_TONE: Record<string, string> = {
+  多头占优: 'border-rose-500/30 bg-rose-500/10 text-rose-100',
+  偏多: 'border-rose-500/20 bg-rose-500/5 text-rose-200',
+  中性: 'border-white/10 bg-white/5 text-neutral-200',
+  偏空: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-200',
+  空头占优: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100',
+  未知: 'border-white/10 bg-white/5 text-neutral-400',
+};
+
+function QuantRefereePanel({ referee }: { referee: QuantRefereeResult }) {
+  const tone = REFEREE_STANCE_TONE[referee.stance] || REFEREE_STANCE_TONE['未知'];
+  const alignTone =
+    referee.llm_alignment === '冲突' || referee.llm_alignment === '背离'
+      ? 'text-amber-300'
+      : referee.llm_alignment === '一致' || referee.llm_alignment === '同向'
+        ? 'text-emerald-300'
+        : 'text-neutral-400';
+  return (
+    <div className="rounded-xl border border-white/8 bg-white/[0.035] p-5">
+      <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3', tone)}>
+        <div className="flex items-center gap-2">
+          <Gauge className="h-4 w-4" />
+          <span className="text-sm font-semibold">规则立场：{referee.stance}</span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] font-mono opacity-90">
+          <span>净分 {referee.net_score.toFixed(1)}</span>
+          <span>多 {referee.n_bull} · 空 {referee.n_bear} · 中 {referee.n_neutral}</span>
+          <span className={alignTone}>vs LLM: {referee.llm_alignment || '未对比'}</span>
+        </div>
+      </div>
+      {referee.note ? <p className="mb-3 text-sm text-neutral-400">{referee.note}</p> : null}
+      {referee.signals?.length ? (
+        <ul className="space-y-1.5">
+          {referee.signals.map((s, i) => (
+            <li key={`${s.rule_id}-${i}`} className="text-[12px] leading-relaxed text-neutral-300">
+              <span className="mr-1 font-mono text-[10px] text-neutral-500">[{s.rule_id}]</span>
+              {s.direction === 'bullish' ? '↑' : s.direction === 'bearish' ? '↓' : '·'} {s.claim}
+              {s.value ? <span className="ml-1 text-neutral-500">({s.value})</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[12px] text-neutral-600">无规则信号</p>
+      )}
+      {referee.disclaimer ? (
+        <p className="mt-4 text-[11px] leading-relaxed text-neutral-500">{referee.disclaimer}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function CitationValidationPanel({ citation }: { citation: CitationValidationResult }) {
+  const degraded = citation.status === 'degraded' || (citation.n_unverified || 0) > 0;
+  return (
+    <div
+      className={cn(
+        'rounded-xl border p-5',
+        degraded ? 'border-amber-500/20 bg-amber-500/[0.06]' : 'border-white/8 bg-white/[0.035]',
+      )}
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-neutral-100">
+          <Link2 className="h-4 w-4" />
+          数值与引用可追溯
+        </div>
+        <div className="flex flex-wrap gap-3 text-[11px] font-mono text-neutral-400">
+          <span>
+            对齐 {citation.n_verified}/{citation.n_claims}
+          </span>
+          <span>grounding {(citation.grounding_score * 100).toFixed(0)}%</span>
+          <span>
+            引用 OK {citation.n_citation_ok} / 异常 {citation.n_citation_bad}
+          </span>
+          {citation.suggest_confidence_cap != null ? (
+            <span className="text-amber-300">建议置信上限 {citation.suggest_confidence_cap}</span>
+          ) : null}
+        </div>
+      </div>
+      {citation.issues && citation.issues.length > 0 ? (
+        <ul className="mb-3 space-y-1">
+          {citation.issues.slice(0, 6).map((issue, i) => (
+            <li key={i} className="text-[12px] text-amber-100/80">
+              · {issue}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-3 text-[12px] text-neutral-500">未发现明显未核验数字或虚引。</p>
+      )}
+      {citation.disclaimer ? (
+        <p className="text-[11px] leading-relaxed text-neutral-500">{citation.disclaimer}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function GeneratedResearchReport({
   result,
   symbol,
@@ -419,6 +523,19 @@ function GeneratedResearchReport({
       {result.debate && result.debate.status === 'ok' && (
         <ReportSection icon={Scale} title="多空辩论与裁决" eyebrow="Bull vs Bear">
           <DebatePanel debate={result.debate} />
+        </ReportSection>
+      )}
+
+      {result.quant_referee &&
+        (result.quant_referee.status === 'ok' || result.quant_referee.status === 'degraded') && (
+          <ReportSection icon={Gauge} title="量化裁判 (规则信号)" eyebrow="Quant Referee">
+            <QuantRefereePanel referee={result.quant_referee} />
+          </ReportSection>
+        )}
+
+      {result.citation_validation && (
+        <ReportSection icon={Link2} title="引用与数值核验" eyebrow="Citation Validator">
+          <CitationValidationPanel citation={result.citation_validation} />
         </ReportSection>
       )}
 

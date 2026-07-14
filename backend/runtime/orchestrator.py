@@ -677,6 +677,51 @@ def run_agents_with_mode(
     except Exception as exc:  # noqa: BLE001 - 辩论合成失败不应阻断研报
         logger.debug("多空辩论合成失败, 跳过: %s", exc)
 
+    # Quant Referee(P0): 确定性技术规则信号, 与 LLM 结论对照; 零额外模型调用。
+    quant_referee = None
+    try:
+        from backend.agents.quant_referee import format_referee_section, referee_stock
+
+        referee_report = referee_stock(stock_data, llm_final=summary.get("final"))
+        quant_referee = referee_report.to_dict()
+        ref_section = format_referee_section(referee_report)
+        if ref_section:
+            research_report = f"{research_report}\n{ref_section}"
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Quant Referee 失败, 跳过: %s", exc)
+
+    # Citation Validator(P0): 数字/证据编号可追溯核验; 未核验则建议置信度上限。
+    citation_validation = None
+    try:
+        from backend.quality.citation_validator import format_citation_section, validate_citations
+
+        cite_report = validate_citations(
+            agents=results,
+            research_report=research_report,
+            stock_data=stock_data,
+            evidence_pool=evidence_pool if isinstance(evidence_pool, list) else None,
+        )
+        citation_validation = cite_report.to_dict()
+        cite_section = format_citation_section(cite_report)
+        if cite_section:
+            research_report = f"{research_report}\n{cite_section}"
+        # 软约束: 存在未核验数字时, 将 summary 平均置信度封顶(不改 signal, 可审计)
+        cap = cite_report.suggest_confidence_cap
+        if cap is not None and isinstance(summary, dict):
+            try:
+                avg_c = float(summary.get("avg_confidence") or 0)
+                if avg_c > cap:
+                    summary = {
+                        **summary,
+                        "avg_confidence": cap,
+                        "confidence_capped_by_citation": True,
+                        "citation_confidence_cap": cap,
+                    }
+            except (TypeError, ValueError):
+                pass
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Citation Validator 失败, 跳过: %s", exc)
+
     return {
         "agents": results,
         "summary": summary,
@@ -691,6 +736,8 @@ def run_agents_with_mode(
         "research_snapshot": research_snapshot,
         "risk_gate": risk_gate,
         "debate": debate,
+        "quant_referee": quant_referee,
+        "citation_validation": citation_validation,
         "data_verification": verification.to_dict(),
         "mode": mode.value,
         "mode_name": config.name,

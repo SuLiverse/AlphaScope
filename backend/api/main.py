@@ -740,6 +740,8 @@ if HAS_FASTAPI:
                     "research_snapshot": result.get("research_snapshot"),
                     "risk_gate": result.get("risk_gate"),
                     "debate": result.get("debate"),
+                    "quant_referee": result.get("quant_referee"),
+                    "citation_validation": result.get("citation_validation"),
                     "data_verification": result.get("data_verification"),
                     "model_status": model_status,
                     "mode_name": result.get("mode_name"),

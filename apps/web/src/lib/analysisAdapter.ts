@@ -1,5 +1,18 @@
 import { fetchApi, API_BASE_URL, LOCAL_API_TOKEN } from './api';
-import { AgentOpinion, AnalysisResult, DebatePoint, DebateResult, EvidencePoolItem, ProviderEvidence, ProviderTrace, ResearchSnapshot, ResearchTrust, SourceAppendixItem } from '../types';
+import {
+  AgentOpinion,
+  AnalysisResult,
+  CitationValidationResult,
+  DebatePoint,
+  DebateResult,
+  EvidencePoolItem,
+  ProviderEvidence,
+  ProviderTrace,
+  QuantRefereeResult,
+  ResearchSnapshot,
+  ResearchTrust,
+  SourceAppendixItem,
+} from '../types';
 import { mockAnalysisResult } from './mockAnalysisData';
 import { getEnabledAgentRuntimeConfigs } from './agentConfigs';
 
@@ -346,6 +359,57 @@ function normalizeDebate(value: unknown): DebateResult | undefined {
   };
 }
 
+function normalizeQuantReferee(value: unknown): QuantRefereeResult | undefined {
+  const rec = asRecord(value);
+  if (!Object.keys(rec).length) return undefined;
+  const signals = asArray(rec.signals).map((item) => {
+    const r = asRecord(item);
+    return {
+      rule_id: formatInlineValue(r.rule_id),
+      direction: formatInlineValue(r.direction),
+      weight: Number(r.weight) || 0,
+      claim: formatTextValue(r.claim),
+      value: formatInlineValue(r.value || ''),
+    };
+  });
+  return {
+    status: formatInlineValue(rec.status) || 'ok',
+    symbol: formatInlineValue(rec.symbol),
+    stance: formatInlineValue(rec.stance),
+    net_score: Number(rec.net_score) || 0,
+    signals,
+    n_bull: Number(rec.n_bull) || 0,
+    n_bear: Number(rec.n_bear) || 0,
+    n_neutral: Number(rec.n_neutral) || 0,
+    llm_alignment: formatInlineValue(rec.llm_alignment),
+    note: formatTextValue(rec.note || ''),
+    disclaimer: formatInlineValue(rec.disclaimer),
+  };
+}
+
+function normalizeCitationValidation(value: unknown): CitationValidationResult | undefined {
+  const rec = asRecord(value);
+  if (!Object.keys(rec).length) return undefined;
+  const capRaw = rec.suggest_confidence_cap;
+  const cap =
+    capRaw === null || capRaw === undefined || capRaw === ''
+      ? null
+      : Number(capRaw);
+  return {
+    status: formatInlineValue(rec.status) || 'ok',
+    n_claims: Number(rec.n_claims) || 0,
+    n_verified: Number(rec.n_verified) || 0,
+    n_unverified: Number(rec.n_unverified) || 0,
+    n_citation_ok: Number(rec.n_citation_ok) || 0,
+    n_citation_bad: Number(rec.n_citation_bad) || 0,
+    grounding_score: Number(rec.grounding_score) || 0,
+    suggest_confidence_cap: Number.isFinite(cap as number) ? (cap as number) : null,
+    issues: normalizeStringArray(rec.issues),
+    note: formatTextValue(rec.note || ''),
+    disclaimer: formatInlineValue(rec.disclaimer),
+  };
+}
+
 /**
  * Normalizes the raw backend response into a consistent frontend AnalysisResult.
  * This adapter layer protects UI components from backend schema drift.
@@ -381,6 +445,12 @@ export function normalizeAnalysisResult(raw: any): AnalysisResult {
     : formatTextValue(rawCritic);
   const chairman_summary = formatTextValue(raw?.chairman_summary || raw?.result?.chairman_summary || '');
   const debate = normalizeDebate(raw?.debate || raw?.result?.debate);
+  const quant_referee = normalizeQuantReferee(
+    raw?.quant_referee || raw?.result?.quant_referee,
+  );
+  const citation_validation = normalizeCitationValidation(
+    raw?.citation_validation || raw?.result?.citation_validation,
+  );
   const modelStatusRecord = asRecord(raw?.model_status || raw?.result?.model_status || {});
   const model_status = Object.keys(modelStatusRecord).length
     ? {
@@ -432,6 +502,8 @@ export function normalizeAnalysisResult(raw: any): AnalysisResult {
     critic,
     chairman_summary,
     debate,
+    quant_referee,
+    citation_validation,
     model_status,
     agents: normalizedAgents,
     evidence,

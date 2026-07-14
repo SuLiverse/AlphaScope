@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.9.52 - 2026-07-15
+
+> **P0 护城河强化**：确定性 Quant Referee + Citation Validator，与 LLM 辩论并行、零额外模型调用。
+
+### 研究可信度
+- **Quant Referee** (`backend/agents/quant_referee.py`)：从行情/均线/RSI/MACD/区间/量比产出规则信号卡，立场与净分对照 LLM 结论（一致/同向/冲突），并入研报小节与 API `quant_referee`。
+- **Citation Validator** (`backend/quality/citation_validator.py`)：核验研报/Agent 文本中的数字是否对齐 stock_data、`[n]` 是否落在 evidence_pool；未核验时建议置信度上限并软封顶 `avg_confidence`。
+- 前端研报页新增「量化裁判」「引用与数值核验」面板；分析适配层透出字段。
+
+### 设计原则
+- 纯函数、失败安全、不触网、不新增 LLM Agent（对齐 debate / data_verifier 哲学）。
+- 主路径仍为自研编排；未引入 LangGraph 替换。
+
+### 验证
+- 新增 `tests/test_quant_referee.py`、`tests/test_citation_validator.py`。
+
 ## v1.9.51 - 2026-07-12
 
 > **全面审查修复**：收紧本地鉴权，修复 Docker/发布复现性、依赖安装和资源边界，并清零前端质量告警。
