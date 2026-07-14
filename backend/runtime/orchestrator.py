@@ -757,11 +757,17 @@ def run_agents_with_mode(
             if reg.has("tradingagents"):
                 ad = reg.get("tradingagents")
                 if ad.is_available():
-                    external_agent = ad.analyze(
-                        symbol=str(stock_data.get("symbol") or ""),
-                        name=str(stock_data.get("name") or ""),
-                    )
-                    if external_agent and isinstance(external_agent, dict):
+                    sym = str(stock_data.get("symbol") or "")
+                    opinions = ad.analyze(symbols=[sym] if sym else [])
+                    # adapter 返回 list[NormalizedAgentOpinion] 或可序列化结构
+                    if opinions:
+                        try:
+                            external_agent = [
+                                o.model_dump() if hasattr(o, "model_dump") else dict(o)
+                                for o in (opinions if isinstance(opinions, list) else [opinions])
+                            ]
+                        except Exception:
+                            external_agent = {"raw": str(opinions)[:1200]}
                         research_report += (
                             "\n\n### 外部 Agent 团队 (TradingAgents)\n"
                             f"- 状态: 已合并研究意见(研究语义, 禁止实盘)\n"
