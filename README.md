@@ -6,12 +6,30 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-100%2B%20APIs-009688)](docs/api.md)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.9.51-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
+[![Release](https://img.shields.io/badge/release-v1.9.53-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
 
 > **把 AI 选股从「黑箱结论」变成「可复核的研究流程」。**
 >
 > AlphaScope · 研策中枢是一个本地优先的**私人投研委员会**：多分析师辩论、风控一票否决、每个结论都能溯源。
 > Local-first AI equity research, fully auditable — multi-agent debate, evidence chain, backtesting with real trading frictions.
+
+## English summary
+
+**AlphaScope** is a **local-first** AI equity research workbench (not a stock-picking chatbot):
+
+| Pillar | What you get |
+|--------|----------------|
+| Multi-agent research | Standard / Deep / Auto modes; fundamental, technical, sentiment, risk, flow agents + Critic / Chairman |
+| Auditability | Evidence chain, source health, **Citation Validator**, data-verifier “no fabrication” brief |
+| Deterministic rails | Risk veto, Bull/Bear synthesizer, **Quant Referee** (rule signals vs LLM) |
+| Quant loop | Event-driven backtest with A-share frictions (T+1, fees, slippage, no look-ahead); optional vectorbt scan |
+| Security | Local API token, AES-GCM keys, SSRF guards, localhost CORS by default |
+
+**Product UI** = `apps/web` (Vite + React 19). Streamlit under `frontend/` is an **optional debug console** (`pip install -r requirements-streamlit.txt`).
+
+**Suggested GitHub topics:** `ai-agents` · `quantitative-finance` · `multi-agent` · `a-share` · `backtesting` · `local-first` · `fastapi` · `react`
+
+Quick start: install deps → `uvicorn backend.api.main:app --port 8000` → `cd apps/web && npm run dev`. Or use the Windows installer from Releases. Demo mode works with **zero API keys**.
 
 研策中枢 AlphaScope 把行情、新闻、公告、财务指标、技术分析、多 Agent 研究、证据链、研究报告、量化回测、基金定投和组合管理整合到一个**可运行、可测试、可扩展**的工程系统中。它的目标不是给出不可追溯的“单句结论”，而是提供一套**可审计的研究流程**：多模型协同分析、数据源状态透明、证据可追踪、结果可复核。
 

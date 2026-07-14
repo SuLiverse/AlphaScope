@@ -463,6 +463,15 @@ def run_agents_with_mode(
     # 证据池就绪后重算核验(纳入 evidence 维度), 并把「严禁编造缺失维度」提示注入简报。
     verification = verify_data(stock_data, evidence_pool=evidence_pool)
     brief += verification.brief_warning()
+    # 研究记忆 post-mortem: 注入历史信号转折, 降低重复偏见(失败安全, 默认开启)。
+    try:
+        from backend.runtime.post_mortem import build_post_mortem_brief
+
+        pm = build_post_mortem_brief(str(symbol or ""))
+        if pm:
+            brief += pm
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("post-mortem 注入跳过: %s", exc)
     research_snapshot = build_research_snapshot(
         {**stock_data, "factor_data_policy": factor_data_policy},
         evidence_pool,
@@ -663,12 +672,21 @@ def run_agents_with_mode(
     try:
         from backend.agents.debate import format_debate_section, synthesize_debate
 
+        # 第二轮交叉质询(默认关): ALPHASCOPE_DEBATE_SECOND_ROUND=1 全局开启;
+        # 或 ALPHASCOPE_DEBATE_SECOND_ROUND_DEEP=1 仅 deep 模式开启。仍无 LLM。
+        import os as _os
+
+        _env_on = lambda k: _os.environ.get(k, "").strip().lower() in {"1", "true", "yes", "on"}
+        second_round = _env_on("ALPHASCOPE_DEBATE_SECOND_ROUND") or (
+            mode.value == "deep" and _env_on("ALPHASCOPE_DEBATE_SECOND_ROUND_DEEP")
+        )
         debate_report = synthesize_debate(
             results,
             summary=summary,
             critic=critic_block,
             risk_gate=risk_gate,
             data_verification=verification.to_dict(),
+            second_round=second_round,
         )
         debate = debate_report.to_dict()
         section = format_debate_section(debate_report)

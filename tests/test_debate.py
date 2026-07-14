@@ -91,6 +91,25 @@ class TestBearSources:
         assert not any(p.kind == "critic_divergence" for p in r.bear_points)
 
 
+class TestSecondRound:
+    def test_second_round_adds_cross_examine(self):
+        agents = {
+            "fund": _agent("买入", 85, "基本面"),
+            "tech": _agent("买入", 40, "技术面"),
+        }
+        base = synthesize_debate(agents)
+        r2 = synthesize_debate(agents, second_round=True)
+        assert r2.status == OK
+        kinds = [p.kind for p in r2.bear_points]
+        assert "cross_examine" in kinds
+        assert len(r2.bear_points) >= len(base.bear_points)
+
+    def test_second_round_default_off(self):
+        agents = {"fund": _agent("买入", 80, "基本面")}
+        r = synthesize_debate(agents)
+        assert not any(p.kind == "cross_examine" for p in r.bear_points + r.bull_points)
+
+
 class TestFailSafe:
     def test_empty_agents_never_raises(self):
         r = synthesize_debate({})

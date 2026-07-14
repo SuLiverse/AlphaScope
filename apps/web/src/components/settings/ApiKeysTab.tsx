@@ -1,7 +1,7 @@
 /**
  * Settings API keys / providers tab + model library dialog.
  */
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   CheckCircle2,
@@ -19,8 +19,10 @@ import {
   Sparkles,
   Trash2,
   X,
+  HardDrive,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { fetchApi } from "../../lib/api";
 import type { ProviderModelCapabilities, ProviderModelInfo } from "../../lib/aiModelRouting";
 import { ThemedSelect, type ThemedSelectOption } from "../ThemedSelect";
 import {
@@ -31,6 +33,17 @@ import {
 } from "./types";
 import { getModelCapabilityClass, getModelCapabilityLabel } from "./helpers";
 import { TextField, ToggleRow } from "./fields";
+
+interface LocalLlmPreset {
+  id: string;
+  name: string;
+  base_url: string;
+  api_key_placeholder?: string;
+  default_model?: string;
+  notes?: string;
+  local_base_url_allowed?: boolean;
+  env_hint?: string;
+}
 
 export interface ApiKeysTabProps {
   settings: SettingsState;
@@ -113,6 +126,41 @@ export function ApiKeysTab({
   addModelToProvider,
   discoveredModels,
 }: ApiKeysTabProps) {
+  const [localPresets, setLocalPresets] = useState<LocalLlmPreset[]>([]);
+  const [localPresetHint, setLocalPresetHint] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchApi<{ presets: LocalLlmPreset[] }>('/api/settings/local-llm-presets');
+        if (!cancelled) setLocalPresets(Array.isArray(data?.presets) ? data.presets : []);
+      } catch {
+        if (!cancelled) setLocalPresets([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const applyLocalPreset = (preset: LocalLlmPreset) => {
+    setProviderDraft((prev) => ({
+      ...prev,
+      id: preset.id || prev.id,
+      name: preset.name || prev.name,
+      base_url: preset.base_url || prev.base_url,
+      api_key: preset.api_key_placeholder || prev.api_key || 'local',
+      enabled: true,
+    }));
+    const allow = preset.local_base_url_allowed;
+    setLocalPresetHint(
+      allow
+        ? `已填入 ${preset.name}。请确认本机服务已启动后保存并测试。`
+        : `已填入 ${preset.name}。保存前请设置环境变量 ALLOW_LOCAL_LLM_BASE_URL=1（SSRF 防护）。${preset.notes || ''}`,
+    );
+  };
+
   return (
     <>
       {/* api panel — rendered when parent selects api tab */}
@@ -215,6 +263,33 @@ export function ApiKeysTab({
                     </div>
 
                     <div className="mt-6 space-y-6">
+                      {localPresets.length > 0 && (
+                        <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.04] p-4">
+                          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-cyan-100">
+                            <HardDrive className="h-4 w-4" />
+                            本地模型一键填入 (Ollama / LM Studio)
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {localPresets.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => applyLocalPreset(p)}
+                                className="rounded-xl border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-neutral-200 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/10"
+                              >
+                                {p.name}
+                              </button>
+                            ))}
+                          </div>
+                          {localPresetHint ? (
+                            <p className="mt-2 text-[11px] leading-relaxed text-cyan-100/70">{localPresetHint}</p>
+                          ) : (
+                            <p className="mt-2 text-[11px] text-neutral-500">
+                              填入后需本机推理服务在线；默认禁止未授权的私网 Base URL。
+                            </p>
+                          )}
+                        </div>
+                      )}
                       <div>
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <h4 className="text-lg font-medium text-white">平台信息</h4>

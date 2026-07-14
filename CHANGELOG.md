@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.9.53 - 2026-07-15
+
+> **护城河 + 工程债 + 本地模型 + 文档对齐** 一整包落地（备份分支 `backup/pre-p0-agent-evolution-20260715`）。
+
+### 研究可信度（含 1.9.52）
+- Quant Referee + Citation Validator（编排/API/研报面板）
+- **研究记忆 Post-mortem**：简报注入历史信号转折与复盘约束
+- **确定性第二轮辩论**（默认关）：`ALPHASCOPE_DEBATE_SECOND_ROUND=1` 或 `_DEEP=1`
+
+### 性能与存储
+- SQLite `WAL` + `busy_timeout=5000` + `synchronous=NORMAL`
+- 分时行情 45s TTL 缓存；prices 最新价/分时与 evidence 列表 `asyncio.to_thread`
+
+### 本地模型
+- providers.yaml 增加 Ollama / LM Studio
+- `GET/POST /api/settings/local-llm-presets[+ /probe]`
+- 设置页「本地模型一键填入」
+
+### 工程卫生
+- Streamlit 移出 core → `requirements-streamlit.txt` / `alphascope[streamlit]`
+- 删除未注册死代码：`backtest_new`、`fund_analysis` API、`runtime/task_queue`
+- 重写 `docs/security.md`；README English summary + Topics；徽章 v1.9.53
+
 ## v1.9.52 - 2026-07-15
 
 > **P0 护城河强化**：确定性 Quant Referee + Citation Validator，与 LLM 辩论并行、零额外模型调用。

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "alphascope"
-version = "1.9.52"
+version = "1.9.53"
 description = "AlphaScope multi-agent financial analysis workbench"
 readme = "README.md"
 license = "MIT"
@@ -19,10 +19,8 @@ classifiers = [
     "Topic :: Office/Business :: Financial",
 ]
 dependencies = [
-    "streamlit==1.57.0",
     "pandas==3.0.3",
     "numpy==2.4.5",
-    "plotly==6.7.0",
     "akshare==1.18.60",
     "requests==2.32.3",
     "curl_cffi==0.13.0",
@@ -47,6 +45,7 @@ alphascope-mcp = "backend.mcp_server:run_server"
 api = ["fastapi>=0.115.0,<1.0", "uvicorn>=0.34.0,<1.0", "python-multipart>=0.0.20"]
 rag = ["chromadb==0.6.3"]
 dev = ["pytest==8.4.0", "ruff==0.15.13"]
+streamlit = ["streamlit==1.57.0", "plotly==6.7.0"]
 quant = [
     "duckdb>=1.0,<2",
     "exchange_calendars>=4.0",
@@ -68,7 +67,7 @@ mlops = [
     "prefect>=3.0",
     "opentelemetry-sdk>=1.20",
 ]
-all = ["alphascope[api,rag,dev,quant,mlops]"]
+all = ["alphascope[api,rag,dev,quant,mlops,streamlit]"]
 
 [tool.setuptools.packages.find]
 include = ["backend*"]
