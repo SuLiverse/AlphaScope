@@ -145,6 +145,17 @@ class VectorStore:
             len(documents),
         )
 
+    def delete_documents(self, collection_name: str, ids: list[str]) -> None:
+        """Delete known ids from a collection for controlled-import rollback.
+
+        ChromaDB is optional in AlphaScope, so callers deliberately treat this
+        operation as best effort.  An empty id list must not create a collection.
+        """
+        if not ids:
+            return
+        collection = self.get_collection(collection_name)
+        collection.delete(ids=ids)
+
     def query(
         self,
         collection_name: str,

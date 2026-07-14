@@ -40,6 +40,23 @@ class WalkForwardRequestBody(PreviewOptIn):
     scheme: str = Field(default="anchored", description="切分方案: anchored(锚定) | rolling(滚动)")
 
 
+class PortfolioBacktestRequestBody(PreviewOptIn):
+    """Multi-asset ETF momentum/RSRS portfolio research request."""
+
+    symbols: list[str] = Field(min_length=2, max_length=20, description="ETF代码列表(2-20个)")
+    start_date: str = Field(description="开始日期 YYYY-MM-DD")
+    end_date: str = Field(description="结束日期 YYYY-MM-DD")
+    initial_capital: float = Field(default=1000000.0, description="初始资金")
+    params: dict[str, Any] = Field(default_factory=dict, description="ETF动量/RSRS参数覆盖")
+
+
+class PortfolioWalkForwardRequestBody(PortfolioBacktestRequestBody):
+    """Multi-asset ETF portfolio walk-forward robustness request."""
+
+    n_splits: int = Field(default=3, description="样本外窗口数(1-12, 数据不足时自动收敛)")
+    scheme: str = Field(default="anchored", description="切分方案: anchored(锚定) | rolling(滚动)")
+
+
 class ChipDistributionRequestBody(PreviewOptIn):
     """筹码(成本)分布请求体。"""
 

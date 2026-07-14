@@ -20,6 +20,8 @@ from backend.api.quant_core import (
     _run_chip_distribution_local,
     _run_evolution_local,
     _run_local_backtest,
+    _run_portfolio_backtest_local,
+    _run_portfolio_walk_forward_local,
     _run_patterns_local,
     _run_strategy_comparison_local,
     _run_walk_forward_local,
@@ -33,6 +35,8 @@ from backend.api.quant_schemas import (
     LiveStartBody,
     LiveStopBody,
     PatternsRequestBody,
+    PortfolioBacktestRequestBody,
+    PortfolioWalkForwardRequestBody,
     StockPoolExportRequest,
     StrategyCompareRequestBody,
     TdxCompileRequestBody,
@@ -160,6 +164,38 @@ async def run_walk_forward_endpoint(body: WalkForwardRequestBody):
             success=False,
             error=str(e),
             error_code="LOCAL_WALK_FORWARD_ERROR",
+        )
+
+
+@router.post("/portfolio/backtest")
+async def run_portfolio_backtest_endpoint(body: PortfolioBacktestRequestBody):
+    """Run the local-only ETF momentum + RSRS portfolio research baseline.
+
+    The endpoint accepts multiple ETF symbols, makes decisions at each close,
+    and fills targets at the following open.  It never submits a broker order.
+    """
+    try:
+        result = await asyncio.to_thread(_run_portfolio_backtest_local, body)
+        return ApiResponse(success=True, data=result, message=result.get("message"))
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            error=str(e),
+            error_code="LOCAL_PORTFOLIO_BACKTEST_ERROR",
+        )
+
+
+@router.post("/portfolio/walk-forward")
+async def run_portfolio_walk_forward_endpoint(body: PortfolioWalkForwardRequestBody):
+    """Run date-based IS/OOS robustness analysis for ETF portfolio rotation."""
+    try:
+        result = await asyncio.to_thread(_run_portfolio_walk_forward_local, body)
+        return ApiResponse(success=True, data=result, message=result.get("message"))
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            error=str(e),
+            error_code="LOCAL_PORTFOLIO_WALK_FORWARD_ERROR",
         )
 
 

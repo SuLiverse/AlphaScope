@@ -19,6 +19,8 @@ from backend.api.quant_schemas import (
     ChipDistributionRequestBody,
     EvolveRequestBody,
     PatternsRequestBody,
+    PortfolioBacktestRequestBody,
+    PortfolioWalkForwardRequestBody,
     PreviewOptIn,
     StrategyCompareRequestBody,
     WalkForwardRequestBody,
@@ -29,6 +31,8 @@ from backend.stock_resolver import resolve_stock
 _local_runs: list[dict[str, Any]] = []
 _local_run_details: dict[str, dict[str, Any]] = {}
 QUANT_PROVIDER_TIMEOUT_SECONDS = 8.0
+_MAX_HISTORY_DAYS = 10_000
+_COVERAGE_TOLERANCE_DAYS = 14
 
 
 def _infer_param_type(value: Any) -> str:
@@ -90,6 +94,7 @@ def _local_status_payload() -> dict[str, Any]:
         "capabilities": {
             "strategy_params": True,
             "single_symbol_backtest": True,
+            "portfolio_rotation_backtest": True,
             "run_history": True,
             "risk_audit": True,
             "live_trading": False,
@@ -178,6 +183,30 @@ def _generate_preview_bars(
     return bars
 
 
+def _history_limit(start_dt: datetime, end_dt: datetime, minimum_bars: int) -> int:
+    """Request enough rows for the supplied range without a silent 1,000-bar cap."""
+    requested_days = max(0, (end_dt - start_dt).days)
+    if requested_days > _MAX_HISTORY_DAYS:
+        raise ValueError(f"请求的历史区间超过 {_MAX_HISTORY_DAYS} 天，请缩小日期范围后重试")
+    return max(120, minimum_bars, requested_days + 30)
+
+
+def _covers_requested_dates(bars: list[dict[str, Any]], start_dt: datetime, end_dt: datetime) -> bool:
+    """Allow normal market holidays while rejecting a partial cached range."""
+    if not bars:
+        return False
+    try:
+        dates = sorted({datetime.fromisoformat(str(bar.get("date") or "")[:10]) for bar in bars})
+    except (AttributeError, TypeError, ValueError):
+        return False
+    if not dates:
+        return False
+    tolerance = timedelta(days=_COVERAGE_TOLERANCE_DAYS)
+    if dates[0] > start_dt + tolerance or dates[-1] < end_dt - tolerance:
+        return False
+    return all(current - previous <= tolerance for previous, current in zip(dates, dates[1:]))
+
+
 def _load_local_bars(
     symbol: str,
     start_date: str,
@@ -185,6 +214,8 @@ def _load_local_bars(
     initial_capital: float,
     *,
     allow_preview_data: bool = False,
+    minimum_bars: int = 30,
+    require_full_coverage: bool = False,
 ) -> tuple[list[dict[str, Any]], str]:
     from backend.price_store import (
         get_market,
@@ -196,7 +227,7 @@ def _load_local_bars(
     normalized_symbol = normalize_symbol(symbol) or symbol
     start_dt = _parse_date(start_date, datetime.now() - timedelta(days=365))
     end_dt = _parse_date(end_date, datetime.now())
-    limit = max(120, min(1000, (end_dt - start_dt).days + 30))
+    limit = _history_limit(start_dt, end_dt, minimum_bars)
 
     bars = _clean_bars(
         get_prices(
@@ -208,7 +239,7 @@ def _load_local_bars(
         ),
         normalized_symbol,
     )
-    if len(bars) >= 30:
+    if len(bars) >= minimum_bars and (not require_full_coverage or _covers_requested_dates(bars, start_dt, end_dt)):
         return bars, "local_price_store"
 
     try:
@@ -232,7 +263,9 @@ def _load_local_bars(
         if provider_bars:
             save_price_bars(provider_bars)
             bars = _clean_bars(provider_bars, normalized_symbol)
-            if len(bars) >= 30:
+            if len(bars) >= minimum_bars and (
+                not require_full_coverage or _covers_requested_dates(bars, start_dt, end_dt)
+            ):
                 return bars, "provider"
     except Exception:
         pass
@@ -267,6 +300,7 @@ def _require_bars(
     end_date: str,
     initial_capital: float = 1_000_000.0,
     min_bars: int = 30,
+    require_full_coverage: bool = False,
 ) -> tuple[list[dict[str, Any]], str]:
     """统一取数 + 守卫：不足且未 opt-in preview 时 raise，供各 quant runner 复用。"""
     bars, data_source = _load_local_bars(
@@ -275,6 +309,8 @@ def _require_bars(
         end_date=end_date,
         initial_capital=initial_capital,
         allow_preview_data=body.allow_preview_data,
+        minimum_bars=min_bars,
+        require_full_coverage=require_full_coverage,
     )
     if data_source == "unavailable" or len(bars) < min_bars:
         raise ValueError(_MSG_NEED_REAL_OR_PREVIEW)
@@ -298,6 +334,95 @@ def _source_fields(data_source: str, *, extra_degraded: bool = False) -> dict[st
         "is_preview": is_preview,
         "degraded": is_preview or extra_degraded,
     }
+
+
+def _unique_portfolio_symbols(symbols: list[str]) -> list[str]:
+    """Normalize request text enough to avoid duplicate portfolio legs."""
+    unique: list[str] = []
+    seen: set[str] = set()
+    for raw in symbols or []:
+        symbol = str(raw or "").strip().upper()
+        if symbol and symbol not in seen:
+            seen.add(symbol)
+            unique.append(symbol)
+    if len(unique) < 2:
+        raise ValueError("ETF组合回测至少需要两个不重复标的")
+    if len(unique) > 20:
+        raise ValueError("ETF组合回测最多支持20个标的")
+    return unique
+
+
+def _require_portfolio_bars(
+    body: PortfolioBacktestRequestBody,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str]]:
+    """Load each ETF through the existing guarded local/provider/preview path."""
+    from backend.quant.etf_rotation import make_config
+
+    minimum_bars = make_config(body.params).warmup_bars + 2
+    bars_by_symbol: dict[str, list[dict[str, Any]]] = {}
+    source_by_symbol: dict[str, str] = {}
+    for symbol in _unique_portfolio_symbols(body.symbols):
+        bars, data_source = _require_bars(
+            body,
+            symbol=symbol,
+            start_date=body.start_date,
+            end_date=body.end_date,
+            initial_capital=body.initial_capital,
+            min_bars=minimum_bars,
+            require_full_coverage=True,
+        )
+        normalized = str(bars[0].get("symbol") or symbol) if bars else symbol
+        if normalized in bars_by_symbol:
+            continue
+        bars_by_symbol[normalized] = bars
+        source_by_symbol[normalized] = data_source
+    if len(bars_by_symbol) < 2:
+        raise ValueError("ETF组合回测需要两个可用且不重复的标的")
+    return bars_by_symbol, source_by_symbol
+
+
+def _portfolio_source_fields(source_by_symbol: dict[str, str]) -> dict[str, Any]:
+    """Represent a mixed-source portfolio without pretending every leg is equal."""
+    sources = set(source_by_symbol.values())
+    is_preview = "local_preview" in sources
+    if not sources:
+        data_source = "unavailable"
+    elif len(sources) == 1:
+        data_source = next(iter(sources))
+    else:
+        data_source = "mixed"
+    return {
+        "data_source": data_source,
+        "data_source_label": "混合数据源"
+        if data_source == "mixed"
+        else _source_fields(data_source)["data_source_label"],
+        "data_sources": dict(source_by_symbol),
+        "is_preview": is_preview,
+        "degraded": is_preview or data_source == "mixed",
+    }
+
+
+def _remember_portfolio_run(payload: dict[str, Any], *, list_mode: str) -> None:
+    """Keep portfolio research discoverable through the existing run history APIs."""
+    _local_runs.insert(
+        0,
+        {
+            "run_id": payload["run_id"],
+            "strategy_id": payload["strategy_id"],
+            "symbol": payload["symbol"],
+            "mode": list_mode,
+            "status": payload["status"],
+            "total_return": (payload.get("metrics") or {}).get("total_return", 0.0),
+            "started_at": payload["started_at"],
+            "finished_at": payload["finished_at"],
+            "source_status": payload["source_status"],
+            "data_source": payload.get("data_source", ""),
+        },
+    )
+    del _local_runs[20:]
+    _local_run_details[payload["run_id"]] = payload
+    for stale_run_id in list(_local_run_details.keys())[50:]:
+        _local_run_details.pop(stale_run_id, None)
 
 
 def _persist_experiment(payload: dict[str, Any]) -> None:
@@ -405,6 +530,135 @@ def _run_local_backtest(body: BacktestRequestBody) -> dict[str, Any]:
     _local_run_details[run_id] = payload
     for stale_run_id in list(_local_run_details.keys())[50:]:
         _local_run_details.pop(stale_run_id, None)
+    _persist_experiment(payload)
+    return payload
+
+
+def _run_portfolio_backtest_local(body: PortfolioBacktestRequestBody) -> dict[str, Any]:
+    """Run the clean-room ETF momentum + RSRS portfolio research engine."""
+    from backend.quant.etf_rotation import run_etf_rotation_backtest
+
+    bars_by_symbol, source_by_symbol = _require_portfolio_bars(body)
+    report = run_etf_rotation_backtest(
+        bars_by_symbol,
+        initial_capital=body.initial_capital,
+        params=body.params,
+    )
+    now = datetime.now()
+    run_id = f"etf-{now.strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}"
+    performance = report.get("performance", {}) or {}
+    source_fields = _portfolio_source_fields(source_by_symbol)
+    dates = report.get("dates", []) or []
+    equity_values = report.get("equity_curve", []) or []
+    equity_curve = [
+        {"date": date, "equity": equity_values[index + 1], "value": equity_values[index + 1]}
+        for index, date in enumerate(dates)
+        if index + 1 < len(equity_values)
+    ]
+    status = "completed" if report.get("status") == "ok" else "insufficient_data"
+    symbol_label = "ETF:" + ",".join(report.get("universe", []))
+    payload = {
+        "run_id": run_id,
+        "mode": "backtest",
+        "run_kind": "portfolio_rotation",
+        "strategy_id": report.get("strategy_name", "etf_momentum_rsrs"),
+        "strategy_name": report.get("strategy_name", "etf_momentum_rsrs"),
+        "symbol": symbol_label,
+        "universe": report.get("universe", []),
+        "status": status,
+        "engine": "local_portfolio_rotation",
+        "assumptions": report.get("assumptions", {}),
+        "metrics": {
+            "total_return": performance.get("total_return", 0.0),
+            "annual_return": performance.get("annualized_return", 0.0),
+            "sharpe_ratio": performance.get("sharpe_ratio", 0.0),
+            "max_drawdown": performance.get("max_drawdown", 0.0),
+            "win_rate": performance.get("win_rate", 0.0),
+            "trade_count": performance.get("total_orders", len(report.get("trades", []))),
+            "round_trip_count": performance.get("total_round_trips", 0),
+            "profit_factor": performance.get("profit_factor", 0.0),
+            "sortino_ratio": performance.get("sortino_ratio", 0.0),
+            "calmar_ratio": performance.get("calmar_ratio", 0.0),
+            "initial_capital": body.initial_capital,
+            "final_equity": performance.get("final_equity", body.initial_capital),
+            "trading_days": performance.get("trading_days", len(dates)),
+        },
+        "equity_curve": equity_curve,
+        "trades": report.get("trades", []),
+        "decisions": report.get("decisions", []),
+        "summary": {
+            "aligned_bar_count": len(dates),
+            "decision_count": len(report.get("decisions", [])),
+            "start_date": dates[0] if dates else body.start_date,
+            "end_date": dates[-1] if dates else body.end_date,
+            **source_fields,
+        },
+        "params": body.params,
+        "note": report.get("note", ""),
+        "disclaimer": report.get("disclaimer", ""),
+        "started_at": now.isoformat(),
+        "finished_at": now.isoformat(),
+        "source_status": "local",
+        **source_fields,
+        "message": (
+            "已使用本地样例行情完成ETF组合研究，仅用于功能预览。"
+            if source_fields["is_preview"]
+            else report.get("note", "已完成ETF组合历史研究。")
+        ),
+    }
+    _remember_portfolio_run(payload, list_mode="portfolio_backtest")
+    _persist_experiment(payload)
+    return payload
+
+
+def _run_portfolio_walk_forward_local(body: PortfolioWalkForwardRequestBody) -> dict[str, Any]:
+    """Run date-based ETF portfolio walk-forward analysis without parameter fitting."""
+    from backend.quant.etf_rotation import run_etf_rotation_walk_forward
+
+    bars_by_symbol, source_by_symbol = _require_portfolio_bars(body)
+    report = run_etf_rotation_walk_forward(
+        bars_by_symbol,
+        initial_capital=body.initial_capital,
+        params=body.params,
+        n_splits=body.n_splits,
+        scheme=body.scheme,
+    )
+    now = datetime.now()
+    run_id = f"wf-etf-{now.strftime('%Y%m%d%H%M%S')}-{uuid4().hex[:6]}"
+    source_fields = _portfolio_source_fields(source_by_symbol)
+    status = "completed" if report.get("status") == "ok" else report.get("status", "degraded")
+    symbol_label = "ETF:" + ",".join(report.get("universe", []))
+    payload = {
+        "run_id": run_id,
+        "mode": "walk_forward",
+        "run_kind": "portfolio_rotation",
+        "strategy_id": report.get("strategy_name", "etf_momentum_rsrs"),
+        "strategy_name": report.get("strategy_name", "etf_momentum_rsrs"),
+        "symbol": symbol_label,
+        "universe": report.get("universe", []),
+        "status": status,
+        "engine": "local_portfolio_rotation",
+        "scheme": report.get("scheme", "anchored"),
+        "requested_windows": report.get("requested_windows", body.n_splits),
+        "n_windows": report.get("n_windows", 0),
+        "windows": report.get("windows", []),
+        "aggregate": report.get("aggregate", {}),
+        "full_period": report.get("full_period", {}),
+        "assumptions": report.get("assumptions", {}),
+        "params": body.params,
+        "note": report.get("note", ""),
+        "disclaimer": report.get("disclaimer", ""),
+        "started_at": now.isoformat(),
+        "finished_at": now.isoformat(),
+        "source_status": "local",
+        **source_fields,
+        "message": (
+            "已使用本地样例行情完成ETF组合样本外走查，仅用于功能预览。"
+            if source_fields["is_preview"]
+            else report.get("note", "已完成ETF组合样本外走查。")
+        ),
+    }
+    _remember_portfolio_run(payload, list_mode="portfolio_walk_forward")
     _persist_experiment(payload)
     return payload
 

@@ -51,6 +51,23 @@ def _hk_df() -> pd.DataFrame:
     )
 
 
+def _etf_df() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "日期": ["2026-06-30", "2026-07-01"],
+            "开盘": [4.1, 4.2],
+            "最高": [4.25, 4.3],
+            "最低": [4.05, 4.15],
+            "收盘": [4.2, 4.28],
+            "成交量": [1_000_000, 1_100_000],
+            "成交额": [4_200_000, 4_708_000],
+            "振幅": [4.76, 3.57],
+            "涨跌幅": [1.2, 1.9],
+            "换手率": [2.0, 2.1],
+        }
+    )
+
+
 # ============================================================
 # 1. 符号辅助
 # ============================================================
@@ -80,6 +97,14 @@ def test_looks_like_us_symbol():
     assert ap._looks_like_us_symbol("SH600519") is False
     assert ap._looks_like_us_symbol("00700") is False
     assert ap._looks_like_us_symbol("") is False
+
+
+def test_looks_like_cn_etf():
+    assert ap._looks_like_cn_etf("510300") is True
+    assert ap._looks_like_cn_etf("518880") is True
+    assert ap._looks_like_cn_etf("159915") is True
+    assert ap._looks_like_cn_etf("600519") is False
+    assert ap._looks_like_cn_etf("AAPL") is False
 
 
 # ============================================================
@@ -193,3 +218,57 @@ def test_get_prices_cn_path_untouched(provider, monkeypatch):
     bars = provider.get_prices({"symbol": "600519", "market": "CN", "limit": 5})
     assert bars and bars[0]["market"] == "CN"
     assert called == {"us": 0, "hk": 0}
+
+
+def test_cn_etf_falls_back_to_dedicated_history_endpoint(provider, monkeypatch):
+    seen = {}
+
+    def fake_etf_history(**kwargs):
+        seen.update(kwargs)
+        return _etf_df()
+
+    monkeypatch.setattr(ap.ak, "stock_zh_a_hist", lambda **kwargs: pd.DataFrame(), raising=False)
+    monkeypatch.setattr(ap.ak, "fund_etf_hist_em", fake_etf_history, raising=False)
+    monkeypatch.setattr(
+        provider,
+        "_get_prices_from_eastmoney",
+        lambda *args, **kwargs: pytest.fail("ETF history should precede generic fallbacks"),
+    )
+
+    bars = provider.get_prices(
+        {
+            "symbol": "510300",
+            "market": "CN",
+            "start_date": "2026-06-30",
+            "end_date": "2026-07-01",
+            "period": "daily",
+            "adjust": "",
+        }
+    )
+
+    assert seen == {
+        "symbol": "510300",
+        "period": "daily",
+        "start_date": "20260630",
+        "end_date": "20260701",
+        "adjust": "",
+    }
+    assert [bar["date"] for bar in bars] == ["2026-06-30", "2026-07-01"]
+    assert bars[-1]["close"] == 4.28
+    assert bars[-1]["market"] == "CN"
+    assert bars[-1]["source"] == "akshare:fund_etf_hist_em"
+
+
+def test_cn_etf_history_normalizes_exchange_suffix(provider, monkeypatch):
+    seen = {}
+
+    def fake_etf_history(**kwargs):
+        seen.update(kwargs)
+        return _etf_df()
+
+    monkeypatch.setattr(ap.ak, "fund_etf_hist_em", fake_etf_history, raising=False)
+
+    bars = provider._get_etf_prices("510300.SH", "20260630", "20260701", "daily", "")
+
+    assert bars
+    assert seen["symbol"] == "510300"
