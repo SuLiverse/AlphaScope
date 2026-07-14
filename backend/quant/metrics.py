@@ -210,6 +210,13 @@ def build_performance_summary(
         "final_equity": round(final_equity, 2),
         "trading_days": days,
     }
+    # 选择偏差校正指标(默认 n_trials=1; 扫描/进化侧可再 attach)
+    try:
+        from backend.quant.metrics_advanced import attach_selection_bias_metrics
+
+        summary = attach_selection_bias_metrics(summary, returns, n_trials=1, sharpe_key="sharpe_ratio")
+    except Exception:
+        pass
 
     # 基准相关指标: 无基准或数据不足时优雅降级为 0, 且标记 has_benchmark=False。
     bench_returns = calc_returns(benchmark_curve) if benchmark_curve else []

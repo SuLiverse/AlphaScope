@@ -86,6 +86,10 @@ export const IntegrationCenter: React.FC = () => {
   const [boundary, setBoundary] = useState<BoundaryOverview | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sweepSymbol, setSweepSymbol] = useState('600519');
+  const [sweepBusy, setSweepBusy] = useState(false);
+  const [sweepResult, setSweepResult] = useState<string>('');
+  const [sweepError, setSweepError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -261,6 +265,56 @@ export const IntegrationCenter: React.FC = () => {
           暂无已注册的 adapter
         </div>
       )}
+
+      {/* vectorbt 参数扫描 */}
+      <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.04] p-4">
+        <h3 className="mb-2 text-sm font-medium text-neutral-100">vectorbt 快速参数扫描</h3>
+        <p className="mb-3 text-[11px] text-neutral-500">
+          服务端取行情 + 网格扫描; 结果附 DSR 选择偏差校正。需 pip install vectorbt。不模拟完整 A 股摩擦。
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={sweepSymbol}
+            onChange={(e) => setSweepSymbol(e.target.value)}
+            className="h-9 w-32 rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-neutral-100"
+            placeholder="代码"
+          />
+          <button
+            type="button"
+            disabled={sweepBusy}
+            onClick={async () => {
+              setSweepBusy(true);
+              setSweepError('');
+              setSweepResult('');
+              try {
+                const data = await fetchApi<Record<string, unknown>>('/api/integrations/vectorbt/param-sweep', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    symbol: sweepSymbol.trim(),
+                    days: 250,
+                    param_grid: { fast: [5, 10, 20], slow: [30, 60] },
+                    top_n: 10,
+                  }),
+                });
+                setSweepResult(JSON.stringify(data, null, 2).slice(0, 4000));
+              } catch (err) {
+                setSweepError(err instanceof Error ? err.message : '扫描失败');
+              } finally {
+                setSweepBusy(false);
+              }
+            }}
+            className="h-9 rounded-lg border border-indigo-400/30 bg-indigo-500/15 px-3 text-xs text-indigo-100 disabled:opacity-50"
+          >
+            {sweepBusy ? '扫描中…' : '运行 MA 网格扫描'}
+          </button>
+        </div>
+        {sweepError && <p className="mt-2 text-[11px] text-red-300">{sweepError}</p>}
+        {sweepResult && (
+          <pre className="mt-3 max-h-48 overflow-auto rounded-lg border border-white/5 bg-black/40 p-3 text-[10px] text-neutral-400">
+            {sweepResult}
+          </pre>
+        )}
+      </div>
 
       {/* 免责 */}
       <p className="mt-2 text-[10px] leading-relaxed text-neutral-600">

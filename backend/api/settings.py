@@ -130,6 +130,30 @@ async def local_llm_presets():
     return ApiResponse(success=True, data={"presets": list_local_presets()})
 
 
+@router.get("/routing-packs")
+async def routing_packs():
+    """任务级模型路由预设包(本地优先/成本/质量)。"""
+    from backend.models.task_router import list_routing_packs
+
+    return ApiResponse(success=True, data={"packs": list_routing_packs()})
+
+
+@router.get("/budget")
+async def get_budget_status():
+    """全局 Token/成本预算状态。"""
+    from backend.models.model_registry import ensure_default_budget, get_model_registry
+
+    ensure_default_budget()
+    reg = get_model_registry()
+    return ApiResponse(
+        success=True,
+        data={
+            "check": reg.check_budget("global"),
+            "usage": reg.get_usage_summary(),
+        },
+    )
+
+
 class LocalProbeRequest(BaseModel):
     base_url: str = Field(description="本机 OpenAI 兼容 base_url")
 

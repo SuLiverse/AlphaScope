@@ -381,6 +381,39 @@ def run_agents_with_mode(
     Returns:
         Same shape as run_custom_agents() with additional mode metadata
     """
+    # 可选 LangGraph 旁路(ALPHASCOPE_ORCHESTRATION=langgraph); 失败回退自研
+    if not getattr(run_agents_with_mode, "_skip_langgraph", False):
+        try:
+            from backend.runtime.langgraph_path import orchestration_backend, run_via_langgraph
+
+            if orchestration_backend() == "langgraph" and not getattr(
+                run_agents_with_mode, "_langgraph_reentry", False
+            ):
+                lg = run_via_langgraph(
+                    stock_data,
+                    agent_configs=agent_configs,
+                    global_ai_settings=global_ai_settings,
+                )
+                if isinstance(lg, dict):
+                    return lg
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("langgraph path skipped: %s", exc)
+
+    # 预算门控: 超限则强制 STANDARD / 拒绝 deep
+    try:
+        from backend.models.model_registry import ensure_default_budget, get_model_registry
+        from backend.models.task_router import should_force_cheap_by_budget
+
+        ensure_default_budget()
+        budget = get_model_registry().check_budget("global")
+        if not budget.get("ok", True) and mode != AnalysisMode.STANDARD:
+            logger.warning("预算不足, 降级 STANDARD: %s", budget.get("message"))
+            mode = AnalysisMode.STANDARD
+        if should_force_cheap_by_budget() and isinstance(global_ai_settings, dict):
+            global_ai_settings = {**global_ai_settings, "_force_cheap": True}
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("budget gate skipped: %s", exc)
+
     # 数据完整性预检(v1.9.4): 在任何 LLM 调用前做确定性核验, 缺失维度打标后
     # 注入简报, 杜绝下游 Agent 对缺失数据「脑补」。失败不阻断主流程。
     from backend.agents.data_verifier import verify_data
@@ -708,6 +741,35 @@ def run_agents_with_mode(
     except Exception as exc:  # noqa: BLE001
         logger.debug("Quant Referee 失败, 跳过: %s", exc)
 
+    # 可选外部 TradingAgents 意见(ALPHASCOPE_EXTERNAL_AGENT=tradingagents); 失败安全, 不接实盘
+    external_agent = None
+    try:
+        import os as _os2
+
+        if _os2.environ.get("ALPHASCOPE_EXTERNAL_AGENT", "").strip().lower() in {
+            "tradingagents",
+            "1",
+            "true",
+        }:
+            from backend.integrations.registry import get_registry
+
+            reg = get_registry()
+            if reg.has("tradingagents"):
+                ad = reg.get("tradingagents")
+                if ad.is_available():
+                    external_agent = ad.analyze(
+                        symbol=str(stock_data.get("symbol") or ""),
+                        name=str(stock_data.get("name") or ""),
+                    )
+                    if external_agent and isinstance(external_agent, dict):
+                        research_report += (
+                            "\n\n### 外部 Agent 团队 (TradingAgents)\n"
+                            f"- 状态: 已合并研究意见(研究语义, 禁止实盘)\n"
+                            f"- 摘要: {str(external_agent)[:800]}\n"
+                        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("external tradingagents skipped: %s", exc)
+
     # Citation Validator(P0): 数字/证据编号可追溯核验; 未核验则建议置信度上限。
     citation_validation = None
     try:
@@ -756,6 +818,7 @@ def run_agents_with_mode(
         "debate": debate,
         "quant_referee": quant_referee,
         "citation_validation": citation_validation,
+        "external_agent": external_agent,
         "data_verification": verification.to_dict(),
         "mode": mode.value,
         "mode_name": config.name,

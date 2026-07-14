@@ -128,6 +128,9 @@ export function ApiKeysTab({
 }: ApiKeysTabProps) {
   const [localPresets, setLocalPresets] = useState<LocalLlmPreset[]>([]);
   const [localPresetHint, setLocalPresetHint] = useState('');
+  const [routingPacks, setRoutingPacks] = useState<
+    Array<{ id: string; name: string; description?: string; routes?: Record<string, { providerId: string; modelId: string }> }>
+  >([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +140,12 @@ export function ApiKeysTab({
         if (!cancelled) setLocalPresets(Array.isArray(data?.presets) ? data.presets : []);
       } catch {
         if (!cancelled) setLocalPresets([]);
+      }
+      try {
+        const packs = await fetchApi<{ packs: typeof routingPacks }>('/api/settings/routing-packs');
+        if (!cancelled) setRoutingPacks(Array.isArray(packs?.packs) ? packs.packs : []);
+      } catch {
+        if (!cancelled) setRoutingPacks([]);
       }
     })();
     return () => {
@@ -287,6 +296,37 @@ export function ApiKeysTab({
                             <p className="mt-2 text-[11px] text-neutral-500">
                               填入后需本机推理服务在线；默认禁止未授权的私网 Base URL。
                             </p>
+                          )}
+                          {routingPacks.length > 0 && (
+                            <div className="mt-3 border-t border-white/5 pt-3">
+                              <p className="mb-2 text-[11px] text-neutral-400">任务路由预设包（写入本机模型路由）</p>
+                              <div className="flex flex-wrap gap-2">
+                                {routingPacks.map((pack) => (
+                                  <button
+                                    key={pack.id}
+                                    type="button"
+                                    title={pack.description}
+                                    onClick={() => {
+                                      try {
+                                        const key = 'alphascope:ai-model-routes-v1';
+                                        const prev = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, unknown>;
+                                        const routes = { ...(prev.routes as object || {}), ...(pack.routes || {}) };
+                                        localStorage.setItem(
+                                          key,
+                                          JSON.stringify({ ...prev, useUnifiedModel: false, routes }),
+                                        );
+                                        setLocalPresetHint(`已应用路由包「${pack.name}」。请到「模型路由」Tab 核对。`);
+                                      } catch {
+                                        setLocalPresetHint('写入路由包失败');
+                                      }
+                                    }}
+                                    className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-100"
+                                  >
+                                    {pack.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
                       )}

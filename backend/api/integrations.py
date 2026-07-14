@@ -139,6 +139,90 @@ class RunRequest(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class ParamSweepRequest(BaseModel):
+    """vectorbt 参数扫描便捷入参: 服务端按 symbol 取 bars。"""
+
+    symbol: str = Field(description="标的代码")
+    days: int = Field(default=250, ge=30, le=2000)
+    param_grid: dict[str, list] | None = Field(default=None)
+    metric: str = Field(default="sharpe")
+    top_n: int = Field(default=20, ge=1, le=100)
+
+
+@router.post("/vectorbt/param-sweep")
+async def vectorbt_param_sweep(req: ParamSweepRequest) -> ApiResponse:
+    """产品化参数扫描: 从本地 price_store 取数 + vectorbt param_sweep + DSR。"""
+    try:
+        import asyncio
+
+        from backend.integrations.registry import get_registry
+        from backend.price_store import get_prices
+        from backend.quant.metrics_advanced import attach_selection_bias_metrics
+
+        assert_boundary_invariant()
+        reg = get_registry()
+        if not reg.has("vectorbt"):
+            return ApiResponse(success=False, error="vectorbt adapter 未注册")
+        adapter = reg.get("vectorbt")
+        if not adapter.is_available():
+            return ApiResponse(
+                success=False,
+                error="vectorbt 不可用, 请 pip install vectorbt",
+            )
+
+        bars = await asyncio.to_thread(
+            lambda: get_prices(symbol=req.symbol, frequency="1d", limit=req.days)
+        )
+        if not bars or len(bars) < 30:
+            return ApiResponse(success=False, error="行情不足, 请先拉取价格数据")
+
+        raw = await asyncio.to_thread(
+            adapter.param_sweep,
+            bars=bars,
+            param_grid=req.param_grid,
+            metric=req.metric,
+            top_n=req.top_n,
+        )
+        # attach DSR on top result if returns present
+        n_trials = 1
+        if isinstance(raw, dict):
+            grid = req.param_grid or {}
+            n_trials = 1
+            for v in grid.values():
+                if isinstance(v, list) and v:
+                    n_trials *= len(v)
+            n_trials = max(1, n_trials)
+            top = raw.get("top") or raw.get("results") or []
+            if isinstance(top, list):
+                enriched = []
+                for row in top:
+                    if not isinstance(row, dict):
+                        enriched.append(row)
+                        continue
+                    metrics = dict(row.get("metrics") or row)
+                    rets = row.get("returns") or []
+                    if not rets and "equity_curve" in row:
+                        eq = row["equity_curve"]
+                        rets = [
+                            (eq[i] - eq[i - 1]) / eq[i - 1]
+                            for i in range(1, len(eq))
+                            if eq[i - 1]
+                        ]
+                    metrics = attach_selection_bias_metrics(
+                        metrics, rets, n_trials=n_trials, sharpe_key="sharpe"
+                    )
+                    enriched.append({**row, "metrics": metrics})
+                raw = {**raw, "top": enriched, "n_trials": n_trials}
+            raw["disclaimer"] = (
+                "vectorbt 扫描不完整模拟 A 股摩擦; DSR 校正多重尝试偏差; 不构成投资建议。"
+            )
+        return ApiResponse(success=True, data=raw)
+    except BoundaryViolation as e:
+        return ApiResponse(success=False, error=f"交易边界拒绝: {e}")
+    except Exception as e:
+        return ApiResponse(success=False, error=str(e))
+
+
 @router.post("/{name}/run")
 async def run_integration(name: str, req: RunRequest) -> ApiResponse:
     """触发 adapter 的某项能力 (受边界守卫)。

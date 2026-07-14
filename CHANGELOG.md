@@ -1,5 +1,31 @@
 # Changelog
 
+## v1.9.54 - 2026-07-15
+
+> **战略规划全量工程波次**：限流/预算/DSR/新闻缓存/LangGraph 旁路/评测/vectorbt UI/证据图谱/路由包。
+
+### 安全与成本
+- 进程内滑动窗口限流（`safety.yaml` rpm/rph；高成本 POST 路径 429）
+- 全局 Token/成本预算默认武装（`ALPHASCOPE_DAILY_TOKEN_LIMIT` / `DAILY_COST_USD`）
+- `GET /api/settings/budget`、`GET /api/quality/cache-stats`
+
+### 量化
+- Probabilistic / Deflated Sharpe（`metrics_advanced`，并入绩效摘要）
+- `POST /api/integrations/vectorbt/param-sweep` + 集成中心 UI 扫描面板
+
+### 编排与模型
+- 可选 `ALPHASCOPE_ORCHESTRATION=langgraph` 旁路（失败回退自研）
+- 任务路由 `task_router` + `GET /api/settings/routing-packs`（本地优先/成本/质量）
+- 预算紧张时强制 cheap / 降级 STANDARD
+
+### 数据与证据
+- 新闻 Provider 180s TTL + stale 回退
+- 研报归档自动写入 RAG `report_chunks`
+- 证据链页 SVG 关联图谱（`/api/evidence/chain/graph`）
+
+### 评测
+- `backend/eval/agent_benchmark.py` + `GET /api/quality/agent-benchmark`（无 LLM 回归）
+
 ## v1.9.53 - 2026-07-15
 
 > **护城河 + 工程债 + 本地模型 + 文档对齐** 一整包落地（备份分支 `backup/pre-p0-agent-evolution-20260715`）。

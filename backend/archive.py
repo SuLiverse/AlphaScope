@@ -147,6 +147,26 @@ def save_report(
     fpath = sub_dir / fname
     fpath.write_text(report_md, encoding="utf-8")
 
+    # v1.9.54: 归档同步写入 RAG report_chunks, 供后续分析检索历史研报
+    try:
+        from backend.rag.retriever import Retriever
+
+        Retriever().index_document(
+            collection="report_chunks",
+            text=report_md[:12000],
+            metadata={
+                "symbol": safe_symbol,
+                "name": stock_name,
+                "doc_type": "internal_research",
+                "report_type": report_type,
+                "path": str(fpath),
+                "trust": "internal",
+                "archive_id": f"archive:{safe_symbol}:{now.strftime('%Y%m%d%H%M%S')}",
+            },
+        )
+    except Exception:
+        pass
+
     # 抽取每个 Agent 的模型快照（用于回测不同模型组合的胜率）
     agent_models = {}
     agents_dict = (llm_result or {}).get("agents", {}) or {}

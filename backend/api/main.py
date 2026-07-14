@@ -221,6 +221,42 @@ if HAS_FASTAPI:
             )
         return await call_next(request)
 
+    @app.middleware("http")
+    async def enforce_rate_limit(request: Request, call_next):
+        """高成本写路径限流(safety.yaml rpm/rph); 失败安全放行。"""
+        try:
+            from backend.security.rate_limit import (
+                check_rate_limit,
+                client_key_from_request,
+                is_expensive_path,
+            )
+
+            path = request.url.path or ""
+            method = (request.method or "GET").upper()
+            if method in {"POST", "PUT", "PATCH", "DELETE"} and is_expensive_path(path):
+                decision = check_rate_limit(client_key_from_request(request), cost=1)
+                if not decision.get("allowed", True):
+                    return JSONResponse(
+                        status_code=429,
+                        content=ApiResponse(
+                            success=False,
+                            error=f"请求过于频繁, 请 {decision.get('retry_after_sec', 1)}s 后重试",
+                            error_code="rate_limited",
+                        ).model_dump(),
+                        headers={"Retry-After": str(int(decision.get("retry_after_sec") or 1))},
+                    )
+        except Exception:
+            pass
+        return await call_next(request)
+
+    # 武装全局 Token 预算(首次调用 registry 时也会自动装)
+    try:
+        from backend.models.model_registry import ensure_default_budget
+
+        ensure_default_budget()
+    except Exception:
+        pass
+
     # ============== 注册路由 ==============
 
     from backend.api.settings import router as settings_router

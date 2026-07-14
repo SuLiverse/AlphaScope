@@ -172,10 +172,18 @@ class ModelRegistry:
                 "limit": budget.cost_limit_usd,
             }
 
+        token_ratio = (budget.used_today / budget.daily_limit) if budget.daily_limit else 0.0
+        cost_ratio = (budget.cost_today_usd / budget.cost_limit_usd) if budget.cost_limit_usd else 0.0
+        used_ratio = max(token_ratio, cost_ratio)
         return {
             "ok": True,
             "remaining_tokens": budget.daily_limit - budget.used_today,
             "remaining_cost": budget.cost_limit_usd - budget.cost_today_usd,
+            "used_ratio": round(used_ratio, 4),
+            "used_today": budget.used_today,
+            "daily_limit": budget.daily_limit,
+            "cost_today_usd": round(budget.cost_today_usd, 4),
+            "cost_limit_usd": budget.cost_limit_usd,
         }
 
     def record_usage(self, model: str, input_tokens: int, output_tokens: int, cost_usd: float = 0):
@@ -217,9 +225,44 @@ class ModelRegistry:
 _registry: Optional[ModelRegistry] = None
 
 
+def ensure_default_budget(registry: Optional[ModelRegistry] = None) -> TokenBudget:
+    """武装全局预算(仅当尚未 set_budget)。环境变量可覆盖:
+
+    ALPHASCOPE_DAILY_TOKEN_LIMIT (默认 1_000_000)
+    ALPHASCOPE_DAILY_COST_USD (默认 20)
+    ALPHASCOPE_BUDGET_DISABLED=1 则设极大限额
+    """
+    reg = registry or get_model_registry()
+    if "global" in reg._budgets:
+        return reg._budgets["global"]
+    if os.getenv("ALPHASCOPE_BUDGET_DISABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        budget = TokenBudget(daily_limit=10**12, monthly_limit=10**15, cost_limit_usd=1e9)
+    else:
+        try:
+            daily = int(os.getenv("ALPHASCOPE_DAILY_TOKEN_LIMIT", "1000000"))
+        except ValueError:
+            daily = 1_000_000
+        try:
+            cost = float(os.getenv("ALPHASCOPE_DAILY_COST_USD", "20"))
+        except ValueError:
+            cost = 20.0
+        budget = TokenBudget(daily_limit=max(1000, daily), cost_limit_usd=max(0.5, cost))
+    reg.set_budget("global", budget)
+    logger.info(
+        "Token budget armed: daily_tokens=%s cost_usd=%s",
+        budget.daily_limit,
+        budget.cost_limit_usd,
+    )
+    return budget
+
+
 def get_model_registry() -> ModelRegistry:
     """获取全局模型注册中心"""
     global _registry
     if _registry is None:
         _registry = ModelRegistry()
+        try:
+            ensure_default_budget(_registry)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("default budget arm skipped: %s", exc)
     return _registry

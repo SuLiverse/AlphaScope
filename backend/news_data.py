@@ -1619,35 +1619,72 @@ def fetch_news_via_provider(
 
     v0.12: 优先通过 DataPipeline 采集 (含去重/排序/存储/索引),
     Pipeline 不可用时回退到 Provider Registry, 最终回退到原有函数。
-    """
-    # v0.12: 优先使用 Pipeline
-    try:
-        from backend.pipeline import get_pipeline
 
-        results = get_pipeline().ingest_news(market=market, symbol=symbol, limit=limit)
-        if results:
-            return results
+    v1.9.54: 进程内 TTL 缓存(默认 180s); 上游失败时返回 stale 缓存。
+    """
+    cache_key = f"news:{market}:{symbol or '_'}:{int(limit)}"
+    ttl = 180
+    try:
+        from backend.cache import get_cache
+
+        hit = get_cache().get(cache_key)
+        if isinstance(hit, list) and hit:
+            return hit
     except Exception:
         pass
 
-    # v0.11 回退: 直接使用 Registry
-    registry = _get_registry()
-    if registry:
-        results = registry.get(
-            data_type="news",
-            market=market,
-            symbol=symbol,
-            limit=limit,
-        )
-        if results:
-            return results
+    def _fetch() -> List[Dict[str, Any]]:
+        # v0.12: 优先使用 Pipeline
+        try:
+            from backend.pipeline import get_pipeline
 
-    # 最终回退到原有实现
-    return merge_news_items(
-        fetch_telegraph_cls(limit=limit),
-        fetch_telegraph_em(limit=limit),
-        fetch_telegraph_sina(limit=min(limit, 20)),
-    )
+            results = get_pipeline().ingest_news(market=market, symbol=symbol, limit=limit)
+            if results:
+                return results
+        except Exception:
+            pass
+
+        # v0.11 回退: 直接使用 Registry
+        registry = _get_registry()
+        if registry:
+            results = registry.get(
+                data_type="news",
+                market=market,
+                symbol=symbol,
+                limit=limit,
+            )
+            if results:
+                return results
+
+        # 最终回退到原有实现
+        return merge_news_items(
+            fetch_telegraph_cls(limit=limit),
+            fetch_telegraph_em(limit=limit),
+            fetch_telegraph_sina(limit=min(limit, 20)),
+        )
+
+    results: List[Dict[str, Any]] = []
+    try:
+        results = _fetch() or []
+        if results:
+            try:
+                from backend.cache import get_cache
+
+                get_cache().set(cache_key, results, ttl_seconds=ttl)
+            except Exception:
+                pass
+            return results
+    except Exception as exc:
+        logger.debug("news fetch failed: %s", exc)
+        try:
+            from backend.cache import get_cache
+
+            stale = get_cache().get(cache_key)
+            if isinstance(stale, list) and stale:
+                return stale
+        except Exception:
+            pass
+    return results
 
 
 def fetch_reports_via_provider(
