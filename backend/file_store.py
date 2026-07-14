@@ -57,6 +57,8 @@ def save_document(
     file_path: str = "",
     content_hash: str = "",
     source_type: str = "upload",
+    source_url: str = "",
+    trust_score: float = 0.5,
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _ensure_schema()
@@ -68,9 +70,9 @@ def save_document(
     # 写完提交后在锁外再调 get_document 读回结果。
     with db.transaction() as conn:
         conn.execute(
-            "INSERT INTO documents (id, title, file_path, content_hash, source_type, metadata, created_at) "
-            "VALUES (?,?,?,?,?,?,?)",
-            (doc_id, title, file_path, content_hash, source_type, meta_json, now),
+            "INSERT INTO documents (id, title, file_path, content_hash, source_type, source_url, trust_score, metadata, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (doc_id, title, file_path, content_hash, source_type, source_url, trust_score, meta_json, now),
         )
         conn.commit()
     return get_document(doc_id)
@@ -98,6 +100,29 @@ def list_documents(source_type: Optional[str] = None, limit: int = 50) -> list[d
     return [_row_to_doc(r) for r in rows]
 
 
+def find_documents_by_content_hash(content_hash_value: str, source_type: Optional[str] = None) -> list[dict[str, Any]]:
+    """Find documents by an exact content hash for idempotent controlled imports.
+
+    The normal upload path historically stores MD5 values, whereas controlled
+    corpora use a ``sha256:`` prefix.  Keeping this an exact lookup avoids
+    accidentally treating the two schemes as equivalent.
+    """
+    _ensure_schema()
+    db = Database()
+    with db.transaction() as conn:
+        if source_type:
+            rows = conn.execute(
+                "SELECT * FROM documents WHERE content_hash=? AND source_type=? ORDER BY created_at DESC",
+                (content_hash_value, source_type),
+            ).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM documents WHERE content_hash=? ORDER BY created_at DESC",
+                (content_hash_value,),
+            ).fetchall()
+    return [_row_to_doc(row) for row in rows]
+
+
 def delete_document(doc_id: str) -> bool:
     _ensure_schema()
     db = Database()
@@ -118,6 +143,7 @@ def _row_to_doc(row) -> dict[str, Any]:
         "file_path": row["file_path"] or "",
         "content_hash": row["content_hash"] or "",
         "source_type": row["source_type"] or "upload",
+        "source_url": row["source_url"] or "",
         "metadata": json.loads(row["metadata"] or "{}"),
         "trust_score": row["trust_score"] or 0.5,
         "created_at": row["created_at"],

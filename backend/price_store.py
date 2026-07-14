@@ -80,6 +80,9 @@ def get_market(symbol: str) -> str:
         return "US"  # 美股（字母代码）
     if len(code) == 5:
         return "HK"  # 港股（5 位数字）
+    if len(code) == 6 and code.isdigit():
+        # A 股、ETF、可转债等境内证券共用六位数字代码；ETF 常见于 5/15/16 开头。
+        return "CN"
     if code.startswith("6"):
         return "CN"  # 上交所
     if code.startswith(("0", "3")):

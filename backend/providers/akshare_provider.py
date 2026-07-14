@@ -73,6 +73,17 @@ def _looks_like_us_symbol(symbol: str) -> bool:
     return bool(re.fullmatch(r"[A-Z][A-Z0-9.]{0,9}", s))
 
 
+def _looks_like_cn_etf(symbol: str) -> bool:
+    """Return whether a numeric CN code belongs to the ETF/fund range.
+
+    The dedicated AkShare endpoint is a fallback after stock history fails, so
+    keeping this narrow avoids an unnecessary second request for ordinary A
+    shares while covering Shanghai ETF and Shenzhen ETF/LOF code ranges.
+    """
+    digits = "".join(ch for ch in str(symbol or "") if ch.isdigit())
+    return len(digits) == 6 and digits.startswith(("5", "15", "16"))
+
+
 class AkShareProvider(BaseProvider):
     name = "akshare"
     markets = ["CN", "HK", "US", "ALL"]
@@ -278,10 +289,7 @@ class AkShareProvider(BaseProvider):
                 adjust=adjust,
             )
             if df is None or len(df) == 0:
-                em = self._get_prices_from_eastmoney(symbol, start_date, end_date)
-                if em:
-                    return em
-                return self._get_prices_from_tencent(symbol, start_date, end_date)
+                return self._get_cn_price_fallbacks(symbol, start_date, end_date, period, adjust)
             results = []
             for _, row in df.iterrows():
                 results.append(
@@ -306,10 +314,76 @@ class AkShareProvider(BaseProvider):
             return results
         except Exception as e:
             logger.debug("AkShare prices failed: %s", e)
+        return self._get_cn_price_fallbacks(symbol, start_date, end_date, period, adjust)
+
+    def _get_cn_price_fallbacks(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        period: str,
+        adjust: str,
+    ) -> list[dict]:
+        """Try the ETF-specific endpoint before generic CN price fallbacks."""
+        etf = self._get_etf_prices(symbol, start_date, end_date, period, adjust)
+        if etf:
+            return etf
         em = self._get_prices_from_eastmoney(symbol, start_date, end_date)
         if em:
             return em
         return self._get_prices_from_tencent(symbol, start_date, end_date)
+
+    def _get_etf_prices(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        period: str,
+        adjust: str,
+    ) -> list[dict]:
+        """Fetch mainland ETF history when the stock endpoint has no data."""
+        if not _looks_like_cn_etf(symbol):
+            return []
+        etf_symbol = "".join(ch for ch in str(symbol) if ch.isdigit())
+        try:
+            df = _safe(
+                ak.fund_etf_hist_em,
+                symbol=etf_symbol,
+                period=period,
+                start_date=start_date.replace("-", ""),
+                end_date=end_date.replace("-", ""),
+                adjust=adjust,
+            )
+            if df is None or len(df) == 0:
+                return []
+            df = df.copy()
+            if "日期" in df.columns:
+                df = df.sort_values("日期")
+            results = []
+            for _, row in df.iterrows():
+                results.append(
+                    {
+                        "symbol": symbol,
+                        "market": "CN",
+                        "date": str(row.get("日期", "")),
+                        "open": _float_value(row.get("开盘", 0)),
+                        "high": _float_value(row.get("最高", 0)),
+                        "low": _float_value(row.get("最低", 0)),
+                        "close": _float_value(row.get("收盘", 0)),
+                        "volume": _float_value(row.get("成交量", 0)),
+                        "amount": _float_value(row.get("成交额", 0)),
+                        "turnover": _float_value(row.get("换手率", 0)),
+                        "amplitude": _float_value(row.get("振幅", 0)),
+                        "change_pct": _float_value(row.get("涨跌幅", 0)),
+                        "adjust": adjust,
+                        "frequency": {"weekly": "1w", "monthly": "1mo"}.get(str(period), "1d"),
+                        "source": "akshare:fund_etf_hist_em",
+                    }
+                )
+            return results
+        except Exception as e:
+            logger.debug("AkShare ETF prices failed for %s: %s", symbol, e)
+            return []
 
     def _get_hk_prices(self, query: dict) -> list[dict]:
         symbol = _normalize_hk_symbol(query.get("symbol", ""))

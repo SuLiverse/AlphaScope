@@ -1,5 +1,8 @@
 # 文档索引
 
+- [外部策略语料与 ETF 轮动研究](strategy-corpus-etf-rotation.md)
+- [WAYLON A股策略语料审计快照](research/ashare-quant-strategies-audit.md)
+
 产品功能以代码与主 `README.md` 为准；本目录只做**文档归位**，不删功能说明内容。
 
 | 路径 | 内容 |

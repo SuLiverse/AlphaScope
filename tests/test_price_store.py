@@ -106,6 +106,13 @@ class TestGetMarket:
 
         assert get_market("830799") == "CN"
 
+    def test_cn_etfs(self):
+        from backend.price_store import get_market
+
+        assert get_market("510300") == "CN"
+        assert get_market("518880") == "CN"
+        assert get_market("159915") == "CN"
+
     def test_hk(self):
         from backend.price_store import get_market
 
