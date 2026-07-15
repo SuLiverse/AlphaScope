@@ -48,6 +48,13 @@ export interface AiModelRoutes {
   routes: Partial<Record<AiRouteKey, AiModelSelection>>;
 }
 
+export interface AiRoutingPack {
+  id: string;
+  name: string;
+  description?: string;
+  routes?: Partial<Record<AiRouteKey, AiModelSelection>>;
+}
+
 export interface ModelOption extends AiModelSelection {
   key: string;
   vision: boolean;
@@ -281,18 +288,35 @@ export function saveLocalAiModelRoutes(routes: AiModelRoutes) {
   window.dispatchEvent(new CustomEvent('ai-model-routes-changed', { detail: routes }));
 }
 
-export async function loadAiModelRoutesFromApi(): Promise<AiModelRoutes> {
-  const result = await fetchApi<{ preferences?: { ai_models?: unknown } }>('/api/settings/preferences');
-  const apiRoutes = normalizeAiModelRoutes(result.preferences?.ai_models);
-  const localRoutes = loadLocalAiModelRoutes();
-  const merged = normalizeAiModelRoutes({
+export function mergeAiModelRouteSources(localValue: unknown, serverValue: unknown): AiModelRoutes {
+  const localRoutes = normalizeAiModelRoutes(localValue);
+  if (serverValue == null) return localRoutes;
+  const serverRoutes = normalizeAiModelRoutes(serverValue);
+  return normalizeAiModelRoutes({
     ...localRoutes,
-    ...apiRoutes,
+    ...serverRoutes,
     routes: {
       ...localRoutes.routes,
-      ...apiRoutes.routes,
+      ...serverRoutes.routes,
     },
   });
+}
+
+export function applyAiRoutingPack(current: AiModelRoutes, pack: AiRoutingPack): AiModelRoutes {
+  return normalizeAiModelRoutes({
+    ...current,
+    useUnifiedModel: false,
+    routes: {
+      ...current.routes,
+      ...(pack.routes || {}),
+    },
+  });
+}
+
+export async function loadAiModelRoutesFromApi(): Promise<AiModelRoutes> {
+  const result = await fetchApi<{ preferences?: { ai_models?: unknown } }>('/api/settings/preferences');
+  const localRoutes = loadLocalAiModelRoutes();
+  const merged = mergeAiModelRouteSources(localRoutes, result.preferences?.ai_models);
   saveLocalAiModelRoutes(merged);
   return merged;
 }
@@ -380,8 +404,16 @@ export function routesToGlobalAiSettings(routes: AiModelRoutes, providers: Model
   if (!base) return undefined;
   const critic = getRouteSelection(routes, providers, 'critic');
   const chairman = getRouteSelection(routes, providers, 'chairman');
+  const taskRoutes: Partial<Record<AiRouteKey, { provider: string; model: string }>> = {};
+  AI_ROUTE_LABELS.forEach(({ key }) => {
+    const route = getRouteSelection(routes, providers, key);
+    if (route.providerId && route.modelId) {
+      taskRoutes[key] = { provider: route.providerId, model: route.modelId };
+    }
+  });
   return {
     ...base,
+    routes: taskRoutes,
     critic: critic.providerId && critic.modelId
       ? { provider: critic.providerId, model: critic.modelId, inherit_global_key: false }
       : undefined,

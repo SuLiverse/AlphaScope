@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 from backend.security.key_vault import decrypt_key, encrypt_key, mask_key
 from backend.storage.db import Database
-from backend.models.provider_gateway import validate_custom_base_url
+from backend.models.provider_gateway import create_ssrf_safe_http_client, validate_custom_base_url
 
 _TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS model_providers (
@@ -535,13 +535,17 @@ def test_connection(provider_id: str) -> dict[str, Any]:
     except ValueError as exc:
         return {"success": False, "error": str(exc)}
 
+    client = None
+    http_client = None
     try:
         from openai import OpenAI
 
+        http_client = create_ssrf_safe_http_client(safe_base_url, timeout=15.0)
         client = OpenAI(
             api_key=provider["api_key"],
             base_url=safe_base_url,
             timeout=15.0,
+            http_client=http_client,
         )
         models = client.models.list()
         model_items = [
@@ -582,7 +586,7 @@ def test_connection(provider_id: str) -> dict[str, Any]:
                         break
                     generation_errors.append(f"{candidate_model}: empty response")
                 except Exception as exc:
-                    generation_errors.append(f"{candidate_model}: {str(exc)[:120]}")
+                    generation_errors.append(f"{candidate_model}: {type(exc).__name__}")
 
             if not generation_model:
                 return {
@@ -617,8 +621,14 @@ def test_connection(provider_id: str) -> dict[str, Any]:
             "generation_preview": generation_preview,
             "message": f"连接成功，发现 {len(model_ids)} 个模型，生成测试通过: {generation_model}",
         }
-    except Exception as e:
-        return {"success": False, "error": f"连接失败: {e}"}
+    except Exception as exc:
+        return {"success": False, "error": f"连接失败 ({type(exc).__name__})"}
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
+        if http_client is not None:
+            http_client.close()
 
 
 def export_settings() -> dict[str, Any]:

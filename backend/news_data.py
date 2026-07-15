@@ -1622,14 +1622,19 @@ def fetch_news_via_provider(
 
     v1.9.54: 进程内 TTL 缓存(默认 180s); 上游失败时返回 stale 缓存。
     """
-    cache_key = f"news:{market}:{symbol or '_'}:{int(limit)}"
+    source_key = ",".join(sorted(str(source) for source in (sources or []) if source)) or "_"
+    cache_key = f"news:{market}:{symbol or '_'}:{int(limit)}:{source_key}"
     ttl = 180
+    stale_ttl = 900
+    stale_news: List[Dict[str, Any]] = []
     try:
         from backend.cache import get_cache
 
-        hit = get_cache().get(cache_key)
+        hit, is_stale = get_cache().get_fresh_or_stale(cache_key, max_stale_seconds=stale_ttl)
         if isinstance(hit, list) and hit:
-            return hit
+            if not is_stale:
+                return hit
+            stale_news = hit
     except Exception:
         pass
 
@@ -1676,15 +1681,8 @@ def fetch_news_via_provider(
             return results
     except Exception as exc:
         logger.debug("news fetch failed: %s", exc)
-        try:
-            from backend.cache import get_cache
-
-            stale = get_cache().get(cache_key)
-            if isinstance(stale, list) and stale:
-                return stale
-        except Exception:
-            pass
-    return results
+    # 空列表与异常同属上游不可用；只在有限 stale 窗口内降级，避免永久陈旧。
+    return stale_news or results
 
 
 def fetch_reports_via_provider(

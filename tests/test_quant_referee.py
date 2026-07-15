@@ -108,6 +108,10 @@ class TestLlmAlignment:
         r = referee_stock(_bullish_stock())
         assert r.llm_alignment in ("未知", "未对比")
 
+    def test_risk_veto_is_not_misread_as_bearish_llm_view(self):
+        r = referee_stock(_bullish_stock(), llm_final="风控否决(集中度超限)")
+        assert r.llm_alignment == "未对比"
+
 
 class TestFormat:
     def test_section_contains_stance_and_disclaimer(self):

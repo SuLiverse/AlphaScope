@@ -10,14 +10,85 @@ Model Registry: 模型注册与管理增强。
 架构文档要求的模型网关增强功能。
 """
 
-import os
-import time
+import json
 import logging
-from typing import Dict, Any, List, Optional
-from dataclasses import dataclass, field
+import os
+import threading
+import time
 from collections import defaultdict
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from datetime import date
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+_BUDGET_PATH_LOCKS: dict[Path, threading.RLock] = {}
+_BUDGET_PATH_LOCKS_GUARD = threading.Lock()
+
+
+def _today_key() -> str:
+    return date.today().isoformat()
+
+
+def _month_key() -> str:
+    return _today_key()[:7]
+
+
+def _budget_state_path() -> Optional[Path]:
+    if os.getenv("ALPHASCOPE_BUDGET_PERSIST_DISABLED", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return None
+    override = os.getenv("ALPHASCOPE_BUDGET_STATE_PATH", "").strip()
+    if override:
+        return Path(override).expanduser()
+    try:
+        from backend.project_paths import DATA_DIR
+
+        return DATA_DIR / "runtime" / "model_budget.json"
+    except Exception:
+        return Path("data/runtime/model_budget.json")
+
+
+def _budget_process_lock(path: Path) -> threading.RLock:
+    resolved = path.resolve()
+    with _BUDGET_PATH_LOCKS_GUARD:
+        return _BUDGET_PATH_LOCKS.setdefault(resolved, threading.RLock())
+
+
+@contextmanager
+def _budget_file_lock(path: Optional[Path]):
+    """Serialize a budget read-modify-write across registry instances and processes."""
+    if path is None:
+        yield
+        return
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lock_path = path.with_suffix(path.suffix + ".lock")
+    with _budget_process_lock(path), lock_path.open("a+b") as handle:
+        handle.seek(0, os.SEEK_END)
+        if handle.tell() == 0:
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+
+        if os.name == "nt":
+            import msvcrt
+
+            msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                handle.seek(0)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 @dataclass
@@ -42,6 +113,8 @@ class TokenBudget:
     used_this_month: int = 0
     cost_limit_usd: float = 100.0  # 每日成本限制（美元）
     cost_today_usd: float = 0.0
+    day_key: str = field(default_factory=_today_key)
+    month_key: str = field(default_factory=_month_key)
 
 
 @dataclass
@@ -88,6 +161,8 @@ class ModelRegistry:
         self._key_pools: Dict[str, KeyPool] = {}
         self._budgets: Dict[str, TokenBudget] = {}
         self._usage: Dict[str, Dict[str, int]] = defaultdict(lambda: {"input": 0, "output": 0, "cost": 0})
+        self._budget_lock = threading.RLock()
+        self._budget_path = _budget_state_path()
 
         self._register_default_capabilities()
 
@@ -146,79 +221,187 @@ class ModelRegistry:
 
     # ============== Token 预算 ==============
 
-    def set_budget(self, scope: str, budget: TokenBudget):
+    def _read_budget_state(self) -> dict[str, Any]:
+        path = self._budget_path
+        if path is None or not path.exists():
+            return {}
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            return payload if isinstance(payload, dict) else {}
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Unable to read budget state from %s: %s", path, exc)
+            return {}
+
+    def _persist_budget_state(self, existing: Optional[dict[str, Any]] = None) -> None:
+        path = self._budget_path
+        if path is None:
+            return
+        payload = dict(existing or {})
+        persisted_budgets = dict(payload.get("budgets") or {})
+        persisted_budgets.update(
+            {
+                scope: {
+                    "used_today": budget.used_today,
+                    "used_this_month": budget.used_this_month,
+                    "cost_today_usd": budget.cost_today_usd,
+                    "day_key": budget.day_key,
+                    "month_key": budget.month_key,
+                }
+                for scope, budget in self._budgets.items()
+            }
+        )
+        payload.update({"version": 1, "budgets": persisted_budgets})
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(path.suffix + ".tmp")
+            tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(path)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Unable to persist budget state to %s: %s", path, exc)
+
+    @staticmethod
+    def _restore_budget_usage(budget: TokenBudget, state: Any) -> None:
+        if not isinstance(state, dict):
+            return
+        budget.day_key = str(state.get("day_key") or budget.day_key)
+        budget.month_key = str(state.get("month_key") or budget.month_key)
+        if budget.day_key == _today_key():
+            budget.used_today = max(0, int(state.get("used_today") or 0))
+            budget.cost_today_usd = max(0.0, float(state.get("cost_today_usd") or 0.0))
+        if budget.month_key == _month_key():
+            budget.used_this_month = max(0, int(state.get("used_this_month") or 0))
+
+    @staticmethod
+    def _rollover_budget(budget: TokenBudget) -> bool:
+        changed = False
+        today = _today_key()
+        month = _month_key()
+        if budget.month_key != month:
+            budget.used_this_month = 0
+            budget.month_key = month
+            changed = True
+        if budget.day_key != today:
+            budget.used_today = 0
+            budget.cost_today_usd = 0.0
+            budget.day_key = today
+            changed = True
+        return changed
+
+    def set_budget(self, scope: str, budget: TokenBudget, *, restore: bool = False):
         """设置 Token 预算"""
-        self._budgets[scope] = budget
+        with self._budget_lock:
+            with _budget_file_lock(self._budget_path):
+                persisted = self._read_budget_state()
+                if restore:
+                    state = (persisted.get("budgets") or {}).get(scope)
+                    self._restore_budget_usage(budget, state)
+                self._rollover_budget(budget)
+                self._budgets[scope] = budget
+                self._persist_budget_state(persisted)
 
     def check_budget(self, scope: str = "global") -> Dict[str, Any]:
         """检查预算是否充足"""
-        budget = self._budgets.get(scope)
-        if not budget:
-            return {"ok": True, "message": "无预算限制"}
+        with self._budget_lock:
+            budget = self._budgets.get(scope)
+            if not budget:
+                return {"ok": True, "message": "无预算限制"}
+            with _budget_file_lock(self._budget_path):
+                persisted = self._read_budget_state()
+                state = (persisted.get("budgets") or {}).get(scope)
+                self._restore_budget_usage(budget, state)
+                if self._rollover_budget(budget):
+                    self._persist_budget_state(persisted)
 
-        if budget.used_today >= budget.daily_limit:
+            if budget.used_today >= budget.daily_limit:
+                return {
+                    "ok": False,
+                    "message": f"已达到每日 Token 限制 ({budget.daily_limit:,})",
+                    "used": budget.used_today,
+                    "limit": budget.daily_limit,
+                }
+
+            if budget.cost_today_usd >= budget.cost_limit_usd:
+                return {
+                    "ok": False,
+                    "message": f"已达到每日成本限制 (${budget.cost_limit_usd:.2f})",
+                    "cost": budget.cost_today_usd,
+                    "limit": budget.cost_limit_usd,
+                }
+
+            if budget.used_this_month >= budget.monthly_limit:
+                return {
+                    "ok": False,
+                    "message": f"已达到每月 Token 限制 ({budget.monthly_limit:,})",
+                    "used": budget.used_this_month,
+                    "limit": budget.monthly_limit,
+                }
+
+            token_ratio = (budget.used_today / budget.daily_limit) if budget.daily_limit else 0.0
+            cost_ratio = (budget.cost_today_usd / budget.cost_limit_usd) if budget.cost_limit_usd else 0.0
+            used_ratio = max(token_ratio, cost_ratio)
             return {
-                "ok": False,
-                "message": f"已达到每日 Token 限制 ({budget.daily_limit:,})",
-                "used": budget.used_today,
-                "limit": budget.daily_limit,
+                "ok": True,
+                "remaining_tokens": budget.daily_limit - budget.used_today,
+                "remaining_cost": budget.cost_limit_usd - budget.cost_today_usd,
+                "used_ratio": round(used_ratio, 4),
+                "used_today": budget.used_today,
+                "daily_limit": budget.daily_limit,
+                "cost_today_usd": round(budget.cost_today_usd, 4),
+                "cost_limit_usd": budget.cost_limit_usd,
             }
-
-        if budget.cost_today_usd >= budget.cost_limit_usd:
-            return {
-                "ok": False,
-                "message": f"已达到每日成本限制 (${budget.cost_limit_usd:.2f})",
-                "cost": budget.cost_today_usd,
-                "limit": budget.cost_limit_usd,
-            }
-
-        token_ratio = (budget.used_today / budget.daily_limit) if budget.daily_limit else 0.0
-        cost_ratio = (budget.cost_today_usd / budget.cost_limit_usd) if budget.cost_limit_usd else 0.0
-        used_ratio = max(token_ratio, cost_ratio)
-        return {
-            "ok": True,
-            "remaining_tokens": budget.daily_limit - budget.used_today,
-            "remaining_cost": budget.cost_limit_usd - budget.cost_today_usd,
-            "used_ratio": round(used_ratio, 4),
-            "used_today": budget.used_today,
-            "daily_limit": budget.daily_limit,
-            "cost_today_usd": round(budget.cost_today_usd, 4),
-            "cost_limit_usd": budget.cost_limit_usd,
-        }
 
     def record_usage(self, model: str, input_tokens: int, output_tokens: int, cost_usd: float = 0):
         """记录使用量"""
-        self._usage[model]["input"] += input_tokens
-        self._usage[model]["output"] += output_tokens
-        self._usage[model]["cost"] += int(cost_usd * 1000000)  # 微美元
+        with self._budget_lock:
+            self._usage[model]["input"] += input_tokens
+            self._usage[model]["output"] += output_tokens
+            self._usage[model]["cost"] += int(cost_usd * 1000000)  # 微美元
+            with _budget_file_lock(self._budget_path):
+                persisted = self._read_budget_state()
+                persisted_budgets = persisted.get("budgets") or {}
 
-        # 更新全局预算
-        for budget in self._budgets.values():
-            budget.used_today += input_tokens + output_tokens
-            budget.used_this_month += input_tokens + output_tokens
-            budget.cost_today_usd += cost_usd
+                # Rebase on the latest persisted counters before applying this request.
+                for scope, budget in self._budgets.items():
+                    self._restore_budget_usage(budget, persisted_budgets.get(scope))
+                    self._rollover_budget(budget)
+                    budget.used_today += input_tokens + output_tokens
+                    budget.used_this_month += input_tokens + output_tokens
+                    budget.cost_today_usd += cost_usd
+                self._persist_budget_state(persisted)
 
     def get_usage_summary(self) -> Dict[str, Any]:
         """获取使用量摘要"""
-        return {
-            "by_model": {
-                model: {
-                    "input_tokens": usage["input"],
-                    "output_tokens": usage["output"],
-                    "cost_usd": round(usage["cost"] / 1000000, 6),
-                }
-                for model, usage in self._usage.items()
-            },
-            "budgets": {
-                scope: {
-                    "daily_limit": b.daily_limit,
-                    "used_today": b.used_today,
-                    "cost_limit": b.cost_limit_usd,
-                    "cost_today": round(b.cost_today_usd, 4),
-                }
-                for scope, b in self._budgets.items()
-            },
-        }
+        with self._budget_lock:
+            with _budget_file_lock(self._budget_path):
+                persisted = self._read_budget_state()
+                persisted_budgets = persisted.get("budgets") or {}
+                changed = False
+                for scope, budget in self._budgets.items():
+                    self._restore_budget_usage(budget, persisted_budgets.get(scope))
+                    changed = self._rollover_budget(budget) or changed
+                if changed:
+                    self._persist_budget_state(persisted)
+            return {
+                "by_model": {
+                    model: {
+                        "input_tokens": usage["input"],
+                        "output_tokens": usage["output"],
+                        "cost_usd": round(usage["cost"] / 1000000, 6),
+                    }
+                    for model, usage in self._usage.items()
+                },
+                "budgets": {
+                    scope: {
+                        "daily_limit": b.daily_limit,
+                        "used_today": b.used_today,
+                        "cost_limit": b.cost_limit_usd,
+                        "cost_today": round(b.cost_today_usd, 4),
+                        "day": b.day_key,
+                        "month": b.month_key,
+                    }
+                    for scope, b in self._budgets.items()
+                },
+            }
 
 
 # 单例
@@ -247,7 +430,7 @@ def ensure_default_budget(registry: Optional[ModelRegistry] = None) -> TokenBudg
         except ValueError:
             cost = 20.0
         budget = TokenBudget(daily_limit=max(1000, daily), cost_limit_usd=max(0.5, cost))
-    reg.set_budget("global", budget)
+    reg.set_budget("global", budget, restore=True)
     logger.info(
         "Token budget armed: daily_tokens=%s cost_usd=%s",
         budget.daily_limit,

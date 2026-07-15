@@ -13,7 +13,7 @@ try:
 except Exception:  # pragma: no cover - optional dependency in tests
     OpenAI = None
 
-from backend.models.provider_gateway import validate_custom_base_url
+from backend.models.provider_gateway import create_ssrf_safe_http_client, validate_custom_base_url
 from backend.schemas.api import ApiResponse
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -100,13 +100,23 @@ async def _list_provider_models_async(provider: dict[str, Any]) -> list[dict[str
         raise RuntimeError("OpenAI client unavailable")
 
     def _load_models() -> list[dict[str, Any]]:
-        client = OpenAI(
-            api_key=provider["api_key"],
-            base_url=validate_custom_base_url(provider["base_url"]),
-            timeout=MODEL_LIST_TIMEOUT_SECONDS,
-        )
-        models = client.models.list()
-        return [_public_model(m) for m in (getattr(models, "data", None) or []) if getattr(m, "id", "")]
+        safe_base_url = validate_custom_base_url(provider["base_url"])
+        http_client = create_ssrf_safe_http_client(safe_base_url, timeout=MODEL_LIST_TIMEOUT_SECONDS)
+        client = None
+        try:
+            client = OpenAI(
+                api_key=provider["api_key"],
+                base_url=safe_base_url,
+                timeout=MODEL_LIST_TIMEOUT_SECONDS,
+                http_client=http_client,
+            )
+            models = client.models.list()
+            return [_public_model(m) for m in (getattr(models, "data", None) or []) if getattr(m, "id", "")]
+        finally:
+            close = getattr(client, "close", None)
+            if callable(close):
+                close()
+            http_client.close()
 
     return await asyncio.wait_for(asyncio.to_thread(_load_models), timeout=MODEL_LIST_WAIT_TIMEOUT_SECONDS)
 
@@ -162,24 +172,18 @@ class LocalProbeRequest(BaseModel):
 async def probe_local_llm(req: LocalProbeRequest):
     """探测本机推理服务是否可达(短超时, 失败安全)。"""
     from backend.models.local_presets import probe_local_endpoint
-    from backend.models.provider_gateway import validate_custom_base_url
+    from backend.models.provider_gateway import validate_local_llm_base_url
 
     try:
-        # 若未放行本地 base_url, 仍允许探测但标注 env 要求
-        try:
-            validate_custom_base_url(req.base_url)
-            url_ok = True
-            url_error = ""
-        except ValueError as exc:
-            url_ok = False
-            url_error = str(exc)
-        result = await asyncio.to_thread(probe_local_endpoint, req.base_url)
-        result["url_validation_ok"] = url_ok
-        if not url_ok:
-            result["url_validation_error"] = url_error
+        safe_base_url = validate_local_llm_base_url(req.base_url)
+    except ValueError:
+        return ApiResponse(success=False, error="Local LLM probe rejected by URL policy")
+
+    try:
+        result = await asyncio.to_thread(probe_local_endpoint, safe_base_url)
         return ApiResponse(success=True, data=result)
-    except Exception as e:  # noqa: BLE001
-        return ApiResponse(success=False, error=str(e))
+    except Exception:  # noqa: BLE001
+        return ApiResponse(success=False, error="Local LLM probe failed")
 
 
 @router.get("/preferences")

@@ -11,8 +11,10 @@ Runtime Orchestrator: 模式感知的 Agent 编排。
 """
 
 import logging
+import os
 import re
 from dataclasses import asdict
+from datetime import date
 from typing import Dict, Any, Optional, List
 
 from backend.models.provider_gateway import VENDORS, _call_with, _extract_json
@@ -23,7 +25,7 @@ from backend.agents.base import (
 from backend.agents.chairman import summarize_with_chairman
 from backend.quality.research_trust import assess_agent_research
 from backend.runtime.rating import compute_rating
-from backend.runtime.research_snapshot import as_of_timestamp, build_research_snapshot
+from backend.runtime.research_snapshot import as_of_timestamp, build_research_snapshot, normalize_date
 
 try:
     from backend.agent_modes import AnalysisMode, AgentModeConfig, get_mode_resolver
@@ -76,6 +78,137 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
 def _format_price(value: Any) -> str:
     number = _safe_float(value)
     return f"¥{number:.2f}" if number else "N/A"
+
+
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _external_agent_enabled() -> bool:
+    return os.environ.get("ALPHASCOPE_EXTERNAL_AGENT", "").strip().lower() in {
+        "tradingagents",
+        "1",
+        "true",
+    }
+
+
+def _external_trade_date(stock_data: Dict[str, Any]) -> str:
+    return (
+        normalize_date(stock_data.get("price_data_date"))
+        or normalize_date(stock_data.get("as_of"))
+        or date.today().isoformat()
+    )
+
+
+def _serialize_opinion(opinion: Any) -> dict[str, Any]:
+    if hasattr(opinion, "model_dump"):
+        payload = opinion.model_dump()
+    elif hasattr(opinion, "dict"):
+        payload = opinion.dict()
+    elif isinstance(opinion, dict):
+        payload = dict(opinion)
+    else:
+        raise TypeError(f"不支持的外部观点类型: {type(opinion).__name__}")
+    return payload if isinstance(payload, dict) else {}
+
+
+def _opinion_to_agent_result(payload: dict[str, Any], *, key: str) -> dict[str, Any]:
+    signal = str(payload.get("signal") or "观望").strip()
+    if signal not in {"买入", "卖出", "观望"}:
+        signal = "观望"
+    evidence_ids = list(
+        dict.fromkeys(
+            str(item)
+            for item in (
+                list(payload.get("supporting_evidence_ids") or []) + list(payload.get("opposing_evidence_ids") or [])
+            )
+            if item
+        )
+    )
+    return {
+        "key": key,
+        "name": "TradingAgents 外部投研团队",
+        "signal": signal,
+        "confidence": _safe_float(payload.get("confidence")),
+        "reason": str(payload.get("thesis") or "外部团队未提供文字结论"),
+        "evidence": [],
+        "evidence_ids": evidence_ids,
+        "invalid_if": "",
+        "risks": [str(item) for item in payload.get("risk_flags") or []],
+        "vendor": "TradingAgents",
+        "model": "external-team",
+        "primary_vendor": "TradingAgents",
+        "fallback_used": False,
+        "ok": True,
+        "card_style": "default",
+        "external": True,
+        "forbidden_live_order": True,
+    }
+
+
+def _run_external_agent(stock_data: Dict[str, Any]) -> tuple[dict[str, dict[str, Any]], Optional[dict[str, Any]]]:
+    """Run TradingAgents before council decisions and expose every degraded state."""
+    if not _external_agent_enabled():
+        return {}, None
+
+    trade_date = _external_trade_date(stock_data)
+    status: dict[str, Any] = {
+        "name": "tradingagents",
+        "status": "starting",
+        "trade_date": trade_date,
+        "opinions": [],
+    }
+    try:
+        from backend.integrations.registry import get_registry
+
+        registry = get_registry()
+        if not registry.has("tradingagents"):
+            status.update(status="unavailable", error="TradingAgents adapter 未注册")
+            return {}, status
+
+        adapter = registry.get("tradingagents")
+        health = adapter.healthcheck()
+        health_value = getattr(health.status, "value", str(health.status))
+        status["health"] = {"status": health_value, "message": health.message}
+        if health_value in {"unavailable", "down"}:
+            status.update(status="unavailable", error=health.message or "TradingAgents 不可用")
+            return {}, status
+
+        symbol = str(stock_data.get("symbol") or "").strip()
+        symbols = [symbol] if symbol else []
+        if hasattr(adapter, "analyze_with_status"):
+            opinions, run_status = adapter.analyze_with_status(symbols=symbols, trade_date=trade_date)
+        else:
+            opinions = adapter.analyze(symbols=symbols, trade_date=trade_date)
+            run_status = getattr(adapter, "last_run_status", {})
+        status["run"] = run_status if isinstance(run_status, dict) else {}
+
+        serialized = [_serialize_opinion(opinion) for opinion in (opinions or [])]
+        status["opinions"] = serialized
+        if not serialized:
+            run_message = str((status["run"] or {}).get("message") or "TradingAgents 未生成可用观点")
+            status.update(status=str((status["run"] or {}).get("status") or "failed"), error=run_message)
+            return {}, status
+
+        agent_results: dict[str, dict[str, Any]] = {}
+        for index, payload in enumerate(serialized, start=1):
+            key = "external_tradingagents" if index == 1 else f"external_tradingagents_{index}"
+            agent_results[key] = _opinion_to_agent_result(payload, key=key)
+        status["status"] = str((status["run"] or {}).get("status") or "success")
+        return agent_results, status
+    except Exception as exc:  # noqa: BLE001 - optional integration must never abort analysis
+        status.update(status="failed", error=_sanitize_model_error(exc))
+        logger.warning("TradingAgents integration failed: %s", status["error"])
+        return {}, status
+
+
+def _sync_report_average_confidence(report: str, summary: Dict[str, Any]) -> str:
+    """Keep the rendered headline aligned with post-validation confidence caps."""
+    avg_conf = _safe_float(summary.get("avg_confidence"))
+    if avg_conf <= 1:
+        avg_conf *= 100
+    replacement = f"- 平均置信度: {avg_conf:.1f}%"
+    return re.sub(r"(?m)^- 平均置信度:.*$", replacement, report, count=1)
 
 
 def _format_pct(value: Any) -> str:
@@ -391,8 +524,10 @@ def run_agents_with_mode(
             ):
                 lg = run_via_langgraph(
                     stock_data,
+                    mode=mode,
                     agent_configs=agent_configs,
                     global_ai_settings=global_ai_settings,
+                    api_keys=api_keys,
                 )
                 if isinstance(lg, dict):
                     return lg
@@ -429,7 +564,7 @@ def run_agents_with_mode(
             build_demo_report,
         )
 
-        if not has_configured_provider():
+        if not has_configured_provider() and not _external_agent_enabled():
             logger.info("[orchestrator] no provider configured -> demo fallback report")
             demo = build_demo_report(stock_data)
             demo["mode"] = mode.value
@@ -512,7 +647,8 @@ def run_agents_with_mode(
     api_keys = api_keys or {}
 
     active = [_agent_config_from_dict(a) for a in agent_configs if bool(a.get("enabled", True))]
-    if not active:
+    external_results, external_agent = _run_external_agent(stock_data)
+    if not active and not external_results:
         model_status = _build_model_status({})
         research_trust = assess_agent_research({}, evidence_pool, now=as_of_timestamp(as_of))
         summary = {
@@ -542,6 +678,7 @@ def run_agents_with_mode(
             "research_snapshot": research_snapshot,
             "risk_gate": None,
             "debate": None,
+            "external_agent": external_agent,
             "model_status": model_status,
             "data_verification": verification.to_dict(),
             "mode": mode.value,
@@ -550,44 +687,46 @@ def run_agents_with_mode(
 
     from backend.agents.financial_agents import run_custom_agent
 
-    results = {}
+    results = dict(external_results)
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    with ThreadPoolExecutor(max_workers=len(active)) as ex:
-        futures = {
-            ex.submit(
-                run_custom_agent,
-                asdict(cfg),
-                brief,
-                api_keys.get(cfg.key),
-                global_ai_settings,
-            ): cfg.key
-            for cfg in active
-        }
-        for fut in as_completed(futures):
-            # 单个 Agent 的配置 bug(asdict/resolve 抛错, 非 LLM 失败)不应让整批崩 —
-            # 失败的 future 记成错误项, 已成功的 Agent 结果保留。
-            try:
-                r = fut.result()
-                results[r["key"]] = r
-            except Exception as exc:  # noqa: BLE001
-                key = futures[fut]
-                logger.exception("Agent %s 执行异常(整批不中断)", key)
-                results[key] = {
-                    "key": key,
-                    "name": key,
-                    "ok": False,
-                    "error": f"Agent 执行异常: {exc}",
-                    "view": "",
-                    "confidence": 0,
-                    "signal": "观望",
-                }
+    if active:
+        with ThreadPoolExecutor(max_workers=len(active)) as ex:
+            futures = {
+                ex.submit(
+                    run_custom_agent,
+                    asdict(cfg),
+                    brief,
+                    api_keys.get(cfg.key),
+                    global_ai_settings,
+                ): cfg.key
+                for cfg in active
+            }
+            for fut in as_completed(futures):
+                # 单个 Agent 的配置 bug(asdict/resolve 抛错, 非 LLM 失败)不应让整批崩 —
+                # 失败的 future 记成错误项, 已成功的 Agent 结果保留。
+                try:
+                    r = fut.result()
+                    results[r["key"]] = r
+                except Exception as exc:  # noqa: BLE001
+                    key = futures[fut]
+                    logger.exception("Agent %s 执行异常(整批不中断)", key)
+                    results[key] = {
+                        "key": key,
+                        "name": key,
+                        "ok": False,
+                        "error": f"Agent 执行异常: {exc}",
+                        "view": "",
+                        "confidence": 0,
+                        "signal": "观望",
+                    }
 
     # 把每个 Agent 结论里的 [n] 证据引用解析成真实 evidence_id,
     # 实现"点开结论可反查来源"的可审计能力(evidence 招牌落地)。
     if number_to_id:
         for r in results.values():
-            r["evidence_ids"] = _resolve_evidence_ids([r.get("reason", ""), r.get("evidence", [])], number_to_id)
+            resolved_ids = _resolve_evidence_ids([r.get("reason", ""), r.get("evidence", [])], number_to_id)
+            r["evidence_ids"] = list(dict.fromkeys([*(r.get("evidence_ids") or []), *resolved_ids]))
     else:
         for r in results.values():
             r.setdefault("evidence_ids", [])
@@ -610,14 +749,38 @@ def run_agents_with_mode(
     if config.enable_critic and any(r.get("ok") for r in results.values()):
         try:
             from backend.critic import run_batch_critic
+            from backend.models.task_router import resolve_model_for_task
 
-            critic_settings = (global_ai_settings or {}).get("critic") or {}
+            ai_settings = global_ai_settings if isinstance(global_ai_settings, dict) else {}
+            critic_settings = ai_settings.get("critic") or {}
+            critic_route = resolve_model_for_task(
+                "critic",
+                global_ai_settings=ai_settings,
+                force_cheap=bool(ai_settings.get("_force_cheap")),
+            )
+            inherit_critic_key = bool(
+                critic_settings.get("inherit_global_key", ai_settings.get("use_unified_key", True))
+            )
+            same_global_provider = (
+                not ai_settings.get("provider") or ai_settings.get("provider") == critic_route["provider"]
+            )
+            use_global_critic_credentials = inherit_critic_key and same_global_provider
+            critic_api_key = (
+                ai_settings.get("api_key", "") if use_global_critic_credentials else critic_settings.get("api_key", "")
+            )
+            critic_base_url = (
+                ai_settings.get("base_url", "")
+                if use_global_critic_credentials
+                else critic_settings.get("base_url", "")
+            )
             critic_block = run_batch_critic(
                 stock_name=stock_data.get("name", "未知标的"),
                 market_brief=brief,
                 agent_results={k: r for k, r in results.items() if r.get("ok")},
-                vendor=critic_settings.get("provider") or config.critic_provider,
-                model=critic_settings.get("model") or config.critic_model,
+                vendor=critic_route["provider"],
+                model=critic_route["model"],
+                api_key=critic_api_key or None,
+                base_url=critic_base_url or None,
             )
             for ag_key, review in (critic_block.get("agents") or {}).items():
                 if ag_key in results:
@@ -634,14 +797,35 @@ def run_agents_with_mode(
     chairman_summary = None
     if config.enable_chairman:
         try:
+            from backend.models.task_router import resolve_model_for_task
+
+            ai_settings = global_ai_settings if isinstance(global_ai_settings, dict) else {}
+            chairman_settings = ai_settings.get("chairman") or {}
+            chairman_route = resolve_model_for_task(
+                "chairman",
+                global_ai_settings=ai_settings,
+                force_cheap=bool(ai_settings.get("_force_cheap")),
+            )
+            inherit_chairman_key = bool(
+                chairman_settings.get("inherit_global_key", ai_settings.get("use_unified_key", True))
+            )
+            same_global_provider = (
+                not ai_settings.get("provider") or ai_settings.get("provider") == chairman_route["provider"]
+            )
+            chairman_api_key = (
+                ai_settings.get("api_key", "")
+                if inherit_chairman_key and same_global_provider
+                else chairman_settings.get("api_key", "")
+            )
             chairman_summary = summarize_with_chairman(
                 {
                     "agents": results,
                     "summary": {"buy": buy, "sell": sell, "hold": hold},
                 },
                 stock_data.get("name", ""),
-                vendor=((global_ai_settings or {}).get("chairman") or {}).get("provider"),
-                model=((global_ai_settings or {}).get("chairman") or {}).get("model"),
+                api_key=chairman_api_key or None,
+                vendor=chairman_route["provider"],
+                model=chairman_route["model"],
             )
         except Exception as e:
             chairman_summary = f"主席总结生成失败: {_sanitize_model_error(e)}"
@@ -707,11 +891,8 @@ def run_agents_with_mode(
 
         # 第二轮交叉质询(默认关): ALPHASCOPE_DEBATE_SECOND_ROUND=1 全局开启;
         # 或 ALPHASCOPE_DEBATE_SECOND_ROUND_DEEP=1 仅 deep 模式开启。仍无 LLM。
-        import os as _os
-
-        _env_on = lambda k: _os.environ.get(k, "").strip().lower() in {"1", "true", "yes", "on"}
-        second_round = _env_on("ALPHASCOPE_DEBATE_SECOND_ROUND") or (
-            mode.value == "deep" and _env_on("ALPHASCOPE_DEBATE_SECOND_ROUND_DEEP")
+        second_round = _env_flag("ALPHASCOPE_DEBATE_SECOND_ROUND") or (
+            mode.value == "deep" and _env_flag("ALPHASCOPE_DEBATE_SECOND_ROUND_DEEP")
         )
         debate_report = synthesize_debate(
             results,
@@ -741,41 +922,6 @@ def run_agents_with_mode(
     except Exception as exc:  # noqa: BLE001
         logger.debug("Quant Referee 失败, 跳过: %s", exc)
 
-    # 可选外部 TradingAgents 意见(ALPHASCOPE_EXTERNAL_AGENT=tradingagents); 失败安全, 不接实盘
-    external_agent = None
-    try:
-        import os as _os2
-
-        if _os2.environ.get("ALPHASCOPE_EXTERNAL_AGENT", "").strip().lower() in {
-            "tradingagents",
-            "1",
-            "true",
-        }:
-            from backend.integrations.registry import get_registry
-
-            reg = get_registry()
-            if reg.has("tradingagents"):
-                ad = reg.get("tradingagents")
-                if ad.is_available():
-                    sym = str(stock_data.get("symbol") or "")
-                    opinions = ad.analyze(symbols=[sym] if sym else [])
-                    # adapter 返回 list[NormalizedAgentOpinion] 或可序列化结构
-                    if opinions:
-                        try:
-                            external_agent = [
-                                o.model_dump() if hasattr(o, "model_dump") else dict(o)
-                                for o in (opinions if isinstance(opinions, list) else [opinions])
-                            ]
-                        except Exception:
-                            external_agent = {"raw": str(opinions)[:1200]}
-                        research_report += (
-                            "\n\n### 外部 Agent 团队 (TradingAgents)\n"
-                            f"- 状态: 已合并研究意见(研究语义, 禁止实盘)\n"
-                            f"- 摘要: {str(external_agent)[:800]}\n"
-                        )
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("external tradingagents skipped: %s", exc)
-
     # Citation Validator(P0): 数字/证据编号可追溯核验; 未核验则建议置信度上限。
     citation_validation = None
     try:
@@ -803,6 +949,7 @@ def run_agents_with_mode(
                         "confidence_capped_by_citation": True,
                         "citation_confidence_cap": cap,
                     }
+                    research_report = _sync_report_average_confidence(research_report, summary)
             except (TypeError, ValueError):
                 pass
     except Exception as exc:  # noqa: BLE001
@@ -812,7 +959,7 @@ def run_agents_with_mode(
         "agents": results,
         "summary": summary,
         "brief": brief,
-        "agent_order": [cfg.key for cfg in active],
+        "agent_order": [cfg.key for cfg in active] + list(external_results),
         "critic": critic_block,
         "chairman_summary": chairman_summary,
         "research_report": research_report,
@@ -846,10 +993,17 @@ def _run_auto_mode(
     """
     from backend.runtime.context_builder import build_market_brief
     from backend.agents.data_verifier import verify_data
+    from backend.models.task_router import resolve_model_for_task
 
     brief = build_market_brief(stock_data)
     verification = verify_data(stock_data)
     brief += verification.brief_warning()
+    ai_settings = global_ai_settings if isinstance(global_ai_settings, dict) else {}
+    pre_screen_route = resolve_model_for_task(
+        "pre_screen",
+        global_ai_settings=ai_settings,
+        force_cheap=bool(ai_settings.get("_force_cheap")),
+    )
 
     # Stage 1: Pre-screen
     pre_screen_messages = [
@@ -868,8 +1022,8 @@ def _run_auto_mode(
 
     try:
         text = _call_with(
-            config.pre_screen_provider,
-            config.pre_screen_model,
+            pre_screen_route["provider"],
+            pre_screen_route["model"],
             pre_screen_messages,
             json_mode=True,
             max_tokens=config.pre_screen_max_tokens,
@@ -896,8 +1050,8 @@ def _run_auto_mode(
                 "evidence": [],
                 "invalid_if": "",
                 "risks": [],
-                "vendor": config.pre_screen_provider,
-                "model": config.pre_screen_model,
+                "vendor": pre_screen_route["provider"],
+                "model": pre_screen_route["model"],
                 "ok": True,
                 "evidence_ids": [],
             }

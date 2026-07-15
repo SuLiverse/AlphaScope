@@ -64,9 +64,7 @@ async def aggregate_evidence(symbol: str, data_type: str = "news", max_sources: 
         from backend.quality.evidence_aggregator import get_evidence_aggregator
 
         agg = get_evidence_aggregator()
-        result = await asyncio.to_thread(
-            agg.collect_and_validate, symbol, data_type=data_type, max_sources=max_sources
-        )
+        result = await asyncio.to_thread(agg.collect_and_validate, symbol, data_type=data_type, max_sources=max_sources)
         return ApiResponse(success=True, data=result.to_dict())
     except Exception as e:
         return ApiResponse(success=False, error=str(e))

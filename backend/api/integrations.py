@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from fastapi import APIRouter
@@ -149,15 +150,111 @@ class ParamSweepRequest(BaseModel):
     top_n: int = Field(default=20, ge=1, le=100)
 
 
+PARAM_SWEEP_DISCLAIMER = "vectorbt 扫描不完整模拟 A 股摩擦; DSR/PSR 仅校正历史样本与多重尝试偏差; 结果不构成投资建议。"
+
+
+def _row_returns(row: dict[str, Any]) -> list[float]:
+    returns = row.get("returns")
+    if isinstance(returns, list):
+        values: list[float] = []
+        for value in returns:
+            try:
+                values.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        return values
+
+    curve = row.get("equity_curve")
+    if not isinstance(curve, list):
+        return []
+    values = []
+    for point in curve:
+        value = point.get("value") if isinstance(point, dict) else point
+        try:
+            values.append(float(value))
+        except (TypeError, ValueError):
+            continue
+    return [
+        (values[index] - values[index - 1]) / values[index - 1] for index in range(1, len(values)) if values[index - 1]
+    ]
+
+
+def _format_param_sweep_result(
+    raw: Any,
+    *,
+    symbol: str,
+    metric: str,
+    n_trials: int,
+) -> dict[str, Any]:
+    """Normalize legacy list and future mapping sweep outputs to one API contract."""
+    from backend.quant.metrics_advanced import attach_selection_bias_metrics
+
+    if isinstance(raw, dict):
+        rows = raw.get("results") or raw.get("top") or []
+    else:
+        rows = raw
+    rows = rows if isinstance(rows, list) else []
+
+    enriched: list[Any] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            enriched.append(row)
+            continue
+        returns = _row_returns(row)
+        metrics = dict(row.get("metrics") or {})
+        already_enriched = {
+            "probabilistic_sharpe",
+            "deflated_sharpe",
+            "n_trials_for_dsr",
+        }.issubset(metrics)
+        if not already_enriched:
+            metrics = attach_selection_bias_metrics(
+                metrics or row,
+                returns,
+                n_trials=n_trials,
+                sharpe_key="sharpe",
+            )
+        observations = int(row.get("observations") or len(returns))
+        selection_bias_status = str(
+            row.get("selection_bias_status")
+            or metrics.get("selection_bias_status")
+            or ("ok" if observations >= 2 else "insufficient")
+        )
+        clean_row = {key: value for key, value in row.items() if key != "returns"}
+        enriched.append(
+            {
+                **clean_row,
+                "metrics": metrics,
+                "probabilistic_sharpe": metrics.get("probabilistic_sharpe"),
+                "deflated_sharpe": metrics.get("deflated_sharpe"),
+                "n_trials": n_trials,
+                "observations": observations,
+                "selection_bias_status": selection_bias_status,
+            }
+        )
+
+    has_insufficient = any(isinstance(row, dict) and row.get("selection_bias_status") != "ok" for row in enriched)
+    status = "empty" if not enriched else ("degraded" if has_insufficient else "ok")
+    return {
+        "status": status,
+        "engine": "vectorbt",
+        "symbol": symbol,
+        "metric": metric,
+        "n_trials": max(1, int(n_trials)),
+        "returned": len(enriched),
+        "results": enriched,
+        "top": enriched,
+        "disclaimer": PARAM_SWEEP_DISCLAIMER,
+    }
+
+
 @router.post("/vectorbt/param-sweep")
 async def vectorbt_param_sweep(req: ParamSweepRequest) -> ApiResponse:
     """产品化参数扫描: 从本地 price_store 取数 + vectorbt param_sweep + DSR。"""
     try:
-        import asyncio
-
         from backend.integrations.registry import get_registry
+        from backend.integrations.backtest.vectorbt_adapter import count_param_trials
         from backend.price_store import get_prices
-        from backend.quant.metrics_advanced import attach_selection_bias_metrics
 
         assert_boundary_invariant()
         reg = get_registry()
@@ -170,9 +267,7 @@ async def vectorbt_param_sweep(req: ParamSweepRequest) -> ApiResponse:
                 error="vectorbt 不可用, 请 pip install vectorbt",
             )
 
-        bars = await asyncio.to_thread(
-            lambda: get_prices(symbol=req.symbol, frequency="1d", limit=req.days)
-        )
+        bars = await asyncio.to_thread(lambda: get_prices(symbol=req.symbol, frequency="1d", limit=req.days))
         if not bars or len(bars) < 30:
             return ApiResponse(success=False, error="行情不足, 请先拉取价格数据")
 
@@ -183,40 +278,13 @@ async def vectorbt_param_sweep(req: ParamSweepRequest) -> ApiResponse:
             metric=req.metric,
             top_n=req.top_n,
         )
-        # attach DSR on top result if returns present
-        n_trials = 1
-        if isinstance(raw, dict):
-            grid = req.param_grid or {}
-            n_trials = 1
-            for v in grid.values():
-                if isinstance(v, list) and v:
-                    n_trials *= len(v)
-            n_trials = max(1, n_trials)
-            top = raw.get("top") or raw.get("results") or []
-            if isinstance(top, list):
-                enriched = []
-                for row in top:
-                    if not isinstance(row, dict):
-                        enriched.append(row)
-                        continue
-                    metrics = dict(row.get("metrics") or row)
-                    rets = row.get("returns") or []
-                    if not rets and "equity_curve" in row:
-                        eq = row["equity_curve"]
-                        rets = [
-                            (eq[i] - eq[i - 1]) / eq[i - 1]
-                            for i in range(1, len(eq))
-                            if eq[i - 1]
-                        ]
-                    metrics = attach_selection_bias_metrics(
-                        metrics, rets, n_trials=n_trials, sharpe_key="sharpe"
-                    )
-                    enriched.append({**row, "metrics": metrics})
-                raw = {**raw, "top": enriched, "n_trials": n_trials}
-            raw["disclaimer"] = (
-                "vectorbt 扫描不完整模拟 A 股摩擦; DSR 校正多重尝试偏差; 不构成投资建议。"
-            )
-        return ApiResponse(success=True, data=raw)
+        data = _format_param_sweep_result(
+            raw,
+            symbol=req.symbol,
+            metric=req.metric,
+            n_trials=count_param_trials(req.param_grid),
+        )
+        return ApiResponse(success=True, data=data)
     except BoundaryViolation as e:
         return ApiResponse(success=False, error=f"交易边界拒绝: {e}")
     except Exception as e:
@@ -249,7 +317,8 @@ async def run_integration(name: str, req: RunRequest) -> ApiResponse:
                 error=f"adapter {name!r} 未声明能力 {cap!r}",
             )
 
-        result = _dispatch(
+        result = await asyncio.to_thread(
+            _dispatch,
             adapter,
             meta.category.value,
             cap or _default_capability(meta.category.value),
@@ -298,6 +367,7 @@ def _dispatch(adapter: Any, category: str, capability: str, params: dict[str, An
             param_grid=params.get("param_grid"),
             metric=params.get("metric", "sharpe"),
             top_n=int(params.get("top_n", 20)),
+            **_extra_kwargs(params, {"bars", "param_grid", "metric", "top_n"}),
         )
     if category == "data" and capability in ("", "get_ohlcv"):
         # OpenBB 等数据源 adapter: 取历史 OHLCV
@@ -306,13 +376,19 @@ def _dispatch(adapter: Any, category: str, capability: str, params: dict[str, An
             symbol=symbol,
             start=params.get("start", ""),
             end=params.get("end", ""),
-            **{k: v for k, v in params.items() if k in ("market", "provider")},
+            **_extra_kwargs(params, {"symbol", "symbols", "start", "end"}),
         )
     if category == "agent" and (capability in ("", "analyze")):
-        out = adapter.analyze(symbols=params.get("symbols", []))
-        return [o.model_dump() for o in out]
+        out = adapter.analyze(
+            symbols=params.get("symbols", []),
+            **_extra_kwargs(params, {"symbols"}),
+        )
+        return [o.model_dump() if hasattr(o, "model_dump") else o for o in out]
     if category == "factor" and (capability in ("", "compute_factors")):
-        return adapter.compute_factors(symbols=params.get("symbols", []))
+        return adapter.compute_factors(
+            symbols=params.get("symbols", []),
+            **_extra_kwargs(params, {"symbols"}),
+        )
     raise ValueError(f"adapter {adapter.NAME!r} 不支持能力 {capability!r}")
 
 
@@ -324,3 +400,7 @@ def _extra_backtest_kwargs(params: dict[str, Any]) -> dict[str, Any]:
     """
     reserved = {"strategy_id", "symbols", "start", "end", "assumptions"}
     return {k: v for k, v in params.items() if k not in reserved}
+
+
+def _extra_kwargs(params: dict[str, Any], reserved: set[str]) -> dict[str, Any]:
+    return {key: value for key, value in params.items() if key not in reserved}

@@ -13,6 +13,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from backend.models.provider_gateway import create_ssrf_safe_http_client, validate_local_llm_base_url
+
 LOCAL_PRESETS: list[dict[str, Any]] = [
     {
         "id": "ollama",
@@ -62,18 +64,30 @@ def list_local_presets() -> list[dict[str, Any]]:
 
 
 def probe_local_endpoint(base_url: str, timeout: float = 1.5) -> dict[str, Any]:
-    """轻量探测 /models; 失败返回 available=False, 不抛。"""
-    url = (base_url or "").rstrip("/") + "/models"
+    """Probe ``/models`` on an explicitly enabled loopback endpoint."""
     try:
-        import urllib.request
+        safe_base_url = validate_local_llm_base_url(base_url)
+    except ValueError:
+        return {"available": False, "error": "url_not_allowed"}
 
-        req = urllib.request.Request(url, method="GET", headers={"User-Agent": "AlphaScope-local-probe"})
-        with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310 - 用户显式本机探测
-            body = resp.read(2000).decode("utf-8", errors="replace")
+    url = safe_base_url.rstrip("/") + "/models"
+    try:
+        bounded_timeout = max(0.1, min(float(timeout), 5.0))
+        with create_ssrf_safe_http_client(safe_base_url, timeout=bounded_timeout, local_only=True) as client:
+            with client.stream("GET", url, headers={"User-Agent": "AlphaScope-local-probe"}) as resp:
+                if 300 <= resp.status_code < 400:
+                    return {"available": False, "error": "redirect_not_allowed"}
+                # Do not read the body: probes expose only reachability and status.
+                status_code = resp.status_code
+                if not 200 <= status_code < 300:
+                    return {
+                        "available": False,
+                        "error": "probe_failed",
+                        "status_code": status_code,
+                    }
             return {
                 "available": True,
-                "status_code": getattr(resp, "status", 200),
-                "preview": body[:200],
+                "status_code": status_code,
             }
-    except Exception as exc:  # noqa: BLE001
-        return {"available": False, "error": type(exc).__name__, "detail": str(exc)[:200]}
+    except Exception:  # noqa: BLE001
+        return {"available": False, "error": "probe_failed"}

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -183,6 +183,7 @@ class NormalizedAgentOpinion(BaseModel):
 
     agent_name: str
     role: str = Field(default="", description="角色: 基本面/技术/情绪/风险/...")
+    signal: Literal["买入", "卖出", "观望"] = Field(description="标准化研究信号")
     thesis: str = Field(description="一句话核心观点")
     confidence: float = Field(ge=0, le=100, description="置信度 0-100")
     horizon: Optional[str] = Field(default=None, description="时间视野")

@@ -486,11 +486,13 @@ docker-compose up -d
 
 API 容器会生成本地 Token，并通过只读共享卷把运行时配置交给 Web 容器；无需把 Token 写进镜像。远程访问时可设置 `ALPHASCOPE_PUBLIC_API_BASE_URL` 为浏览器可达的 API 地址。
 
+Streamlit 是可选调试台，需要时使用 `docker compose --profile debug up -d`；默认启动不安装或运行 Streamlit。
+
 默认服务：
 
 - FastAPI: `http://localhost:8000`
 - Web: `http://localhost:3000`
-- Streamlit: `http://localhost:8501`
+- Streamlit（可选 debug profile）: `http://localhost:8501`
 
 ## 功能模块
 

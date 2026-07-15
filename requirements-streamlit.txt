@@ -3,5 +3,6 @@
 #   python -m streamlit run frontend/dashboard.py
 # or run_dashboard.bat
 
+-r requirements-core.txt
 streamlit==1.57.0
 plotly==6.7.0

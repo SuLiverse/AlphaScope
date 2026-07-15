@@ -109,6 +109,20 @@ class TestSecondRound:
         r = synthesize_debate(agents)
         assert not any(p.kind == "cross_examine" for p in r.bear_points + r.bull_points)
 
+    def test_second_round_recalculates_consensus_after_challenge(self):
+        agents = {"fund": _agent("买入", 5, "低置信多头")}
+        r = synthesize_debate(agents, second_round=True)
+
+        assert r.bear_strength > r.bull_strength
+        assert r.consensus == "偏看空"
+        assert r.consensus_score > 0
+
+    def test_low_confidence_bear_is_challenged_by_bull_side(self):
+        agents = {"tech": _agent("卖出", 20, "低置信空头")}
+        r = synthesize_debate(agents, second_round=True)
+
+        assert any(p.source == "tech" and p.side == "bull" for p in r.bull_points)
+
 
 class TestFailSafe:
     def test_empty_agents_never_raises(self):

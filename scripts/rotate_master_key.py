@@ -19,6 +19,7 @@ release 目录 .env 此前硬编码固定 master key(AUDIT C3), 需换为随机 
 ----
     python scripts/rotate_master_key.py [--env .env] [--db data/db/ai_finance.db] [--dry-run]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -104,9 +105,7 @@ def rotate(env_path: Path, db_path: Path, *, dry_run: bool = False) -> int:
             for rid, cipher in rows:
                 plain = decrypt_key(cipher)
                 if not plain:
-                    print(
-                        f"[rotate] WARN: {table}/{rid} 解密失败(可能非旧 key 加密), 跳过"
-                    )
+                    print(f"[rotate] WARN: {table}/{rid} 解密失败(可能非旧 key 加密), 跳过")
                     continue
                 plains.append((table, col, idcol, rid, plain))
         con.close()
@@ -126,9 +125,7 @@ def rotate(env_path: Path, db_path: Path, *, dry_run: bool = False) -> int:
         cur = con.cursor()
         for table, col, idcol, rid, plain in plains:
             new_cipher = encrypt_key(plain)
-            cur.execute(
-                f"UPDATE {table} SET {col}=? WHERE {idcol}=?", (new_cipher, rid)
-            )
+            cur.execute(f"UPDATE {table} SET {col}=? WHERE {idcol}=?", (new_cipher, rid))
         con.commit()
         con.close()
         print(f"[rotate] 已用新 key 重加密回写 {len(plains)} 条密文")

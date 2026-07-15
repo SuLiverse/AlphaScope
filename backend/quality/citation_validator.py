@@ -18,17 +18,79 @@ OK = "ok"
 DEGRADED = "degraded"
 
 _DISCLAIMER = (
-    "引用核验仅检查文本数字/证据编号是否能与本次研究快照对齐,"
-    "未核验不等于一定虚假,但高置信结论应优先使用可追溯字段。"
+    "引用核验仅检查文本数字/证据编号是否能与本次研究快照对齐,未核验不等于一定虚假,但高置信结论应优先使用可追溯字段。"
 )
 
-# 捕获: 1234.56 / 1,234.56 / 5.6% / 58.3
+# 捕获: -0.5 / +1.25% / 1234.56 / 1,234.56 / 58.3
 _NUM_RE = re.compile(
-    r"(?<![A-Za-z_])"  # 不跟在标识符后
-    r"(?P<num>\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|\d+)"
+    r"(?<![A-Za-z_\d.,])"  # 不跟在标识符或另一个数字内部
+    r"(?P<num>[+-]?(?:\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+\.\d+|\d+))"
     r"(?P<pct>\s*%)?"
 )
 _CITE_RE = re.compile(r"\[(\d{1,3})\]")
+_DATE_RE = re.compile(
+    r"(?<!\d)(?:19|20)\d{2}(?:[-/]\d{1,2}[-/]\d{1,2}|年\d{1,2}月\d{1,2}日?)"
+    r"|(?<!\d)(?:19|20)\d{6}(?!\d)"
+)
+_DIRECT_METADATA_SUFFIX_RE = re.compile(r"^\s*(?:个|条|日|天|周|月|年|次|票|项|席|位|份|家|种|轮|期)(?![A-Za-z])")
+_CURRENCY_SUFFIX_RE = re.compile(r"^\s*(?:人民币|美元|港元|亿元|万元|元|块钱|块)")
+_CLAUSE_DELIMITERS = "\n\r。！？!?；;，,"
+_NEGATIVE_DIRECTION_RE = re.compile(r"下跌|(?<!涨)跌幅|回撤|下降|减少|(?<!涨)跌(?!涨|到|幅)")
+_POSITIVE_DIRECTION_RE = re.compile(r"上涨|涨幅|上升|增长|增加|涨(?!跌|到)")
+
+# Numeric tokens are only assessed when their surrounding clause names a
+# supported market field.  Metadata is a competing semantic class rather than
+# a bag of values, so e.g. confidence=55 cannot verify close=55.
+_METADATA_PATTERNS = (
+    re.compile(
+        r"股票代码|证券代码|标的|(?:平均)?置信度|研究可信度|可信度|完整度|覆盖率|"
+        r"共识度|评分|得分|净分|证据数量|证据数|独立来源|来源数|专家席位|席位|"
+        r"规则信号|模型调用|预算|费用|花费|耗费|成本(?!价)|\bscore\b|\btoken(?:s)?\b",
+        re.IGNORECASE,
+    ),
+)
+_SEMANTIC_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("rsi", re.compile(r"\bRSI\b|相对强弱(?:指数)?", re.IGNORECASE)),
+    ("ma5", re.compile(r"\bMA\s*5\b", re.IGNORECASE)),
+    ("ma20", re.compile(r"\bMA\s*20\b", re.IGNORECASE)),
+    ("ma60", re.compile(r"\bMA\s*60\b", re.IGNORECASE)),
+    ("dif", re.compile(r"\bDIF\b", re.IGNORECASE)),
+    ("dea", re.compile(r"\bDEA\b", re.IGNORECASE)),
+    ("macd", re.compile(r"\bMACD\b", re.IGNORECASE)),
+    ("turnover", re.compile(r"换手率|turnover", re.IGNORECASE)),
+    ("volatility", re.compile(r"波动率|volatility", re.IGNORECASE)),
+    ("vol_ratio", re.compile(r"量比|volume\s*ratio", re.IGNORECASE)),
+    ("volume", re.compile(r"成交量|交易量|\bvolume\b", re.IGNORECASE)),
+    ("amount", re.compile(r"成交额|交易额|\bturnover\s*amount\b", re.IGNORECASE)),
+    ("period_high", re.compile(r"区间(?:最高|高)点|周期(?:最高|高)点|period[_ ]?high", re.IGNORECASE)),
+    ("period_low", re.compile(r"区间(?:最低|低)点|周期(?:最低|低)点|period[_ ]?low", re.IGNORECASE)),
+    ("period_price", re.compile(r"区间高低点|区间最高/最低|区间高/低", re.IGNORECASE)),
+    (
+        "price_level",
+        re.compile(r"目标价|支撑(?:位|价)?|压力(?:位|价)?|止损(?:位|价)?|突破|跌破|站上|涨到|跌到"),
+    ),
+    (
+        "close",
+        re.compile(r"最新价|现价|当前股价|股价|价格|价位|收盘价?|成交价|\b(?:close|price)\b", re.IGNORECASE),
+    ),
+    (
+        "day_change",
+        re.compile(
+            r"当日(?:涨跌|涨|跌)幅?|今日(?:涨跌|涨|跌)幅?|"
+            r"日内(?:涨跌|涨|跌)幅?|单日(?:涨跌|涨|跌)幅?|day[_ ]?change",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "period_change",
+        re.compile(
+            r"(?:近|过去)\s*\d+\s*(?:日|天|周|月).*?(?:涨跌|涨幅|跌幅|收益)|"
+            r"区间涨跌幅?|周期涨跌幅?|累计涨跌幅?|period[_ ]?change",
+            re.IGNORECASE,
+        ),
+    ),
+    ("pct", re.compile(r"涨跌幅?|涨幅|跌幅|收益率|回报率|回撤|(?<!必)上涨|下跌|(?<!必)涨(?!到)|跌(?!到)")),
+)
 
 # 相对容差:价格类 0.5% 或绝对 0.05;百分比类绝对差 0.15
 _PRICE_REL = 0.005
@@ -55,26 +117,27 @@ def _to_float(value: Any) -> Optional[float]:
 
 
 def _build_fact_table(stock_data: dict[str, Any] | None) -> list[tuple[str, float, str]]:
-    """Return list of (field, value, kind) where kind is price|pct|other."""
+    """Return ``(field, value, kind)`` rows for supported market facts."""
     data = stock_data if isinstance(stock_data, dict) else {}
     specs: list[tuple[str, str]] = [
         ("close", "price"),
-        ("ma5", "price"),
-        ("ma20", "price"),
-        ("ma60", "price"),
-        ("period_high", "price"),
-        ("period_low", "price"),
-        ("day_change", "pct"),
-        ("period_change", "pct"),
-        ("change_pct", "pct"),
-        ("rsi", "other"),
-        ("turnover", "pct"),
-        ("vol_ratio", "other"),
-        ("volatility", "pct"),
-        ("volume", "other"),
-        ("dif", "other"),
-        ("dea", "other"),
-        ("macd", "other"),
+        ("ma5", "ma5"),
+        ("ma20", "ma20"),
+        ("ma60", "ma60"),
+        ("period_high", "period_high"),
+        ("period_low", "period_low"),
+        ("day_change", "day_change"),
+        ("period_change", "period_change"),
+        ("change_pct", "change_pct"),
+        ("rsi", "rsi"),
+        ("turnover", "turnover"),
+        ("vol_ratio", "vol_ratio"),
+        ("volatility", "volatility"),
+        ("volume", "volume"),
+        ("total_amount", "amount"),
+        ("dif", "dif"),
+        ("dea", "dea"),
+        ("macd", "macd"),
     ]
     facts: list[tuple[str, float, str]] = []
     for key, kind in specs:
@@ -85,13 +148,37 @@ def _build_fact_table(stock_data: dict[str, Any] | None) -> list[tuple[str, floa
     return facts
 
 
-def _matches(value: float, fact: float, kind: str, is_pct_token: bool) -> bool:
-    if kind == "pct" or is_pct_token:
+def _matches(value: float, fact: float, kind: str) -> bool:
+    if kind in {"day_change", "period_change", "change_pct", "turnover", "volatility"}:
         return abs(value - fact) <= _PCT_ABS or abs(value - fact) / max(abs(fact), 1e-9) <= 0.02
-    if kind == "price":
+    if kind in {"price", "ma5", "ma20", "ma60", "period_high", "period_low", "amount"}:
         return abs(value - fact) <= max(_PRICE_ABS, abs(fact) * _PRICE_REL)
-    # other: rsi, volume etc — allow 1% rel or small abs
+    # Oscillators, volume and other technical values allow 1% relative error.
     return abs(value - fact) <= max(0.15, abs(fact) * 0.01)
+
+
+_COMPATIBLE_FACT_KINDS: dict[str, set[str]] = {
+    "close": {"price"},
+    "price_level": set(),
+    "period_price": {"period_high", "period_low"},
+    "period_high": {"period_high"},
+    "period_low": {"period_low"},
+    "ma5": {"ma5"},
+    "ma20": {"ma20"},
+    "ma60": {"ma60"},
+    "day_change": {"day_change", "change_pct"},
+    "period_change": {"period_change"},
+    "pct": {"day_change", "period_change", "change_pct"},
+    "rsi": {"rsi"},
+    "turnover": {"turnover"},
+    "volatility": {"volatility"},
+    "vol_ratio": {"vol_ratio"},
+    "volume": {"volume"},
+    "amount": {"amount"},
+    "dif": {"dif"},
+    "dea": {"dea"},
+    "macd": {"macd"},
+}
 
 
 @dataclass
@@ -100,6 +187,7 @@ class Claim:
     value: float
     is_percent: bool
     status: str  # verified | unverified | skipped
+    kind: str = ""
     matched_field: str = ""
     source: str = ""  # report | agent:key
 
@@ -109,6 +197,7 @@ class Claim:
             "value": self.value,
             "is_percent": self.is_percent,
             "status": self.status,
+            "kind": self.kind,
             "matched_field": self.matched_field,
             "source": self.source,
         }
@@ -173,9 +262,89 @@ def _collect_texts(
     return chunks
 
 
-def _extract_numeric_claims(source: str, content: str) -> list[Claim]:
+def _overlaps_match(span: tuple[int, int], matches: list[re.Match[str]]) -> bool:
+    start, end = span
+    return any(start < match.end() and end > match.start() for match in matches)
+
+
+def _clause_at(content: str, start: int, end: int) -> tuple[str, int]:
+    left = 0
+    right = len(content)
+    for delimiter in _CLAUSE_DELIMITERS:
+        pos = content.rfind(delimiter, 0, start)
+        if pos >= 0:
+            left = max(left, pos + 1)
+        pos = content.find(delimiter, end)
+        if pos >= 0:
+            right = min(right, pos)
+    return content[left:right], left
+
+
+def _span_distance(left: tuple[int, int], right: tuple[int, int]) -> int:
+    if left[1] <= right[0]:
+        return right[0] - left[1]
+    if right[1] <= left[0]:
+        return left[0] - right[1]
+    return 0
+
+
+def _semantic_kind(content: str, match: re.Match[str]) -> str:
+    """Infer a supported market field from the nearest label in the clause."""
+    start, end = match.span()
+    if _DIRECT_METADATA_SUFFIX_RE.match(content[end : end + 10]):
+        return ""
+    if re.search(r"(?:第|编号|序号)\s*$", content[max(0, start - 8) : start]):
+        return ""
+
+    clause, offset = _clause_at(content, start, end)
+    number_span = (start - offset, end - offset)
+    candidates: list[tuple[int, int, str]] = []
+    for pattern in _METADATA_PATTERNS:
+        for label in pattern.finditer(clause):
+            candidates.append((_span_distance(number_span, label.span()), 0, ""))
+    for priority, (kind, pattern) in enumerate(_SEMANTIC_PATTERNS, start=1):
+        for label in pattern.finditer(clause):
+            candidates.append((_span_distance(number_span, label.span()), priority, kind))
+    if not candidates:
+        return ""
+
+    distance, _priority, kind = min(candidates)
+    # Labels farther than this generally belong to another assertion in a long
+    # free-form clause.  Treating the number as metadata is safer than cross-matching.
+    return kind if distance <= 24 else ""
+
+
+def _same_symbol(raw_num: str, stock_symbol: str) -> bool:
+    unsigned_num = raw_num.lstrip("+-")
+    if "." in unsigned_num or "," in unsigned_num:
+        return False
+    raw_digits = unsigned_num.lstrip("0") or "0"
+    symbol_digits = re.sub(r"\D", "", str(stock_symbol or ""))
+    if not symbol_digits:
+        return False
+    return raw_digits == (symbol_digits.lstrip("0") or "0")
+
+
+def _direction_for_claim(content: str, match: re.Match[str]) -> int:
+    """Return the nearest explicit percentage direction: ``-1``, ``1`` or ``0``."""
+    start, end = match.span()
+    clause, offset = _clause_at(content, start, end)
+    number_span = (start - offset, end - offset)
+    candidates: list[tuple[int, int]] = []
+    for direction, pattern in ((-1, _NEGATIVE_DIRECTION_RE), (1, _POSITIVE_DIRECTION_RE)):
+        for label in pattern.finditer(clause):
+            candidates.append((_span_distance(number_span, label.span()), direction))
+    if not candidates:
+        return 0
+    distance, direction = min(candidates, key=lambda item: item[0])
+    return direction if distance <= 16 else 0
+
+
+def _extract_numeric_claims(source: str, content: str, stock_symbol: str = "") -> list[Claim]:
     claims: list[Claim] = []
-    seen: set[tuple[float, bool, str]] = set()
+    seen: set[tuple[float, bool, str, str]] = set()
+    date_matches = list(_DATE_RE.finditer(content))
+    citation_matches = list(_CITE_RE.finditer(content))
     for m in _NUM_RE.finditer(content):
         raw_num = m.group("num").replace(",", "")
         is_pct = bool(m.group("pct"))
@@ -183,20 +352,61 @@ def _extract_numeric_claims(source: str, content: str) -> list[Claim]:
             value = float(raw_num)
         except ValueError:
             continue
-        # 跳过无信息数字:纯年份、序号式小整数(无小数且无%)且 < 10 且不是 0
-        if not is_pct and "." not in raw_num and value < 10:
+        if _overlaps_match(m.span(), date_matches) or _overlaps_match(m.span(), citation_matches):
+            continue
+        if _same_symbol(raw_num, stock_symbol):
             continue
         # 跳过明显的大纯整数年份
-        if not is_pct and "." not in raw_num and 1900 <= value <= 2100:
+        if not is_pct and "." not in raw_num and 1900 <= abs(value) <= 2100:
             continue
-        # 跳过过大的成交量级以外的离谱整数可在匹配阶段处理
-        key = (round(value, 6), is_pct, source)
+        kind = _semantic_kind(content, m)
+        if not kind:
+            continue
+
+        direction = _direction_for_claim(content, m) if kind in {"day_change", "period_change", "pct"} else 0
+        has_explicit_sign = raw_num.startswith(("+", "-"))
+        if direction and has_explicit_sign and (value > 0) != (direction > 0):
+            kind = f"invalid_direction_{kind}"
+        elif direction and not has_explicit_sign:
+            value = abs(value) * direction
+
+        has_currency_unit = bool(_CURRENCY_SUFFIX_RE.match(content[m.end() : m.end() + 12]))
+        if has_currency_unit and kind in {"day_change", "period_change", "pct", "turnover", "volatility"}:
+            kind = f"invalid_currency_{kind}"
+        # A percent-marked price cannot verify a price field even if the value
+        # happens to be identical.  Preserve it as an assessable bad claim.
+        if is_pct and kind in {
+            "close",
+            "price_level",
+            "period_price",
+            "period_high",
+            "period_low",
+            "ma5",
+            "ma20",
+            "ma60",
+            "volume",
+            "amount",
+            "vol_ratio",
+            "rsi",
+            "dif",
+            "dea",
+            "macd",
+        }:
+            kind = f"invalid_percent_{kind}"
+        key = (round(value, 6), is_pct, source, kind)
         if key in seen:
             continue
         seen.add(key)
         raw = m.group(0).strip()
         claims.append(
-            Claim(raw=raw, value=value, is_percent=is_pct, status="unverified", source=source)
+            Claim(
+                raw=raw,
+                value=value,
+                is_percent=is_pct,
+                status="unverified",
+                kind=kind,
+                source=source,
+            )
         )
     return claims
 
@@ -205,12 +415,11 @@ def _ground_claims(claims: list[Claim], facts: list[tuple[str, float, str]]) -> 
     for claim in claims:
         best_field = ""
         matched = False
+        compatible_kinds = _COMPATIBLE_FACT_KINDS.get(claim.kind, set())
         for field_name, fact_val, kind in facts:
-            # percent tokens prefer pct facts; bare numbers prefer price then other
-            if claim.is_percent and kind not in ("pct", "other"):
-                # still allow rsi-like
-                pass
-            if _matches(claim.value, fact_val, kind, claim.is_percent):
+            if kind not in compatible_kinds:
+                continue
+            if _matches(claim.value, fact_val, kind):
                 matched = True
                 best_field = field_name
                 break
@@ -218,7 +427,6 @@ def _ground_claims(claims: list[Claim], facts: list[tuple[str, float, str]]) -> 
             claim.status = "verified"
             claim.matched_field = best_field
         else:
-            # 极大离谱价格(相对事实 close)更应标 unverified;小噪声整数可 skipped
             claim.status = "unverified"
 
 
@@ -226,12 +434,10 @@ def _check_citations(
     chunks: list[tuple[str, str]],
     evidence_pool: list[Any] | None,
 ) -> tuple[int, int, list[str]]:
-    if not evidence_pool:
-        return 0, 0, []
     n_ok = 0
     n_bad = 0
     issues: list[str] = []
-    max_n = len(evidence_pool)
+    max_n = len(evidence_pool or [])
     seen_bad: set[int] = set()
     for _src, content in chunks:
         for m in _CITE_RE.finditer(content):
@@ -242,7 +448,10 @@ def _check_citations(
                 n_bad += 1
                 if num not in seen_bad:
                     seen_bad.add(num)
-                    issues.append(f"证据引用 [{num}] 超出池大小 {max_n}")
+                    if max_n == 0:
+                        issues.append(f"证据引用 [{num}] 无可用证据池")
+                    else:
+                        issues.append(f"证据引用 [{num}] 超出池大小 {max_n}")
     return n_ok, n_bad, issues
 
 
@@ -272,10 +481,11 @@ def validate_citations(
     try:
         chunks = _collect_texts(text, agents, research_report)
         facts = _build_fact_table(stock_data)
+        stock_symbol = str((stock_data or {}).get("symbol") or "")
 
         claims: list[Claim] = []
         for source, content in chunks:
-            claims.extend(_extract_numeric_claims(source, content))
+            claims.extend(_extract_numeric_claims(source, content, stock_symbol=stock_symbol))
 
         if facts:
             _ground_claims(claims, facts)

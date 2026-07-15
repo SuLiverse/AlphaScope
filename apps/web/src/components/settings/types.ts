@@ -94,6 +94,17 @@ export interface ProviderDraft {
   enabled: boolean;
 }
 
+export interface LocalLlmPreset {
+  id: string;
+  name: string;
+  base_url: string;
+  api_key_placeholder?: string;
+  default_model?: string;
+  notes?: string;
+  local_base_url_allowed?: boolean;
+  env_hint?: string;
+}
+
 export type ProviderListItem = SettingsModelProvider & { isDraft?: boolean };
 
 export interface SettingsProps {

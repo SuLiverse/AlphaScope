@@ -9,6 +9,8 @@ __pycache__/
 *.egg-info/
 venvs/
 .venv/
+.pytest_cache/
+.ruff_cache/
 
 # IDE
 .vscode/
@@ -20,11 +22,19 @@ cache/
 data/runtime/
 apps/web/public/runtime-config.js
 apps/web/dist/runtime-config.js
+dist/
+build/
+**/node_modules/
+apps/web/dist/
+output/
+pytest_out*.txt
 
 # Docs
 reports/archive/
 *.md
 !README.md
+!prompts/*.md
+!prompts/**/*.md
 
 # Env (use docker-compose volumes)
 .env

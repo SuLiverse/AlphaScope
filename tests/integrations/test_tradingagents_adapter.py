@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.integrations.agent import tradingagents_adapter as adapter_module
 from backend.integrations.agent.tradingagents_adapter import (
     TradingagentsAdapter,
     _normalize_decision,
@@ -55,6 +56,7 @@ def test_map_decision_buy_maps_to_buy_signal():
         "BUY",
     )
     assert op.thesis.startswith("Strong fundamentals")
+    assert op.signal == "买入"
     assert op.confidence == 60.0
     assert op.forbidden_live_order is True
     assert op.suggested_action_type == "generate_report"
@@ -73,12 +75,14 @@ def test_map_decision_uses_report_fallback_when_no_final_decision():
 def test_map_decision_empty_state_uses_placeholder_thesis():
     op = map_decision_to_opinion(None, "SELL")
     assert "SELL" in op.thesis
+    assert op.signal == "卖出"
     assert op.confidence == 60.0
 
 
 def test_map_decision_hold_has_lower_confidence():
     """HOLD 是中性观望, 置信度 50 (低于 BUY/SELL 的 60)。"""
     op = map_decision_to_opinion({}, "HOLD")
+    assert op.signal == "观望"
     assert op.confidence == 50.0
 
 
@@ -143,6 +147,55 @@ def test_analyze_failure_safe_returns_empty_when_unavailable(monkeypatch):
     a = TradingagentsAdapter()
     out = a.analyze(["NVDA"], trade_date="2024-01-15")
     assert out == []
+    assert a.last_run_status["status"] == "unavailable"
+    assert a.last_run_status["message"]
+
+
+def test_analyze_defaults_trade_date_and_reports_success(monkeypatch):
+    captured: dict[str, str] = {}
+
+    class FakeGraph:
+        def __init__(self, **_kwargs):
+            pass
+
+        def propagate(self, company, trade_date, *, asset_type):
+            captured.update(company=company, trade_date=trade_date, asset_type=asset_type)
+            return {"final_trade_decision": "Momentum is constructive."}, "BUY"
+
+    monkeypatch.setattr(adapter_module, "_TA_AVAILABLE", True)
+    monkeypatch.setattr(adapter_module, "TradingAgentsGraph", FakeGraph)
+    monkeypatch.setattr(adapter_module, "has_llm_credentials", lambda: True)
+
+    opinions, status = TradingagentsAdapter().analyze_with_status(["NVDA"])
+
+    assert len(opinions) == 1
+    assert opinions[0].signal == "买入"
+    assert captured["trade_date"] == status["trade_date"]
+    assert len(captured["trade_date"]) == 10
+    assert status["trade_date_source"] == "today_default"
+    assert status["status"] == "success"
+
+
+def test_analyze_runtime_failure_is_observable_and_sanitized(monkeypatch):
+    class FailingGraph:
+        def __init__(self, **_kwargs):
+            pass
+
+        def propagate(self, *_args, **_kwargs):
+            raise RuntimeError("api_key=super-secret upstream timeout")
+
+    monkeypatch.setattr(adapter_module, "_TA_AVAILABLE", True)
+    monkeypatch.setattr(adapter_module, "TradingAgentsGraph", FailingGraph)
+    monkeypatch.setattr(adapter_module, "has_llm_credentials", lambda: True)
+
+    opinions, status = TradingagentsAdapter().analyze_with_status(["NVDA"], trade_date="2026-07-14")
+
+    assert opinions == []
+    assert status["status"] == "failed"
+    assert status["trade_date"] == "2026-07-14"
+    assert status["errors"][0]["symbol"] == "NVDA"
+    assert "RuntimeError" in status["errors"][0]["reason"]
+    assert "super-secret" not in status["errors"][0]["reason"]
 
 
 # ============================================================

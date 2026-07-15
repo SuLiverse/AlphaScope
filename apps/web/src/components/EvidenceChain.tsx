@@ -18,6 +18,7 @@ import { STOCK_UNIVERSE, StockTarget, findStockTarget, formatStockLabel } from '
 import { dispatchStockSelected, getPersistedStock, subscribeStockSelected } from '../lib/workspaceEvents';
 import { fetchApi } from '../lib/api';
 import { getErrorMessage, stripSymbolSuffix } from '../lib/dataFetch';
+import { buildEvidenceGraphLayout } from '../lib/evidenceGraph';
 
 type PillarId = 'fundamental' | 'quant' | 'sentiment' | 'liquidity';
 
@@ -173,6 +174,12 @@ export function EvidenceChain() {
   }, []);
 
   useEffect(() => {
+    setEvidence([]);
+    setSelectedNode(null);
+    setSourceLabel('正在加载当前标的证据…');
+    setLoadError(null);
+    setGraph(null);
+    setGraphError(null);
     void loadEvidence(selectedTarget);
   }, [selectedTarget, loadEvidence]);
 
@@ -247,26 +254,10 @@ export function EvidenceChain() {
     return Math.round((total / evidence.length) * 100);
   }, [evidence]);
 
-  const graphLayout = useMemo(() => {
-    const nodes = graph?.nodes || [];
-    const edges = graph?.edges || [];
-    const n = nodes.length;
-    if (!n) return { points: [] as Array<{ id: string; x: number; y: number; label: string; color: string }>, edges };
-    const cx = 280;
-    const cy = 120;
-    const r = Math.min(100, 40 + n * 6);
-    const points = nodes.map((node, i) => {
-      const angle = (2 * Math.PI * i) / n - Math.PI / 2;
-      return {
-        id: String(node.id ?? `n${i}`),
-        x: cx + r * Math.cos(angle),
-        y: cy + r * Math.sin(angle),
-        label: String(node.label || node.id || i).slice(0, 12),
-        color: String(node.color || '#6366f1'),
-      };
-    });
-    return { points, edges };
-  }, [graph]);
+  const graphLayout = useMemo(
+    () => buildEvidenceGraphLayout(graph?.nodes || [], graph?.edges || []),
+    [graph],
+  );
 
   return (
     <motion.div
@@ -352,42 +343,53 @@ export function EvidenceChain() {
           <h3 className="text-sm font-medium text-neutral-100">证据关联图谱</h3>
           <span className="text-[11px] font-mono text-neutral-500">
             nodes {graphLayout.points.length} · edges {graphLayout.edges.length}
+            {graphLayout.truncated > 0 ? ` · 隐藏 ${graphLayout.truncated}` : ''}
           </span>
         </div>
-        {graphError && (
-          <p className="text-[11px] text-amber-200/80 mb-2">图谱加载失败：{graphError}</p>
-        )}
-        {graphLayout.points.length === 0 ? (
+        {loadError ? (
+          <p className="py-6 text-center text-xs text-red-200/80">证据读取失败，未生成图谱。</p>
+        ) : graphError ? (
+          <p className="py-6 text-center text-xs text-amber-200/80">图谱加载失败：{graphError}</p>
+        ) : loading ? (
+          <p className="py-6 text-center text-xs text-neutral-500">正在生成当前标的图谱…</p>
+        ) : graphLayout.points.length === 0 ? (
           <p className="text-xs text-neutral-600 py-6 text-center">暂无图谱节点，请先加载证据。</p>
         ) : (
-          <svg viewBox="0 0 560 240" className="w-full h-48">
-            {graphLayout.edges.map((e, i) => {
-              const src = String((e as { source?: string }).source ?? (e as { from?: string }).from ?? '');
-              const tgt = String((e as { target?: string }).target ?? (e as { to?: string }).to ?? '');
-              const a = graphLayout.points.find((p) => p.id === src);
-              const b = graphLayout.points.find((p) => p.id === tgt);
-              if (!a || !b) return null;
-              return (
-                <line
-                  key={`e-${i}`}
-                  x1={a.x}
-                  y1={a.y}
-                  x2={b.x}
-                  y2={b.y}
-                  stroke="rgba(148,163,184,0.35)"
-                  strokeWidth={1}
-                />
-              );
-            })}
-            {graphLayout.points.map((p) => (
-              <g key={p.id}>
-                <circle cx={p.x} cy={p.y} r={10} fill={p.color} opacity={0.85} />
-                <text x={p.x} y={p.y + 22} textAnchor="middle" fill="#a3a3a3" fontSize="9">
-                  {p.label}
-                </text>
-              </g>
-            ))}
-          </svg>
+          <div className="max-h-80 overflow-auto custom-scrollbar">
+            <svg
+              viewBox={`0 0 ${graphLayout.width} ${graphLayout.height}`}
+              width={graphLayout.width}
+              height={graphLayout.height}
+              className="max-w-none"
+            >
+              {graphLayout.edges.map((e, i) => {
+                const src = String((e as { source?: string }).source ?? (e as { from?: string }).from ?? '');
+                const tgt = String((e as { target?: string }).target ?? (e as { to?: string }).to ?? '');
+                const a = graphLayout.points.find((p) => p.id === src);
+                const b = graphLayout.points.find((p) => p.id === tgt);
+                if (!a || !b) return null;
+                return (
+                  <line
+                    key={`e-${i}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke="rgba(148,163,184,0.35)"
+                    strokeWidth={1}
+                  />
+                );
+              })}
+              {graphLayout.points.map((p) => (
+                <g key={p.id}>
+                  <circle cx={p.x} cy={p.y} r={9} fill={p.color} opacity={0.85} />
+                  <text x={p.x} y={p.y + 20} textAnchor="middle" fill="#a3a3a3" fontSize="9">
+                    {p.label}
+                  </text>
+                </g>
+              ))}
+            </svg>
+          </div>
         )}
       </div>
 
@@ -456,7 +458,9 @@ export function EvidenceChain() {
                     <span className="px-1.5 py-0.5 rounded-md font-mono text-[9px] bg-white/5 border border-white/10 text-neutral-400">{nodesInPillar.length} 论据</span>
                   </div>
                   <div className="flex-grow space-y-2">
-                    {loading ? (
+                    {loadError ? (
+                      <div className="py-4 text-[10px] font-mono text-red-300/80">[错误] 当前标的证据读取失败</div>
+                    ) : loading ? (
                       <div className="text-[10px] font-mono text-neutral-600 italic py-4">[同步] 正在从证据库加载...</div>
                     ) : nodesInPillar.length === 0 ? (
                       <div className="text-[10px] font-mono text-neutral-600 italic py-4">[缺省] 暂无该类证据，可追加</div>

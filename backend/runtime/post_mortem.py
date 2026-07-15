@@ -31,7 +31,7 @@ def build_post_mortem_brief(symbol: str, limit: int = 8) -> str:
             f"- 信号分布: {summary.get('signal_distribution') or {}}",
             f"- 转折次数: {summary.get('change_count', 0)} · 均置信 {float(summary.get('avg_confidence') or 0):.0f}",
         ]
-        for ch in (changes[-3:] if changes else []):
+        for ch in changes[-3:] if changes else []:
             if not isinstance(ch, dict):
                 continue
             lines.append(

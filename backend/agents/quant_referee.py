@@ -24,8 +24,7 @@ BEARISH = "bearish"
 NEUTRAL = "neutral"
 
 _DISCLAIMER = (
-    "Quant Referee 仅描述历史量价与技术规则状态,用于研究对照与幻觉抑制,"
-    "不预测涨跌、不构成任何买卖指令或收益承诺。"
+    "Quant Referee 仅描述历史量价与技术规则状态,用于研究对照与幻觉抑制,不预测涨跌、不构成任何买卖指令或收益承诺。"
 )
 
 _BULL_LLM = {"买入", "buy", "看多", "增持", "bullish", "偏多"}
@@ -126,9 +125,12 @@ def _llm_camp(final: Any) -> Optional[str]:
         return None
     # also check original case tokens
     raw = str(final).strip()
+    # 风控/合规否决不是方向性看空观点，不能因为包含“否决”二字就映射为 bearish。
+    if "风控否决" in raw or "合规否决" in raw:
+        return None
     if raw in _BULL_LLM or s in _BULL_LLM or any(k in raw for k in ("买入", "看多", "增持")):
         return BULLISH
-    if raw in _BEAR_LLM or s in _BEAR_LLM or any(k in raw for k in ("卖出", "看空", "减持", "否决")):
+    if raw in _BEAR_LLM or s in _BEAR_LLM or any(k in raw for k in ("卖出", "看空", "减持")):
         return BEARISH
     if any(k in raw for k in ("观望", "中性", "hold")):
         return NEUTRAL
@@ -209,25 +211,15 @@ def _eval_rules(data: dict[str, Any]) -> list[RefereeSignal]:
     # 2) RSI
     if rsi is not None:
         if rsi >= 70:
-            signals.append(
-                RefereeSignal("rsi", BEARISH, 18.0, f"RSI({rsi:.1f}) 进入超买区(≥70)", f"rsi={rsi:.1f}")
-            )
+            signals.append(RefereeSignal("rsi", BEARISH, 18.0, f"RSI({rsi:.1f}) 进入超买区(≥70)", f"rsi={rsi:.1f}"))
         elif rsi <= 30:
-            signals.append(
-                RefereeSignal("rsi", BULLISH, 18.0, f"RSI({rsi:.1f}) 进入超卖区(≤30)", f"rsi={rsi:.1f}")
-            )
+            signals.append(RefereeSignal("rsi", BULLISH, 18.0, f"RSI({rsi:.1f}) 进入超卖区(≤30)", f"rsi={rsi:.1f}"))
         elif 45 <= rsi <= 55:
-            signals.append(
-                RefereeSignal("rsi", NEUTRAL, 5.0, f"RSI({rsi:.1f}) 中性区间", f"rsi={rsi:.1f}")
-            )
+            signals.append(RefereeSignal("rsi", NEUTRAL, 5.0, f"RSI({rsi:.1f}) 中性区间", f"rsi={rsi:.1f}"))
         elif rsi > 55:
-            signals.append(
-                RefereeSignal("rsi", BULLISH, 8.0, f"RSI({rsi:.1f}) 偏强", f"rsi={rsi:.1f}")
-            )
+            signals.append(RefereeSignal("rsi", BULLISH, 8.0, f"RSI({rsi:.1f}) 偏强", f"rsi={rsi:.1f}"))
         else:
-            signals.append(
-                RefereeSignal("rsi", BEARISH, 8.0, f"RSI({rsi:.1f}) 偏弱", f"rsi={rsi:.1f}")
-            )
+            signals.append(RefereeSignal("rsi", BEARISH, 8.0, f"RSI({rsi:.1f}) 偏弱", f"rsi={rsi:.1f}"))
 
     # 3) MACD / DIF-DEA
     if dif is not None and dea is not None:

@@ -23,27 +23,21 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { fetchApi } from "../../lib/api";
-import type { ProviderModelCapabilities, ProviderModelInfo } from "../../lib/aiModelRouting";
+import type {
+  AiRoutingPack,
+  ProviderModelCapabilities,
+  ProviderModelInfo,
+} from "../../lib/aiModelRouting";
 import { ThemedSelect, type ThemedSelectOption } from "../ThemedSelect";
 import {
   type ProviderDraft,
   type ProviderListItem,
+  type LocalLlmPreset,
   type SettingsModelProvider,
   type SettingsState,
 } from "./types";
 import { getModelCapabilityClass, getModelCapabilityLabel } from "./helpers";
 import { TextField, ToggleRow } from "./fields";
-
-interface LocalLlmPreset {
-  id: string;
-  name: string;
-  base_url: string;
-  api_key_placeholder?: string;
-  default_model?: string;
-  notes?: string;
-  local_base_url_allowed?: boolean;
-  env_hint?: string;
-}
 
 export interface ApiKeysTabProps {
   settings: SettingsState;
@@ -55,6 +49,9 @@ export interface ApiKeysTabProps {
   selectedProviderId: string;
   selectProvider: (provider: ProviderListItem) => void;
   addProvider: () => void;
+  existingProviderIds: string[];
+  applyLocalPreset: (preset: LocalLlmPreset) => string;
+  applyRoutingPack: (pack: AiRoutingPack) => Promise<void>;
   providerDraft: ProviderDraft;
   setProviderDraft: Dispatch<SetStateAction<ProviderDraft>>;
   providerStatus: string;
@@ -96,6 +93,9 @@ export function ApiKeysTab({
   selectedProviderId,
   selectProvider,
   addProvider,
+  existingProviderIds,
+  applyLocalPreset,
+  applyRoutingPack,
   providerDraft,
   setProviderDraft,
   providerStatus,
@@ -128,9 +128,8 @@ export function ApiKeysTab({
 }: ApiKeysTabProps) {
   const [localPresets, setLocalPresets] = useState<LocalLlmPreset[]>([]);
   const [localPresetHint, setLocalPresetHint] = useState('');
-  const [routingPacks, setRoutingPacks] = useState<
-    Array<{ id: string; name: string; description?: string; routes?: Record<string, { providerId: string; modelId: string }> }>
-  >([]);
+  const [routingPacks, setRoutingPacks] = useState<AiRoutingPack[]>([]);
+  const [routingPackBusy, setRoutingPackBusy] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -153,20 +152,13 @@ export function ApiKeysTab({
     };
   }, []);
 
-  const applyLocalPreset = (preset: LocalLlmPreset) => {
-    setProviderDraft((prev) => ({
-      ...prev,
-      id: preset.id || prev.id,
-      name: preset.name || prev.name,
-      base_url: preset.base_url || prev.base_url,
-      api_key: preset.api_key_placeholder || prev.api_key || 'local',
-      enabled: true,
-    }));
+  const handleLocalPreset = (preset: LocalLlmPreset) => {
+    const action = applyLocalPreset(preset);
     const allow = preset.local_base_url_allowed;
     setLocalPresetHint(
       allow
-        ? `已填入 ${preset.name}。请确认本机服务已启动后保存并测试。`
-        : `已填入 ${preset.name}。保存前请设置环境变量 ALLOW_LOCAL_LLM_BASE_URL=1（SSRF 防护）。${preset.notes || ''}`,
+        ? `${action} 请确认本机服务已启动后保存并测试。`
+        : `${action} 保存前请设置环境变量 ALLOW_LOCAL_LLM_BASE_URL=1（SSRF 防护）。${preset.notes || ''}`,
     );
   };
 
@@ -283,10 +275,10 @@ export function ApiKeysTab({
                               <button
                                 key={p.id}
                                 type="button"
-                                onClick={() => applyLocalPreset(p)}
+                                onClick={() => handleLocalPreset(p)}
                                 className="rounded-xl border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-neutral-200 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/10"
                               >
-                                {p.name}
+                                {existingProviderIds.includes(p.id) ? `切换到 ${p.name}` : `新建 ${p.name}`}
                               </button>
                             ))}
                           </div>
@@ -306,23 +298,23 @@ export function ApiKeysTab({
                                     key={pack.id}
                                     type="button"
                                     title={pack.description}
-                                    onClick={() => {
+                                    disabled={Boolean(routingPackBusy)}
+                                    onClick={async () => {
+                                      setRoutingPackBusy(pack.id);
                                       try {
-                                        const key = 'alphascope:ai-model-routes-v1';
-                                        const prev = JSON.parse(localStorage.getItem(key) || '{}') as Record<string, unknown>;
-                                        const routes = { ...(prev.routes as object || {}), ...(pack.routes || {}) };
-                                        localStorage.setItem(
-                                          key,
-                                          JSON.stringify({ ...prev, useUnifiedModel: false, routes }),
+                                        await applyRoutingPack(pack);
+                                        setLocalPresetHint(`已应用并保存路由包「${pack.name}」。`);
+                                      } catch (error) {
+                                        setLocalPresetHint(
+                                          error instanceof Error ? `路由包保存失败：${error.message}` : '路由包保存失败',
                                         );
-                                        setLocalPresetHint(`已应用路由包「${pack.name}」。请到「模型路由」Tab 核对。`);
-                                      } catch {
-                                        setLocalPresetHint('写入路由包失败');
+                                      } finally {
+                                        setRoutingPackBusy('');
                                       }
                                     }}
-                                    className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-100"
+                                    className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-100 disabled:opacity-50"
                                   >
-                                    {pack.name}
+                                    {routingPackBusy === pack.id ? '保存中…' : pack.name}
                                   </button>
                                 ))}
                               </div>

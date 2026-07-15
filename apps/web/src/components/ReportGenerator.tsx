@@ -22,6 +22,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getCitationDisplayState, getQuantRefereeDisplayState } from '../lib/reviewStatus';
 import { startAsyncAnalysis, getTaskResult, getTaskEventsUrl, getTaskStatus, getReportExportUrl } from '../lib/analysisAdapter';
 import {
   AnalysisResult,
@@ -48,6 +49,7 @@ import {
   getRouteSelection,
   loadAiModelRoutesFromApi,
   loadLocalAiModelRoutes,
+  type AiModelRoutes,
   ModelOption,
   ModelProvider,
   routesToGlobalAiSettings,
@@ -398,7 +400,14 @@ const REFEREE_STANCE_TONE: Record<string, string> = {
 };
 
 function QuantRefereePanel({ referee }: { referee: QuantRefereeResult }) {
-  const tone = REFEREE_STANCE_TONE[referee.stance] || REFEREE_STANCE_TONE['未知'];
+  const display = getQuantRefereeDisplayState(referee);
+  const statusTone: Record<string, string> = {
+    ok: REFEREE_STANCE_TONE[referee.stance] || REFEREE_STANCE_TONE['未知'],
+    degraded: 'border-amber-500/25 bg-amber-500/[0.07] text-amber-100',
+    skipped: 'border-white/10 bg-white/[0.03] text-neutral-300',
+    error: 'border-red-500/25 bg-red-500/[0.07] text-red-100',
+  };
+  const tone = statusTone[display.tone];
   const alignTone =
     referee.llm_alignment === '冲突' || referee.llm_alignment === '背离'
       ? 'text-amber-300'
@@ -410,15 +419,18 @@ function QuantRefereePanel({ referee }: { referee: QuantRefereeResult }) {
       <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3', tone)}>
         <div className="flex items-center gap-2">
           <Gauge className="h-4 w-4" />
-          <span className="text-sm font-semibold">规则立场：{referee.stance}</span>
+          <span className="text-sm font-semibold">规则立场：{referee.stance || '未知'}</span>
+          <span className="rounded border border-current/20 px-1.5 py-0.5 text-[10px] opacity-80">
+            {display.label}
+          </span>
         </div>
         <div className="flex items-center gap-3 text-[11px] font-mono opacity-90">
-          <span>净分 {referee.net_score.toFixed(1)}</span>
+          <span>净分 {Number(referee.net_score || 0).toFixed(1)}</span>
           <span>多 {referee.n_bull} · 空 {referee.n_bear} · 中 {referee.n_neutral}</span>
           <span className={alignTone}>vs LLM: {referee.llm_alignment || '未对比'}</span>
         </div>
       </div>
-      {referee.note ? <p className="mb-3 text-sm text-neutral-400">{referee.note}</p> : null}
+      <p className="mb-3 text-sm text-neutral-400">{referee.note || display.fallback}</p>
       {referee.signals?.length ? (
         <ul className="space-y-1.5">
           {referee.signals.map((s, i) => (
@@ -430,7 +442,9 @@ function QuantRefereePanel({ referee }: { referee: QuantRefereeResult }) {
           ))}
         </ul>
       ) : (
-        <p className="text-[12px] text-neutral-600">无规则信号</p>
+        <p className="text-[12px] text-neutral-600">
+          {display.tone === 'ok' ? '未触发方向性规则信号。' : display.fallback}
+        </p>
       )}
       {referee.disclaimer ? (
         <p className="mt-4 text-[11px] leading-relaxed text-neutral-500">{referee.disclaimer}</p>
@@ -440,24 +454,34 @@ function QuantRefereePanel({ referee }: { referee: QuantRefereeResult }) {
 }
 
 function CitationValidationPanel({ citation }: { citation: CitationValidationResult }) {
-  const degraded = citation.status === 'degraded' || (citation.n_unverified || 0) > 0;
+  const display = getCitationDisplayState(citation);
+  const panelTone: Record<string, string> = {
+    ok: 'border-emerald-500/15 bg-emerald-500/[0.035]',
+    degraded: 'border-amber-500/20 bg-amber-500/[0.06]',
+    skipped: 'border-white/8 bg-white/[0.035]',
+    error: 'border-red-500/20 bg-red-500/[0.06]',
+  };
+  const grounding = Number.isFinite(citation.grounding_score) ? citation.grounding_score : 0;
   return (
     <div
       className={cn(
         'rounded-xl border p-5',
-        degraded ? 'border-amber-500/20 bg-amber-500/[0.06]' : 'border-white/8 bg-white/[0.035]',
+        panelTone[display.tone],
       )}
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2 text-sm font-semibold text-neutral-100">
           <Link2 className="h-4 w-4" />
           数值与引用可追溯
+          <span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-normal text-neutral-400">
+            {display.label}
+          </span>
         </div>
         <div className="flex flex-wrap gap-3 text-[11px] font-mono text-neutral-400">
           <span>
             对齐 {citation.n_verified}/{citation.n_claims}
           </span>
-          <span>grounding {(citation.grounding_score * 100).toFixed(0)}%</span>
+          <span>grounding {(grounding * 100).toFixed(0)}%</span>
           <span>
             引用 OK {citation.n_citation_ok} / 异常 {citation.n_citation_bad}
           </span>
@@ -466,6 +490,11 @@ function CitationValidationPanel({ citation }: { citation: CitationValidationRes
           ) : null}
         </div>
       </div>
+      {citation.note ? (
+        <p className="mb-3 rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-[12px] text-neutral-300">
+          {citation.note}
+        </p>
+      ) : null}
       {citation.issues && citation.issues.length > 0 ? (
         <ul className="mb-3 space-y-1">
           {citation.issues.slice(0, 6).map((issue, i) => (
@@ -475,7 +504,7 @@ function CitationValidationPanel({ citation }: { citation: CitationValidationRes
           ))}
         </ul>
       ) : (
-        <p className="mb-3 text-[12px] text-neutral-500">未发现明显未核验数字或虚引。</p>
+        <p className="mb-3 text-[12px] text-neutral-500">{display.fallback}</p>
       )}
       {citation.disclaimer ? (
         <p className="text-[11px] leading-relaxed text-neutral-500">{citation.disclaimer}</p>
@@ -526,12 +555,11 @@ function GeneratedResearchReport({
         </ReportSection>
       )}
 
-      {result.quant_referee &&
-        (result.quant_referee.status === 'ok' || result.quant_referee.status === 'degraded') && (
-          <ReportSection icon={Gauge} title="量化裁判 (规则信号)" eyebrow="Quant Referee">
-            <QuantRefereePanel referee={result.quant_referee} />
-          </ReportSection>
-        )}
+      {result.quant_referee && (
+        <ReportSection icon={Gauge} title="量化裁判 (规则信号)" eyebrow="Quant Referee">
+          <QuantRefereePanel referee={result.quant_referee} />
+        </ReportSection>
+      )}
 
       {result.citation_validation && (
         <ReportSection icon={Link2} title="引用与数值核验" eyebrow="Citation Validator">
@@ -604,6 +632,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [currentTaskId, setCurrentTaskId] = useState('');
   const [providers, setProviders] = useState<ModelProvider[]>([]);
+  const [analysisRoutes, setAnalysisRoutes] = useState<AiModelRoutes>(() => loadLocalAiModelRoutes());
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [selectedReportModelKey, setSelectedReportModelKey] = useState('');
   
@@ -713,6 +742,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         const options = buildModelOptions(nextProviders, 'chat');
         const routeKey = getModelKey(getRouteSelection(routes, nextProviders, 'report'));
         setProviders(nextProviders);
+        setAnalysisRoutes(routes);
         setModelOptions(options);
         setSelectedReportModelKey((current) => (
           current && options.some((option) => option.key === current)
@@ -794,22 +824,23 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         return;
       }
 
+      const selectedReportRoute = selectedReportModel
+        ? {
+            providerId: selectedReportModel.providerId,
+            providerName: selectedReportModel.providerName,
+            modelId: selectedReportModel.modelId,
+          }
+        : undefined;
+      const effectiveRoutes = selectedReportRoute
+        ? analysisRoutes.useUnifiedModel
+          ? { ...analysisRoutes, unified: selectedReportRoute }
+          : {
+              ...analysisRoutes,
+              routes: { ...analysisRoutes.routes, report: selectedReportRoute },
+            }
+        : analysisRoutes;
       const globalAiSettings = selectedReportModel
-        ? routesToGlobalAiSettings({
-            useUnifiedModel: true,
-            unified: {
-              providerId: selectedReportModel.providerId,
-              providerName: selectedReportModel.providerName,
-              modelId: selectedReportModel.modelId,
-            },
-            routes: {
-              report: {
-                providerId: selectedReportModel.providerId,
-                providerName: selectedReportModel.providerName,
-                modelId: selectedReportModel.modelId,
-              },
-            },
-          }, providers, 'report')
+        ? routesToGlobalAiSettings(effectiveRoutes, providers, 'report')
         : undefined;
 
       // Real API Flow with SSE

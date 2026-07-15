@@ -23,14 +23,14 @@
 
 ### 1. 安装 Python
 
-访问 [python.org](https://www.python.org/downloads/) 下载 Python 3.10 或更高版本。
+访问 [python.org](https://www.python.org/downloads/) 下载 Python 3.11 或 3.12。
 
 安装时勾选 "Add Python to PATH"。
 
 验证安装：
 ```bash
 python --version
-# 应显示 Python 3.10.x 或更高
+# 应显示 Python 3.11.x 或 3.12.x
 ```
 
 ### 2. 安装 Node.js
@@ -85,7 +85,7 @@ cd AlphaScope
 
 ```bash
 # 在项目根目录
-pip install -e .
+pip install -e ".[api]"
 ```
 
 ### 前端依赖
@@ -193,4 +193,3 @@ pkill -f "vite"
 ## 下一步
 
 安装完成后，请继续阅读[快速开始](02-quickstart.md)了解首次使用流程。
-

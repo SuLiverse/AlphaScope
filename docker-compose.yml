@@ -1,19 +1,19 @@
 # 研策中枢 AlphaScope Docker Compose (v1.9.51)
-# Services: Streamlit Dashboard + FastAPI API + Vite Frontend
+# Services: FastAPI API + Vite Frontend; optional Streamlit debug console
 #
 # Usage:
-#   docker-compose up -d              # Start all services
-#   docker-compose up -d app          # Streamlit only (port 8501)
-#   docker-compose up -d api          # FastAPI only (port 8000)
-#   docker-compose up -d web          # Vite frontend only (port 3000)
-#   docker-compose up -d app api web  # All frontends
+#   docker compose up -d                       # Start API + product Web UI
+#   docker compose --profile debug up -d       # Also start Streamlit (port 8501)
+#   docker compose up -d api                   # FastAPI only (port 8000)
 
 services:
-  # Streamlit Dashboard (legacy UI, port 8501)
+  # Optional Streamlit debug console (enable with --profile debug)
   app:
     build:
       context: .
       dockerfile: Dockerfile
+      target: streamlit
+    profiles: ["debug"]
     container_name: alphascope-app
     ports:
       - "8501:8501"
@@ -46,6 +46,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: api
     container_name: alphascope-api
     command: ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
     ports:

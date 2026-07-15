@@ -12,13 +12,19 @@
 
 from __future__ import annotations
 
+import math
+
+import pandas as pd
 import pytest
 
 from backend.integrations.backtest.vectorbt_adapter import (
     VectorbtAdapter,
+    annualized_sharpe_from_returns,
     bars_to_close_series,
     build_assumptions,
     build_ma_cross_signals,
+    count_param_trials,
+    equity_curve_returns,
     map_vbt_stats_to_metrics,
     parse_param_grid,
 )
@@ -93,6 +99,21 @@ def test_build_ma_cross_signals_produces_entries_on_trend():
     assert entries.any()
 
 
+def test_ma_cross_executes_one_bar_after_close_decision_without_lookahead():
+    index = pd.date_range("2024-01-01", periods=6, freq="D")
+    close = pd.Series([3.0, 2.0, 1.0, 2.0, 4.0, 5.0], index=index)
+    changed_execution_bar = pd.Series([3.0, 2.0, 1.0, 2.0, 4.0, -100.0], index=index)
+
+    entries, _ = build_ma_cross_signals(close, fast=2, slow=3)
+    changed_entries, _ = build_ma_cross_signals(changed_execution_bar, fast=2, slow=3)
+
+    # The cross is known at index[4], but vectorbt receives the order only at
+    # index[5].  Changing close[5] cannot change the already-decided order.
+    assert not entries.loc[index[4]]
+    assert entries.loc[index[5]]
+    assert changed_entries.loc[index[5]]
+
+
 def test_parse_param_grid_list_and_scalar():
     grid = parse_param_grid({"fast": [5, 10], "slow": 20})
     assert grid["fast"] == [5, 10]
@@ -102,6 +123,26 @@ def test_parse_param_grid_list_and_scalar():
 def test_parse_param_grid_non_dict_returns_empty():
     assert parse_param_grid(None) == {}
     assert parse_param_grid("not a dict") == {}
+
+
+def test_count_param_trials_uses_only_valid_ma_pairs():
+    assert count_param_trials({"fast": [5, 20], "slow": [10, 30]}) == 3
+    assert count_param_trials() == 11
+
+
+def test_equity_curve_returns_accepts_normalized_points():
+    returns = equity_curve_returns([{"value": 100.0}, {"value": 110.0}, {"value": 99.0}])
+    assert returns == pytest.approx([0.1, -0.1])
+
+
+def test_sharpe_stock_daily_annualization_defaults_to_252():
+    returns = [0.01, -0.004, 0.006, -0.002, 0.003]
+    one_period = annualized_sharpe_from_returns(returns, periods_per_year=1)
+    default_daily = annualized_sharpe_from_returns(returns)
+    calendar_daily = annualized_sharpe_from_returns(returns, periods_per_year=365)
+
+    assert default_daily == pytest.approx(one_period * math.sqrt(252))
+    assert calendar_daily == pytest.approx(one_period * math.sqrt(365))
 
 
 def test_build_assumptions_honestly_discloses_unmodeled_as_frictions():
@@ -114,6 +155,8 @@ def test_build_assumptions_honestly_discloses_unmodeled_as_frictions():
     assert "T+1" in (a.note or "")
     assert "印花税" in (a.note or "")
     assert "涨跌停" in (a.note or "")
+    assert "close[t+1]" in (a.execution_price or "")
+    assert "252" in (a.note or "")
 
 
 def test_map_vbt_stats_to_metrics_from_dict():
@@ -210,6 +253,32 @@ def test_run_backtest_returns_normalized_result():
     assert res.assumptions.engine_name == "vectorbt"
     # 单调上涨序列应有非空权益曲线
     assert len(res.equity_curve) > 0
+    assert "close[t+1]" in (res.assumptions.execution_price or "")
+
+
+@_vbt_required
+def test_run_backtest_sharpe_uses_explicit_periods_per_year():
+    adapter = VectorbtAdapter()
+    kwargs = {
+        "strategy_id": "ma_cross",
+        "symbols": ["000001"],
+        "start": "2024-01-01",
+        "end": "2024-03-01",
+        "bars": _bars(60),
+        "fast": 5,
+        "slow": 20,
+        "fees": 0.0,
+    }
+
+    stock_daily = adapter.run_backtest(**kwargs)
+    calendar_daily = adapter.run_backtest(**kwargs, periods_per_year=365)
+
+    assert stock_daily.metrics.sharpe is not None
+    assert calendar_daily.metrics.sharpe is not None
+    assert calendar_daily.metrics.sharpe == pytest.approx(
+        stock_daily.metrics.sharpe * math.sqrt(365 / 252),
+        rel=1e-12,
+    )
 
 
 @_vbt_required
@@ -227,6 +296,14 @@ def test_param_sweep_ranks_and_caps_top_n():
     for r in results:
         assert "params" in r and "metrics" in r
         assert "fast" in r["params"] and "slow" in r["params"]
+        assert "probabilistic_sharpe" in r["metrics"]
+        assert "deflated_sharpe" in r["metrics"]
+        assert r["n_trials"] == 4
+        assert r["observations"] > 0
+        assert r["metrics"]["sharpe_periods_per_year"] == 252
+        assert r["metrics"]["dsr_benchmark_source"] == "candidate_sharpes"
+        # DSR is based on all four grid candidates, even though top_n returns 3.
+        assert r["metrics"]["candidate_sharpe_count"] == 4
 
 
 @_vbt_required

@@ -1,33 +1,45 @@
-"""可选 LangGraph 编排旁路 — 默认关闭, 不替换自研 orchestrator。
+"""Optional LangGraph orchestration path.
 
-启用条件:
-  ALPHASCOPE_ORCHESTRATION=langgraph
-  且已安装 langgraph (pip install 'alphascope[mlops]' 或 langgraph)
-
-图节点顺序对齐自研 deep 路径的角色: agents 并行(简化为串行节点占位) →
-critic 摘要 → chairman。实际 LLM 调用仍走 provider_gateway / financial_agents,
-本模块只提供 StateGraph 外壳与状态传递, 失败则返回 None 让调用方回退自研。
-
-合规: 研究流程编排, 不产生买卖指令。
+Enable with ``ALPHASCOPE_ORCHESTRATION=langgraph`` and install the ``mlops``
+extra.  The graph wraps the proven runtime orchestrator with a small, explicit
+request lifecycle.  It does not duplicate the financial analysis pipeline.
 """
 
 from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Optional
+from contextvars import ContextVar
+from typing import Any, Optional, TypedDict
 
 logger = logging.getLogger(__name__)
 
-_LANGGRAPH = None
 try:
     from langgraph.graph import END, StateGraph  # type: ignore
 
     _LANGGRAPH = True
-except Exception:  # noqa: BLE001
+except Exception:  # noqa: BLE001 - LangGraph is an optional dependency
     StateGraph = None  # type: ignore
     END = None  # type: ignore
     _LANGGRAPH = False
+
+
+# Context-local state prevents recursive entry when the graph delegates to the
+# core orchestrator.  Unlike a function attribute, it does not block unrelated
+# requests running concurrently in other threads or async contexts.
+_LANGGRAPH_ACTIVE: ContextVar[bool] = ContextVar("alphascope_langgraph_active", default=False)
+
+
+class AnalysisState(TypedDict, total=False):
+    stock_data: dict[str, Any]
+    mode: Any
+    agent_configs: Optional[list]
+    global_ai_settings: Optional[dict]
+    api_keys: Optional[dict[str, str]]
+    request: dict[str, Any]
+    result: dict[str, Any]
+    lifecycle: list[str]
+    error: str
 
 
 def langgraph_available() -> bool:
@@ -41,91 +53,171 @@ def orchestration_backend() -> str:
     return "self"
 
 
+def _next_lifecycle(state: AnalysisState, stage: str) -> list[str]:
+    return [*state.get("lifecycle", []), stage]
+
+
+def _prepare_analysis(state: AnalysisState) -> AnalysisState:
+    """Validate and freeze the complete core-executor request."""
+    lifecycle = _next_lifecycle(state, "prepare")
+    stock_data = state.get("stock_data")
+    if not isinstance(stock_data, dict):
+        return {
+            "lifecycle": lifecycle,
+            "error": "LangGraph preparation requires stock_data to be a dictionary",
+        }
+
+    return {
+        "lifecycle": lifecycle,
+        "request": {
+            "stock_data": stock_data,
+            "mode": state.get("mode"),
+            "agent_configs": state.get("agent_configs"),
+            "global_ai_settings": state.get("global_ai_settings"),
+            "api_keys": state.get("api_keys"),
+        },
+    }
+
+
+def _run_core_executor(
+    *,
+    stock_data: dict[str, Any],
+    mode: Any,
+    agent_configs: Optional[list],
+    global_ai_settings: Optional[dict],
+    api_keys: Optional[dict[str, str]],
+) -> dict[str, Any]:
+    """Invoke the existing analysis implementation from the graph node."""
+    from backend.runtime.orchestrator import run_agents_with_mode
+
+    return run_agents_with_mode(
+        stock_data=stock_data,
+        mode=mode,
+        agent_configs=agent_configs,
+        global_ai_settings=global_ai_settings,
+        api_keys=api_keys,
+    )
+
+
+def _analyze(state: AnalysisState) -> AnalysisState:
+    """Run the proven core executor with the prepared request."""
+    lifecycle = _next_lifecycle(state, "analyze")
+    if state.get("error"):
+        return {"lifecycle": lifecycle}
+
+    request = state.get("request")
+    if not isinstance(request, dict):
+        return {
+            "lifecycle": lifecycle,
+            "error": "LangGraph analysis received no prepared request",
+        }
+
+    try:
+        result = _run_core_executor(**request)
+    except Exception as exc:  # noqa: BLE001 - caller owns fallback to self path
+        return {
+            "lifecycle": lifecycle,
+            "error": f"LangGraph core analysis failed: {exc}",
+        }
+
+    if not isinstance(result, dict):
+        return {
+            "lifecycle": lifecycle,
+            "error": "LangGraph core analysis returned a non-dictionary result",
+        }
+    return {"lifecycle": lifecycle, "result": result}
+
+
+def _finalize_analysis(state: AnalysisState) -> AnalysisState:
+    """Attach graph provenance only after the core result is complete."""
+    lifecycle = _next_lifecycle(state, "finalize")
+    result = state.get("result")
+    if not isinstance(result, dict):
+        return {"lifecycle": lifecycle}
+
+    return {
+        "lifecycle": lifecycle,
+        "result": {
+            **result,
+            "orchestration": "langgraph",
+            "langgraph_available": True,
+            "langgraph_lifecycle": lifecycle,
+        },
+    }
+
+
 def build_analysis_graph():
-    """构建最小分析图; 不可用时返回 None。"""
+    """Build the prepare -> analyze -> finalize analysis graph."""
     if not langgraph_available() or StateGraph is None:
         return None
 
     try:
-        from typing import TypedDict
-
-        class AnalysisState(TypedDict, total=False):
-            stock_data: dict
-            agents: dict
-            critic: dict
-            chairman_summary: str
-            brief: str
-            errors: list
-
-        def node_agents(state: AnalysisState) -> AnalysisState:
-            # 真正执行仍委托自研 run_custom_agent 循环 — 由 run_via_langgraph 注入
-            return state
-
-        def node_critic(state: AnalysisState) -> AnalysisState:
-            return state
-
-        def node_chairman(state: AnalysisState) -> AnalysisState:
-            return state
-
-        g = StateGraph(AnalysisState)
-        g.add_node("agents", node_agents)
-        g.add_node("critic", node_critic)
-        g.add_node("chairman", node_chairman)
-        g.set_entry_point("agents")
-        g.add_edge("agents", "critic")
-        g.add_edge("critic", "chairman")
-        g.add_edge("chairman", END)
-        return g.compile()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("LangGraph 构图失败: %s", exc)
+        graph = StateGraph(AnalysisState)
+        graph.add_node("prepare", _prepare_analysis)
+        graph.add_node("analyze", _analyze)
+        graph.add_node("finalize", _finalize_analysis)
+        graph.set_entry_point("prepare")
+        graph.add_edge("prepare", "analyze")
+        graph.add_edge("analyze", "finalize")
+        graph.add_edge("finalize", END)
+        return graph.compile()
+    except Exception as exc:  # noqa: BLE001 - optional path must fail closed
+        logger.warning("Failed to build LangGraph analysis graph: %s", exc)
         return None
 
 
 def run_via_langgraph(
     stock_data: dict[str, Any],
     *,
+    mode: Any = None,
     agent_configs: Optional[list] = None,
     global_ai_settings: Optional[dict] = None,
+    api_keys: Optional[dict[str, str]] = None,
 ) -> Optional[dict[str, Any]]:
-    """尝试用 LangGraph 外壳跑一轮; 失败返回 None(调用方回退自研)。
+    """Run one analysis through LangGraph or return ``None`` for self fallback.
 
-    当前实现: 构图校验 + 调用自研 ``run_agents_with_mode`` 的核心逻辑标记
-    ``orchestration=langgraph``, 保证行为与自研一致, 同时验证依赖可用。
-    完整节点级 LLM 拆分留作后续迭代(避免半吊子双实现)。
+    The requested mode and every caller-supplied configuration object are
+    forwarded unchanged to the core executor.  Recursive entry in the same
+    execution context returns ``None`` so the nested orchestrator continues its
+    normal self-hosted path.
     """
-    if orchestration_backend() != "langgraph":
+    if orchestration_backend() != "langgraph" or _LANGGRAPH_ACTIVE.get():
         return None
+    if mode is None:
+        logger.warning("LangGraph received no analysis mode; falling back to self orchestration")
+        return None
+
     graph = build_analysis_graph()
     if graph is None:
         return None
+
+    token = _LANGGRAPH_ACTIVE.set(True)
     try:
-        # 执行图外壳(空状态推进), 证明 runtime 可用
-        graph.invoke({"stock_data": stock_data or {}, "agents": {}, "errors": []})
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("LangGraph invoke 失败, 回退自研: %s", exc)
+        final_state = graph.invoke(
+            {
+                "stock_data": stock_data,
+                "mode": mode,
+                "agent_configs": agent_configs,
+                "global_ai_settings": global_ai_settings,
+                "api_keys": api_keys,
+                "lifecycle": [],
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 - caller owns fallback to self path
+        logger.warning("LangGraph invocation failed; falling back to self orchestration: %s", exc)
+        return None
+    finally:
+        _LANGGRAPH_ACTIVE.reset(token)
+
+    if not isinstance(final_state, dict):
+        logger.warning("LangGraph returned an invalid final state; falling back to self orchestration")
+        return None
+    if final_state.get("error"):
+        logger.warning("%s; falling back to self orchestration", final_state["error"])
         return None
 
-    # 委托自研完整分析, 标注 backend
-    try:
-        from backend.agent_modes import AnalysisMode
-        from backend.runtime.orchestrator import run_agents_with_mode
-
-        # 防重入: 自研入口检测到此 flag 会跳过再次进入 langgraph 旁路
-        if getattr(run_agents_with_mode, "_langgraph_reentry", False):
-            return None
-        run_agents_with_mode._langgraph_reentry = True  # type: ignore[attr-defined]
-        try:
-            result = run_agents_with_mode(
-                stock_data=stock_data,
-                mode=AnalysisMode.DEEP,
-                agent_configs=agent_configs,
-                global_ai_settings=global_ai_settings,
-            )
-        finally:
-            run_agents_with_mode._langgraph_reentry = False  # type: ignore[attr-defined]
-        if isinstance(result, dict):
-            result = {**result, "orchestration": "langgraph", "langgraph_available": True}
-        return result
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("LangGraph 委托自研失败: %s", exc)
+    result = final_state.get("result")
+    if not isinstance(result, dict):
+        logger.warning("LangGraph produced no analysis result; falling back to self orchestration")
         return None
+    return result

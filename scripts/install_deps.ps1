@@ -1,4 +1,4 @@
-# 研策中枢 AlphaScope 依赖安装脚本
+﻿# 研策中枢 AlphaScope 依赖安装脚本
 # 用法: powershell -ExecutionPolicy Bypass -File scripts/install_deps.ps1
 
 $ErrorActionPreference = "Stop"
@@ -12,7 +12,13 @@ Write-Host "检查 Python..." -ForegroundColor Yellow
 $pythonVer = python --version 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[FAIL] Python 未安装" -ForegroundColor Red
-    Write-Host "请访问 https://www.python.org/downloads/ 安装 Python 3.10+" -ForegroundColor Yellow
+    Write-Host "请访问 https://www.python.org/downloads/ 安装 Python 3.11 或 3.12" -ForegroundColor Yellow
+    exit 1
+}
+python -c "import sys; raise SystemExit(0 if (3, 11) <= sys.version_info[:2] < (3, 13) else 1)"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "[FAIL] 当前 Python 版本不受支持: $pythonVer" -ForegroundColor Red
+    Write-Host "请安装 Python 3.11 或 3.12" -ForegroundColor Yellow
     exit 1
 }
 Write-Host "[OK] $pythonVer" -ForegroundColor Green
@@ -30,7 +36,7 @@ Write-Host "[OK] Node.js $nodeVer" -ForegroundColor Green
 # 3. 安装 Python 依赖
 Write-Host "`n安装 Python 依赖..." -ForegroundColor Yellow
 Set-Location $ProjectRoot
-pip install -e .
+python -m pip install -e ".[api]"
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Python 依赖已安装" -ForegroundColor Green
 } else {

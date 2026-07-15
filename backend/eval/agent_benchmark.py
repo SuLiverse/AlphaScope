@@ -113,16 +113,23 @@ def _case_quant_referee_bull() -> CaseResult:
 
 def _case_dsr_basic() -> CaseResult:
     from backend.quant.metrics_advanced import calc_deflated_sharpe, calc_probabilistic_sharpe
-    from backend.quant.metrics import calc_sharpe
 
-    rets = [0.002 if i % 2 == 0 else 0.0005 for i in range(200)]
-    sr = calc_sharpe(rets)
-    psr = calc_probabilistic_sharpe(sr, len(rets))
-    dsr1 = calc_deflated_sharpe(sr, len(rets), n_trials=1)
-    dsr100 = calc_deflated_sharpe(sr, len(rets), n_trials=100)
+    sr = 1.0
+    n_obs = 252
+    psr = calc_probabilistic_sharpe(sr, n_obs)
+    dsr1 = calc_deflated_sharpe(sr, n_obs, n_trials=1)
+    dsr100 = calc_deflated_sharpe(sr, n_obs, n_trials=100)
     checks = [
-        {"name": "psr_high", "ok": psr >= 0.5, "detail": f"psr={psr} sr={sr}"},
-        {"name": "dsr_decreases_with_trials", "ok": dsr100 <= dsr1 + 1e-9, "detail": f"{dsr100}<={dsr1}"},
+        {
+            "name": "psr_reference",
+            "ok": abs(psr - 0.84062388) < 1e-8,
+            "detail": f"psr={psr} sr={sr}",
+        },
+        {
+            "name": "dsr_strictly_decreases_with_trials",
+            "ok": dsr100 < dsr1,
+            "detail": f"{dsr100}<{dsr1}",
+        },
     ]
     return CaseResult("dsr_basic", all(c["ok"] for c in checks), checks)
 

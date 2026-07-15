@@ -13,7 +13,7 @@
 # 检查 Python 版本
 python --version
 
-# 需要 3.10 或更高版本
+# 需要 Python 3.11 或 3.12
 # 如果版本过低，请升级 Python
 ```
 
@@ -296,4 +296,3 @@ python scripts/restore_local.py backup/
 - [安装指南](01-installation.md) - 重新安装
 - [快速开始](02-quickstart.md) - 快速上手
 - [模型接入配置](03-model-config.md) - 配置 LLM
-

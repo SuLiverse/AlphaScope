@@ -37,7 +37,7 @@
 | 项目 | 最低要求 | 推荐配置 |
 |------|----------|----------|
 | 操作系统 | Windows 10 / macOS 12 / Ubuntu 20.04 | Windows 11 / macOS 14 / Ubuntu 22.04 |
-| Python | 3.10+ | 3.11+ |
+| Python | 3.11 | 3.12 |
 | Node.js | 18+ | 20+ |
 | 内存 | 8GB | 16GB+ |
 | 磁盘空间 | 2GB | 10GB+（含数据缓存） |
@@ -47,4 +47,3 @@
 
 - [GitHub 仓库](https://github.com/TIANWEN-cpu/AlphaScope)
 - [问题反馈](https://github.com/TIANWEN-cpu/AlphaScope/issues)
-

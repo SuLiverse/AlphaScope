@@ -17,25 +17,6 @@ from backend.schemas.api import ApiResponse
 router = APIRouter(tags=["tasks"])
 
 
-def _as_float(value: Any, default: float = 0.0) -> float:
-    try:
-        if value is None or value == "":
-            return default
-        return float(value)
-    except (TypeError, ValueError):
-        return default
-
-
-def _moving_average(bars: list[dict[str, Any]], window: int) -> float | None:
-    if len(bars) < window:
-        return None
-    values = [_as_float(bar.get("close")) for bar in bars[:window]]
-    values = [value for value in values if value > 0]
-    if len(values) < window:
-        return None
-    return round(sum(values) / len(values), 4)
-
-
 def _build_analysis_stock_data(
     symbol: str,
     stock_name: str,
@@ -44,6 +25,7 @@ def _build_analysis_stock_data(
     research_question: str = "",
 ) -> dict[str, Any]:
     """Build a real market snapshot for report generation instead of empty zeros."""
+    from backend.api.analysis_stock_data import build_analysis_stock_data
     from backend.price_quality import filter_incompatible_price_bars
     from backend.price_store import get_prices, normalize_symbol, save_price_bars
     from backend.providers.registry import get_registry
@@ -90,48 +72,13 @@ def _build_analysis_stock_data(
         except Exception:
             bars = bars or []
 
-    bars = sorted(bars, key=lambda item: str(item.get("date") or ""), reverse=True)
-    latest = bars[0] if bars else {}
-    previous = bars[1] if len(bars) > 1 else {}
-    latest_close = _as_float(latest.get("close"))
-    previous_close = _as_float(previous.get("close"))
-    day_change = _as_float(latest.get("change_pct"))
-    if not day_change and latest_close and previous_close:
-        day_change = (latest_close - previous_close) / previous_close * 100
-
-    period_bars = bars[:30]
-    period_last = period_bars[-1] if period_bars else {}
-    period_base = _as_float(period_last.get("close"))
-    period_change = (latest_close - period_base) / period_base * 100 if latest_close and period_base else 0.0
-    period_high = max((_as_float(bar.get("high")) for bar in period_bars), default=0.0)
-    period_low = min(
-        (_as_float(bar.get("low")) for bar in period_bars if _as_float(bar.get("low")) > 0),
-        default=0.0,
+    return build_analysis_stock_data(
+        symbol,
+        stock_name,
+        bars,
+        as_of=end_date,
+        research_question=research_question,
     )
-    total_amount = sum(_as_float(bar.get("amount")) for bar in period_bars) / 100000000
-
-    return {
-        "symbol": symbol,
-        "name": stock_name,
-        "close": round(latest_close, 4),
-        "day_change": round(day_change, 4),
-        "period_change": round(period_change, 4),
-        "period_high": round(period_high, 4),
-        "period_low": round(period_low, 4),
-        "days": len(period_bars) or 30,
-        "volume": _as_float(latest.get("volume")),
-        "total_amount": round(total_amount, 4),
-        "turnover": _as_float(latest.get("turnover")),
-        "volatility": _as_float(latest.get("amplitude")),
-        "ma5": _moving_average(bars, 5) or "N/A",
-        "ma20": _moving_average(bars, 20) or "N/A",
-        "ma60": _moving_average(bars, 60) or "N/A",
-        "data_status": "ok" if latest_close > 0 and bars else "missing",
-        "fundamentals": "暂无",
-        "as_of": end_date,
-        "price_data_date": str(latest.get("date") or ""),
-        "research_question": research_question.strip(),
-    }
 
 
 def _estimate_task_progress(task: dict[str, Any]) -> int:

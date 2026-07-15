@@ -61,8 +61,6 @@ def test_with_mocked_timeline(monkeypatch):
     def _fake_import():
         return FakeRM()
 
-    import backend.quant.research_memory as real_rm
-
     monkeypatch.setattr(
         "backend.quant.research_memory.get_timeline",
         FakeRM.get_timeline,
