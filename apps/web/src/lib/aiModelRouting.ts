@@ -398,6 +398,30 @@ export function selectionToGlobalAiSettings(selection: AiModelSelection) {
   };
 }
 
+export function applyReportModelOverride(
+  routes: AiModelRoutes,
+  selection?: AiModelSelection,
+): AiModelRoutes {
+  if (!selection?.providerId || !selection.modelId) return routes;
+
+  const selectedRoute = { ...selection };
+  if (routes.useUnifiedModel) {
+    return { ...routes, unified: selectedRoute };
+  }
+
+  return {
+    ...routes,
+    routes: {
+      ...routes.routes,
+      // The report pipeline invokes the agent, critic, and chairman tasks.
+      report: selectedRoute,
+      agent_default: selectedRoute,
+      critic: selectedRoute,
+      chairman: selectedRoute,
+    },
+  };
+}
+
 export function routesToGlobalAiSettings(routes: AiModelRoutes, providers: ModelProvider[], routeKey: AiRouteKey) {
   const selection = getRouteSelection(routes, providers, routeKey);
   const base = selectionToGlobalAiSettings(selection);

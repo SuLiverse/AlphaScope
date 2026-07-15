@@ -44,6 +44,7 @@ import { STOCK_UNIVERSE, findStockTarget, formatStockLabel } from '../lib/stocks
 import { dispatchStockSelected, getPersistedStock, subscribeStockSelected, subscribeSettingsChanged } from '../lib/workspaceEvents';
 import { fetchApi } from '../lib/api';
 import {
+  applyReportModelOverride,
   buildModelOptions,
   getModelKey,
   getRouteSelection,
@@ -831,14 +832,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
             modelId: selectedReportModel.modelId,
           }
         : undefined;
-      const effectiveRoutes = selectedReportRoute
-        ? analysisRoutes.useUnifiedModel
-          ? { ...analysisRoutes, unified: selectedReportRoute }
-          : {
-              ...analysisRoutes,
-              routes: { ...analysisRoutes.routes, report: selectedReportRoute },
-            }
-        : analysisRoutes;
+      const effectiveRoutes = applyReportModelOverride(analysisRoutes, selectedReportRoute);
       const globalAiSettings = selectedReportModel
         ? routesToGlobalAiSettings(effectiveRoutes, providers, 'report')
         : undefined;
