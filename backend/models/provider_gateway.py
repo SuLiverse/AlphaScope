@@ -19,9 +19,12 @@ import re
 import socket
 import threading
 import ipaddress
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urlunsplit
 from typing import Dict, Any, Optional, List
 from pathlib import Path
+
+import httpcore
+import httpx
 from dotenv import load_dotenv
 from openai import OpenAI
 import yaml
@@ -134,15 +137,18 @@ def _resolve_env(value: str) -> str:
 
 def normalize_openai_base_url(base_url: str) -> str:
     """Normalize OpenAI-compatible base URLs without corrupting explicit version paths."""
-    cleaned = (base_url or "").strip().rstrip("/")
+    cleaned = (base_url or "").strip()
     if not cleaned:
         return ""
-    if not cleaned.startswith(("http://", "https://")):
+    if "://" not in cleaned:
         cleaned = "https://" + cleaned
-    path = urlsplit(cleaned).path.rstrip("/")
+    parsed = urlsplit(cleaned)
+    path = parsed.path.rstrip("/")
     if re.search(r"/v\d+(?:/)?$", path):
-        return cleaned
-    return cleaned + "/v1"
+        normalized_path = path
+    else:
+        normalized_path = f"{path}/v1"
+    return urlunsplit((parsed.scheme.lower(), parsed.netloc, normalized_path, parsed.query, parsed.fragment))
 
 
 def _allow_local_base_url() -> bool:
@@ -155,51 +161,226 @@ def _allow_local_base_url() -> bool:
 
 
 def _is_unsafe_ip_address(ip: ipaddress._BaseAddress) -> bool:
-    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved or ip.is_unspecified
+    return not ip.is_global
 
 
-def _reject_unsafe_ip(ip: ipaddress._BaseAddress) -> None:
-    if _is_unsafe_ip_address(ip):
-        raise ValueError("默认禁止连接内网或本机自定义 Base URL;如需本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1")
+def _unsafe_base_url_error() -> ValueError:
+    return ValueError("默认禁止连接内网或本机自定义 Base URL;仅本机环回 LLM 可设置 ALLOW_LOCAL_LLM_BASE_URL=1 后启用")
 
 
-def _reject_unsafe_resolved_addresses(host: str, port: Optional[int]) -> None:
+def _resolved_addresses(host: str, port: Optional[int]) -> list[ipaddress._BaseAddress]:
     try:
         addrinfo = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
-    except socket.gaierror as exc:
-        raise ValueError(
-            "自定义 Base URL 主机名 DNS 解析失败，默认禁止连接;如需离线或本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1"
-        ) from exc
+    except OSError as exc:
+        raise ValueError("自定义 Base URL 主机名 DNS 解析失败，无法确认目标地址安全") from exc
+    addresses: list[ipaddress._BaseAddress] = []
     for info in addrinfo:
         sockaddr = info[4]
         if not sockaddr:
             continue
         address = sockaddr[0]
         try:
-            ip = ipaddress.ip_address(address)
+            addresses.append(ipaddress.ip_address(address))
         except ValueError:
             continue
-        _reject_unsafe_ip(ip)
+    if not addresses:
+        raise ValueError("自定义 Base URL 主机名未解析到有效 IP 地址")
+    return addresses
 
 
-def validate_custom_base_url(base_url: str) -> str:
-    """Reject private/local custom endpoints unless explicitly enabled by environment."""
-    normalized = normalize_openai_base_url(base_url)
-    if not normalized or _allow_local_base_url():
-        return normalized
-    parsed = urlsplit(normalized)
+def _validate_url_structure(url: str) -> tuple[str, Optional[int]]:
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("自定义 Base URL 仅支持 http/https")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("自定义 Base URL 不允许包含用户凭据")
+    if parsed.query or parsed.fragment:
+        raise ValueError("自定义 Base URL 不允许包含 query 或 fragment")
     host = (parsed.hostname or "").strip().lower().rstrip(".")
     if not host:
         raise ValueError("自定义 Base URL 缺少有效主机名")
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise ValueError("自定义 Base URL 端口无效") from exc
+    return host, port
+
+
+def _is_explicit_loopback_host(host: str, addresses: list[ipaddress._BaseAddress]) -> bool:
     if host == "localhost" or host.endswith(".localhost"):
-        raise ValueError("默认禁止连接 localhost 自定义 Base URL;如需本机代理请设置 ALLOW_LOCAL_LLM_BASE_URL=1")
+        return bool(addresses) and all(address.is_loopback for address in addresses)
+    try:
+        literal = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return literal.is_loopback
+
+
+def validate_local_llm_base_url(base_url: str) -> str:
+    """Allow a probe/provider loopback URL only after the local-LLM opt-in."""
+    if not _allow_local_base_url():
+        raise _unsafe_base_url_error()
+    normalized = normalize_openai_base_url(base_url)
+    if not normalized:
+        raise ValueError("本地 LLM Base URL 不能为空")
+    host, port = _validate_url_structure(normalized)
+    addresses = _resolved_addresses(host, port)
+    if not _is_explicit_loopback_host(host, addresses):
+        raise _unsafe_base_url_error()
+    if not all(address.is_loopback for address in addresses):
+        raise _unsafe_base_url_error()
+    return normalized
+
+
+def validate_custom_base_url(base_url: str) -> str:
+    """Validate public endpoints, with a narrow opt-in for loopback local LLMs."""
+    normalized = normalize_openai_base_url(base_url)
+    if not normalized:
+        return normalized
+    host, port = _validate_url_structure(normalized)
     try:
         ip = ipaddress.ip_address(host)
     except ValueError:
-        _reject_unsafe_resolved_addresses(host, parsed.port)
+        addresses = _resolved_addresses(host, port)
+        if all(not _is_unsafe_ip_address(address) for address in addresses):
+            return normalized
+        if _allow_local_base_url() and _is_explicit_loopback_host(host, addresses):
+            return normalized
+        raise _unsafe_base_url_error()
+    if not _is_unsafe_ip_address(ip):
         return normalized
-    _reject_unsafe_ip(ip)
-    return normalized
+    if _allow_local_base_url() and ip.is_loopback:
+        return normalized
+    raise _unsafe_base_url_error()
+
+
+def _canonical_host(host: str) -> str:
+    cleaned = str(host or "").strip().lower().rstrip(".").strip("[]")
+    try:
+        return cleaned.encode("idna").decode("ascii")
+    except UnicodeError:
+        return cleaned
+
+
+def _connection_addresses(
+    host: str,
+    port: int,
+    *,
+    allow_loopback: bool,
+    local_only: bool,
+) -> list[ipaddress._BaseAddress]:
+    """Resolve and validate the addresses used for this exact TCP connection."""
+    addresses = _resolved_addresses(host, port)
+    if local_only:
+        if not _is_explicit_loopback_host(host, addresses) or not all(address.is_loopback for address in addresses):
+            raise _unsafe_base_url_error()
+        return addresses
+    if all(not _is_unsafe_ip_address(address) for address in addresses):
+        return addresses
+    if (
+        allow_loopback
+        and _is_explicit_loopback_host(host, addresses)
+        and all(address.is_loopback for address in addresses)
+    ):
+        return addresses
+    raise _unsafe_base_url_error()
+
+
+class _PinnedTargetNetworkBackend(httpcore.SyncBackend):
+    """Resolve at connect time, reject unsafe results, then connect to the verified IP."""
+
+    def __init__(
+        self,
+        *,
+        host: str,
+        port: int,
+        allow_loopback: bool,
+        local_only: bool,
+    ) -> None:
+        self._host = _canonical_host(host)
+        self._port = int(port)
+        self._allow_loopback = allow_loopback
+        self._local_only = local_only
+        self._backend = httpcore.SyncBackend()
+
+    def connect_tcp(
+        self,
+        host: str,
+        port: int,
+        timeout: float | None = None,
+        local_address: str | None = None,
+        socket_options=None,
+    ):
+        if _canonical_host(host) != self._host or int(port) != self._port:
+            raise httpcore.ConnectError("Blocked cross-origin provider connection")
+        try:
+            addresses = _connection_addresses(
+                self._host,
+                self._port,
+                allow_loopback=self._allow_loopback,
+                local_only=self._local_only,
+            )
+        except ValueError as exc:
+            raise httpcore.ConnectError("Blocked provider connection target") from exc
+
+        last_error: Exception | None = None
+        for address in addresses:
+            try:
+                return self._backend.connect_tcp(
+                    str(address),
+                    self._port,
+                    timeout=timeout,
+                    local_address=local_address,
+                    socket_options=socket_options,
+                )
+            except Exception as exc:  # noqa: BLE001 - try every already-validated address
+                last_error = exc
+        if last_error is not None:
+            raise last_error
+        raise httpcore.ConnectError("Provider host did not resolve to a usable address")
+
+    def connect_unix_socket(self, *args, **kwargs):
+        raise httpcore.ConnectError("Unix sockets are disabled for provider connections")
+
+
+class _PinnedTargetHTTPTransport(httpx.HTTPTransport):
+    """HTTPX transport backed by a connect-time validating DNS resolver."""
+
+    def __init__(self, network_backend: _PinnedTargetNetworkBackend) -> None:
+        ssl_context = httpx.create_ssl_context(verify=True, trust_env=False)
+        self._pool = httpcore.ConnectionPool(
+            ssl_context=ssl_context,
+            max_connections=20,
+            max_keepalive_connections=10,
+            keepalive_expiry=5.0,
+            retries=0,
+            network_backend=network_backend,
+        )
+
+
+def create_ssrf_safe_http_client(
+    base_url: str,
+    *,
+    timeout: float,
+    local_only: bool = False,
+) -> httpx.Client:
+    """Build a no-proxy/no-redirect client whose TCP target is DNS-rebinding safe."""
+    safe_base_url = validate_local_llm_base_url(base_url) if local_only else validate_custom_base_url(base_url)
+    parsed = urlsplit(safe_base_url)
+    host = _canonical_host(parsed.hostname or "")
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    backend = _PinnedTargetNetworkBackend(
+        host=host,
+        port=port,
+        allow_loopback=_allow_local_base_url(),
+        local_only=local_only,
+    )
+    return httpx.Client(
+        transport=_PinnedTargetHTTPTransport(backend),
+        timeout=timeout,
+        follow_redirects=False,
+        trust_env=False,
+    )
 
 
 def load_providers(config_path: Optional[str] = None) -> Dict[str, Any]:
@@ -486,11 +667,18 @@ def create_client(vendor: str, api_key: Optional[str] = None, base_url: Optional
     cfg = get_vendor_config(vendor, api_key, base_url)
     if not cfg or not cfg["api_key"] or not cfg["base_url"]:
         raise RuntimeError(f"供应商 {vendor} 未配置完整")
-    return OpenAI(
-        api_key=cfg["api_key"],
-        base_url=cfg["base_url"],
-        timeout=60.0,
-    )
+    safe_base_url = validate_custom_base_url(cfg["base_url"])
+    http_client = create_ssrf_safe_http_client(safe_base_url, timeout=60.0)
+    try:
+        return OpenAI(
+            api_key=cfg["api_key"],
+            base_url=safe_base_url,
+            timeout=60.0,
+            http_client=http_client,
+        )
+    except Exception:
+        http_client.close()
+        raise
 
 
 _client_cache: Dict[str, OpenAI] = {}

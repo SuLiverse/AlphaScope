@@ -22,21 +22,31 @@ class TTLCache:
         self._max_size = max_size
         self._hits = 0
         self._misses = 0
+        self._stale_hits = 0
 
     def get(self, key: str) -> Any | None:
         """获取缓存值，过期返回 None。"""
+        value, _is_stale = self.get_fresh_or_stale(key)
+        return value
+
+    def get_fresh_or_stale(self, key: str, max_stale_seconds: int = 0) -> tuple[Any | None, bool]:
+        """返回 ``(value, is_stale)``，可在有限窗口内保留过期值用于降级。"""
         with self._lock:
             item = self._data.get(key)
             if item is None:
                 self._misses += 1
-                return None
+                return None, False
             value, expires_at = item
-            if expires_at < time.time():
+            now = time.time()
+            if expires_at < now:
+                if max_stale_seconds > 0 and now <= expires_at + max_stale_seconds:
+                    self._stale_hits += 1
+                    return value, True
                 del self._data[key]
                 self._misses += 1
-                return None
+                return None, False
             self._hits += 1
-            return value
+            return value, False
 
     def set(self, key: str, value: Any, ttl_seconds: int = 300) -> None:
         """设置缓存值。"""
@@ -56,6 +66,7 @@ class TTLCache:
             self._data.clear()
             self._hits = 0
             self._misses = 0
+            self._stale_hits = 0
 
     def stats(self) -> dict[str, Any]:
         """缓存统计。"""
@@ -66,6 +77,7 @@ class TTLCache:
                 "max_size": self._max_size,
                 "hits": self._hits,
                 "misses": self._misses,
+                "stale_hits": self._stale_hits,
                 "hit_rate": round(self._hits / total, 3) if total > 0 else 0,
             }
 

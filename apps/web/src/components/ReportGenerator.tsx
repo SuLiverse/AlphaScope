@@ -17,11 +17,20 @@ import {
   CheckCircle2,
   XCircle,
   BarChart3,
-  Download
+  Download,
+  Gauge,
+  Link2,
 } from 'lucide-react';
 import { cn } from '../lib/utils';
+import { getCitationDisplayState, getQuantRefereeDisplayState } from '../lib/reviewStatus';
 import { startAsyncAnalysis, getTaskResult, getTaskEventsUrl, getTaskStatus, getReportExportUrl } from '../lib/analysisAdapter';
-import { AnalysisResult, DebateResult, RatingBreakdown } from '../types';
+import {
+  AnalysisResult,
+  CitationValidationResult,
+  DebateResult,
+  QuantRefereeResult,
+  RatingBreakdown,
+} from '../types';
 import { DecisionSummary } from './report/DecisionSummary';
 import { ReportCharts } from './ReportCharts';
 import { AgentOpinionCards } from './report/AgentOpinionCards';
@@ -35,11 +44,13 @@ import { STOCK_UNIVERSE, findStockTarget, formatStockLabel } from '../lib/stocks
 import { dispatchStockSelected, getPersistedStock, subscribeStockSelected, subscribeSettingsChanged } from '../lib/workspaceEvents';
 import { fetchApi } from '../lib/api';
 import {
+  applyReportModelOverride,
   buildModelOptions,
   getModelKey,
   getRouteSelection,
   loadAiModelRoutesFromApi,
   loadLocalAiModelRoutes,
+  type AiModelRoutes,
   ModelOption,
   ModelProvider,
   routesToGlobalAiSettings,
@@ -380,6 +391,129 @@ function DebatePanel({ debate }: { debate: DebateResult }) {
   );
 }
 
+const REFEREE_STANCE_TONE: Record<string, string> = {
+  多头占优: 'border-rose-500/30 bg-rose-500/10 text-rose-100',
+  偏多: 'border-rose-500/20 bg-rose-500/5 text-rose-200',
+  中性: 'border-white/10 bg-white/5 text-neutral-200',
+  偏空: 'border-emerald-500/20 bg-emerald-500/5 text-emerald-200',
+  空头占优: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-100',
+  未知: 'border-white/10 bg-white/5 text-neutral-400',
+};
+
+function QuantRefereePanel({ referee }: { referee: QuantRefereeResult }) {
+  const display = getQuantRefereeDisplayState(referee);
+  const statusTone: Record<string, string> = {
+    ok: REFEREE_STANCE_TONE[referee.stance] || REFEREE_STANCE_TONE['未知'],
+    degraded: 'border-amber-500/25 bg-amber-500/[0.07] text-amber-100',
+    skipped: 'border-white/10 bg-white/[0.03] text-neutral-300',
+    error: 'border-red-500/25 bg-red-500/[0.07] text-red-100',
+  };
+  const tone = statusTone[display.tone];
+  const alignTone =
+    referee.llm_alignment === '冲突' || referee.llm_alignment === '背离'
+      ? 'text-amber-300'
+      : referee.llm_alignment === '一致' || referee.llm_alignment === '同向'
+        ? 'text-emerald-300'
+        : 'text-neutral-400';
+  return (
+    <div className="rounded-xl border border-white/8 bg-white/[0.035] p-5">
+      <div className={cn('mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3', tone)}>
+        <div className="flex items-center gap-2">
+          <Gauge className="h-4 w-4" />
+          <span className="text-sm font-semibold">规则立场：{referee.stance || '未知'}</span>
+          <span className="rounded border border-current/20 px-1.5 py-0.5 text-[10px] opacity-80">
+            {display.label}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] font-mono opacity-90">
+          <span>净分 {Number(referee.net_score || 0).toFixed(1)}</span>
+          <span>多 {referee.n_bull} · 空 {referee.n_bear} · 中 {referee.n_neutral}</span>
+          <span className={alignTone}>vs LLM: {referee.llm_alignment || '未对比'}</span>
+        </div>
+      </div>
+      <p className="mb-3 text-sm text-neutral-400">{referee.note || display.fallback}</p>
+      {referee.signals?.length ? (
+        <ul className="space-y-1.5">
+          {referee.signals.map((s, i) => (
+            <li key={`${s.rule_id}-${i}`} className="text-[12px] leading-relaxed text-neutral-300">
+              <span className="mr-1 font-mono text-[10px] text-neutral-500">[{s.rule_id}]</span>
+              {s.direction === 'bullish' ? '↑' : s.direction === 'bearish' ? '↓' : '·'} {s.claim}
+              {s.value ? <span className="ml-1 text-neutral-500">({s.value})</span> : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[12px] text-neutral-600">
+          {display.tone === 'ok' ? '未触发方向性规则信号。' : display.fallback}
+        </p>
+      )}
+      {referee.disclaimer ? (
+        <p className="mt-4 text-[11px] leading-relaxed text-neutral-500">{referee.disclaimer}</p>
+      ) : null}
+    </div>
+  );
+}
+
+function CitationValidationPanel({ citation }: { citation: CitationValidationResult }) {
+  const display = getCitationDisplayState(citation);
+  const panelTone: Record<string, string> = {
+    ok: 'border-emerald-500/15 bg-emerald-500/[0.035]',
+    degraded: 'border-amber-500/20 bg-amber-500/[0.06]',
+    skipped: 'border-white/8 bg-white/[0.035]',
+    error: 'border-red-500/20 bg-red-500/[0.06]',
+  };
+  const grounding = Number.isFinite(citation.grounding_score) ? citation.grounding_score : 0;
+  return (
+    <div
+      className={cn(
+        'rounded-xl border p-5',
+        panelTone[display.tone],
+      )}
+    >
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-neutral-100">
+          <Link2 className="h-4 w-4" />
+          数值与引用可追溯
+          <span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] font-normal text-neutral-400">
+            {display.label}
+          </span>
+        </div>
+        <div className="flex flex-wrap gap-3 text-[11px] font-mono text-neutral-400">
+          <span>
+            对齐 {citation.n_verified}/{citation.n_claims}
+          </span>
+          <span>grounding {(grounding * 100).toFixed(0)}%</span>
+          <span>
+            引用 OK {citation.n_citation_ok} / 异常 {citation.n_citation_bad}
+          </span>
+          {citation.suggest_confidence_cap != null ? (
+            <span className="text-amber-300">建议置信上限 {citation.suggest_confidence_cap}</span>
+          ) : null}
+        </div>
+      </div>
+      {citation.note ? (
+        <p className="mb-3 rounded-lg border border-white/5 bg-black/20 px-3 py-2 text-[12px] text-neutral-300">
+          {citation.note}
+        </p>
+      ) : null}
+      {citation.issues && citation.issues.length > 0 ? (
+        <ul className="mb-3 space-y-1">
+          {citation.issues.slice(0, 6).map((issue, i) => (
+            <li key={i} className="text-[12px] text-amber-100/80">
+              · {issue}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-3 text-[12px] text-neutral-500">{display.fallback}</p>
+      )}
+      {citation.disclaimer ? (
+        <p className="text-[11px] leading-relaxed text-neutral-500">{citation.disclaimer}</p>
+      ) : null}
+    </div>
+  );
+}
+
 function GeneratedResearchReport({
   result,
   symbol,
@@ -419,6 +553,18 @@ function GeneratedResearchReport({
       {result.debate && result.debate.status === 'ok' && (
         <ReportSection icon={Scale} title="多空辩论与裁决" eyebrow="Bull vs Bear">
           <DebatePanel debate={result.debate} />
+        </ReportSection>
+      )}
+
+      {result.quant_referee && (
+        <ReportSection icon={Gauge} title="量化裁判 (规则信号)" eyebrow="Quant Referee">
+          <QuantRefereePanel referee={result.quant_referee} />
+        </ReportSection>
+      )}
+
+      {result.citation_validation && (
+        <ReportSection icon={Link2} title="引用与数值核验" eyebrow="Citation Validator">
+          <CitationValidationPanel citation={result.citation_validation} />
         </ReportSection>
       )}
 
@@ -487,6 +633,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [currentTaskId, setCurrentTaskId] = useState('');
   const [providers, setProviders] = useState<ModelProvider[]>([]);
+  const [analysisRoutes, setAnalysisRoutes] = useState<AiModelRoutes>(() => loadLocalAiModelRoutes());
   const [modelOptions, setModelOptions] = useState<ModelOption[]>([]);
   const [selectedReportModelKey, setSelectedReportModelKey] = useState('');
   
@@ -596,6 +743,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         const options = buildModelOptions(nextProviders, 'chat');
         const routeKey = getModelKey(getRouteSelection(routes, nextProviders, 'report'));
         setProviders(nextProviders);
+        setAnalysisRoutes(routes);
         setModelOptions(options);
         setSelectedReportModelKey((current) => (
           current && options.some((option) => option.key === current)
@@ -677,22 +825,16 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         return;
       }
 
+      const selectedReportRoute = selectedReportModel
+        ? {
+            providerId: selectedReportModel.providerId,
+            providerName: selectedReportModel.providerName,
+            modelId: selectedReportModel.modelId,
+          }
+        : undefined;
+      const effectiveRoutes = applyReportModelOverride(analysisRoutes, selectedReportRoute);
       const globalAiSettings = selectedReportModel
-        ? routesToGlobalAiSettings({
-            useUnifiedModel: true,
-            unified: {
-              providerId: selectedReportModel.providerId,
-              providerName: selectedReportModel.providerName,
-              modelId: selectedReportModel.modelId,
-            },
-            routes: {
-              report: {
-                providerId: selectedReportModel.providerId,
-                providerName: selectedReportModel.providerName,
-                modelId: selectedReportModel.modelId,
-              },
-            },
-          }, providers, 'report')
+        ? routesToGlobalAiSettings(effectiveRoutes, providers, 'report')
         : undefined;
 
       // Real API Flow with SSE

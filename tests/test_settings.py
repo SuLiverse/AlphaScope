@@ -886,3 +886,54 @@ async def test_list_provider_models_times_out_quickly(client, monkeypatch):
     assert data["success"] is False
     assert "超时" in data["error"] or "timeout" in data["error"].lower()
     assert "sk-test-secret" not in resp.text
+
+
+@pytest.mark.anyio
+async def test_local_probe_policy_rejection_never_calls_probe_or_echoes_url(client, monkeypatch):
+    from backend.models import local_presets
+
+    monkeypatch.delenv("ALLOW_LOCAL_LLM_BASE_URL", raising=False)
+    probe = patch.object(local_presets, "probe_local_endpoint")
+    secret_url = "http://169.254.169.254/latest/meta-data?token=do-not-echo"
+    with probe as probe_mock:
+        response = await client.post(
+            "/api/settings/local-llm-presets/probe",
+            json={"base_url": secret_url},
+        )
+
+    probe_mock.assert_not_called()
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["success"] is False
+    assert "URL policy" in payload["error"]
+    assert "169.254.169.254" not in response.text
+    assert "do-not-echo" not in response.text
+
+
+@pytest.mark.anyio
+async def test_local_probe_requires_opt_in_and_loopback_target(client, monkeypatch):
+    from backend.models import local_presets
+
+    monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda host, port=None, *args, **kwargs: [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port or 11434))
+        ],
+    )
+    monkeypatch.setattr(
+        local_presets,
+        "probe_local_endpoint",
+        lambda base_url: {"available": True, "status_code": 200},
+    )
+
+    response = await client.post(
+        "/api/settings/local-llm-presets/probe",
+        json={"base_url": "http://127.0.0.1:11434/v1"},
+    )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["success"] is True
+    assert payload["data"] == {"available": True, "status_code": 200}

@@ -8,7 +8,9 @@ import { cn } from '../lib/utils';
 import {
   AI_ROUTE_LABELS,
   AiModelRoutes,
+  AiRoutingPack,
   AiRouteKey,
+  applyAiRoutingPack,
   buildModelOptions,
   ensureRoutesHaveDefaults,
   getModelKey,
@@ -39,6 +41,7 @@ import {
   type SettingsState,
   type SettingsProps,
   type ProviderDraft,
+  type LocalLlmPreset,
   type SettingsModelProvider,
   type ProviderListItem,
   DEFAULT_SETTINGS,
@@ -243,6 +246,26 @@ export function Settings({ initialTab }: SettingsProps) {
       dispatchSettingsChanged('ai-routes');
     } catch (error) {
       setSavedMessage(error instanceof Error ? `模型路由保存失败：${error.message}` : '模型路由保存失败');
+    } finally {
+      setRouteSaving(false);
+    }
+  };
+
+  const applyRoutePack = async (pack: AiRoutingPack) => {
+    const previous = normalizedAiRoutes;
+    const next = applyAiRoutingPack(previous, pack);
+    setAiModelRoutes(next);
+    saveLocalAiModelRoutes(next);
+    setRouteSaving(true);
+    try {
+      const saved = await saveAiModelRoutesToApi(next);
+      setAiModelRoutes(saved);
+      setSavedMessage(`已应用并保存路由包「${pack.name}」`);
+      dispatchSettingsChanged('ai-routes');
+    } catch (error) {
+      setAiModelRoutes(previous);
+      saveLocalAiModelRoutes(previous);
+      throw error;
     } finally {
       setRouteSaving(false);
     }
@@ -505,6 +528,30 @@ export function Settings({ initialTab }: SettingsProps) {
     setProviderStatus(`正在编辑 ${provider.name}`);
   };
 
+  const applyProviderPreset = (preset: LocalLlmPreset): string => {
+    const existing = providers.find((provider) => provider.id === preset.id);
+    if (existing) {
+      selectProvider(existing);
+      return `已切换到现有 Provider「${existing.name}」，未修改其配置。`;
+    }
+
+    setSelectedProviderId(DRAFT_PROVIDER_ID);
+    setProviderDraft({
+      id: preset.id,
+      name: preset.name,
+      base_url: preset.base_url,
+      api_key: preset.api_key_placeholder || 'local',
+      enabled: true,
+    });
+    setProviderModels(preset.default_model ? normalizeModelInfos([preset.default_model]) : []);
+    setDiscoveredModels([]);
+    setProviderSearch('');
+    setModelSearch('');
+    setShowProviderKey(false);
+    setProviderStatus(`正在新建 ${preset.name}，不会夹带当前 Provider 的模型配置`);
+    return `已创建独立的「${preset.name}」Provider 草稿。`;
+  };
+
   const addModelToProvider = (model: ProviderModelInfo) => {
     setProviderModels((prev) => {
       const current = prev.length ? prev : visibleProviderModels;
@@ -551,7 +598,7 @@ export function Settings({ initialTab }: SettingsProps) {
     void loadProviders();
     void loadKnowledgePreferences();
     void loadAiModelRoutesFromApi()
-      .then((routes) => setAiModelRoutes((current) => ensureRoutesHaveDefaults({ ...current, ...routes, routes: { ...current.routes, ...routes.routes } }, providers)))
+      .then((routes) => setAiModelRoutes(routes))
       .catch(() => undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 仅挂载时初始化;providers 到位后由 normalizedAiRoutes(memo)与 loadProviders 重算修正
   }, []);
@@ -780,6 +827,9 @@ export function Settings({ initialTab }: SettingsProps) {
                 selectedProviderId={selectedProviderId}
                 selectProvider={selectProvider}
                 addProvider={addProvider}
+                existingProviderIds={providers.map((provider) => provider.id)}
+                applyLocalPreset={applyProviderPreset}
+                applyRoutingPack={applyRoutePack}
                 providerDraft={providerDraft}
                 setProviderDraft={setProviderDraft}
                 providerStatus={providerStatus}

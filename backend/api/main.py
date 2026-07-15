@@ -210,6 +210,36 @@ if HAS_FASTAPI:
         return bool(provided) and hmac.compare_digest(provided, expected)
 
     @app.middleware("http")
+    async def enforce_rate_limit(request: Request, call_next):
+        """高成本写路径限流(safety.yaml rpm/rph); 失败安全放行。"""
+        try:
+            from backend.security.rate_limit import (
+                check_rate_limit,
+                client_key_from_request,
+                is_expensive_path,
+            )
+
+            path = request.url.path or ""
+            method = (request.method or "GET").upper()
+            if method in {"POST", "PUT", "PATCH", "DELETE"} and is_expensive_path(path):
+                decision = check_rate_limit(client_key_from_request(request), cost=1)
+                if not decision.get("allowed", True):
+                    return JSONResponse(
+                        status_code=429,
+                        content=ApiResponse(
+                            success=False,
+                            error=f"请求过于频繁, 请 {decision.get('retry_after_sec', 1)}s 后重试",
+                            error_code="rate_limited",
+                        ).model_dump(),
+                        headers={"Retry-After": str(int(decision.get("retry_after_sec") or 1))},
+                    )
+        except Exception:
+            pass
+        return await call_next(request)
+
+    # Function middleware is wrapped in reverse registration order, so auth must
+    # be registered last to reject invalid requests before rate-limit allocation.
+    @app.middleware("http")
     async def enforce_local_api_token(request: Request, call_next):
         if _is_local_token_required(request) and not _has_valid_local_token(request):
             return JSONResponse(
@@ -220,6 +250,14 @@ if HAS_FASTAPI:
                 ).model_dump(),
             )
         return await call_next(request)
+
+    # 武装全局 Token 预算(首次调用 registry 时也会自动装)
+    try:
+        from backend.models.model_registry import ensure_default_budget
+
+        ensure_default_budget()
+    except Exception:
+        pass
 
     # ============== 注册路由 ==============
 
@@ -662,35 +700,21 @@ if HAS_FASTAPI:
         mode = mode_map.get(req.mode, AnalysisMode.DEEP)
 
         as_of = req.as_of.isoformat() if req.as_of else ""
-        bars = _meaningful_price_bars(req.stock_symbol, limit=30, end_date=as_of or None)
+        # 取足够历史窗口，主报告仍使用近 30 日区间，但 Quant Referee 需要
+        # MA60 / RSI / MACD 等指标，不能只给一份 30 日价格摘要。
+        bars = _meaningful_price_bars(req.stock_symbol, limit=90, end_date=as_of or None)
         if not bars:
             return ApiResponse(success=False, error="行情数据不足，无法生成正常分析")
 
-        bars = sorted(bars, key=lambda bar: str(bar.get("date") or ""))
-        latest = bars[-1]
-        previous = bars[-2] if len(bars) > 1 else latest
-        latest_close = _safe_float_for_api(latest.get("close"))
-        previous_close = _safe_float_for_api(previous.get("close"))
-        first_close = _safe_float_for_api(bars[0].get("close"))
+        from backend.api.analysis_stock_data import build_analysis_stock_data
 
-        day_change = (latest_close - previous_close) / previous_close * 100 if previous_close else 0.0
-        period_change = (latest_close - first_close) / first_close * 100 if first_close else 0.0
-
-        stock_data = {
-            "symbol": req.stock_symbol,
-            "name": req.stock_name,
-            "close": latest_close,
-            "day_change": day_change,
-            "period_change": period_change,
-            "period_high": max(_safe_float_for_api(bar.get("high")) for bar in bars),
-            "period_low": min(_safe_float_for_api(bar.get("low")) for bar in bars),
-            "days": len(bars),
-            "volume": _safe_float_for_api(latest.get("volume")),
-            "total_amount": _safe_float_for_api(latest.get("amount")),
-            "as_of": as_of,
-            "price_data_date": str(latest.get("date") or ""),
-            "research_question": req.research_question.strip(),
-        }
+        stock_data = build_analysis_stock_data(
+            req.stock_symbol,
+            req.stock_name,
+            bars,
+            as_of=as_of,
+            research_question=req.research_question,
+        )
 
         result = run_agents_with_mode(
             stock_data=stock_data,
@@ -740,6 +764,9 @@ if HAS_FASTAPI:
                     "research_snapshot": result.get("research_snapshot"),
                     "risk_gate": result.get("risk_gate"),
                     "debate": result.get("debate"),
+                    "quant_referee": result.get("quant_referee"),
+                    "citation_validation": result.get("citation_validation"),
+                    "external_agent": result.get("external_agent"),
                     "data_verification": result.get("data_verification"),
                     "model_status": model_status,
                     "mode_name": result.get("mode_name"),

@@ -32,6 +32,14 @@ def test_check_python_fail():
         assert check_env.check_python() is False
 
 
+def test_check_python_rejects_unsupported_newer_runtime():
+    from types import SimpleNamespace
+
+    mock_ver = SimpleNamespace(major=3, minor=13, micro=0)
+    with patch.object(sys, "version_info", mock_ver):
+        assert check_env.check_python() is False
+
+
 def test_check_env_file_missing(tmp_path):
     """缺少 .env 文件应失败"""
     with patch.object(check_env, "PROJECT_ROOT", tmp_path):
@@ -53,8 +61,21 @@ def test_check_env_file_no_example(tmp_path):
 
 def test_check_ports_all_free():
     """所有端口空闲应通过"""
-    with patch("check_env._port_free", return_value=True):
+    with patch("check_env._port_free", return_value=True) as port_free:
         assert check_env.check_ports() is True
+    assert [call.args[0] for call in port_free.call_args_list] == [3000, 8000]
+
+
+def test_check_ports_includes_streamlit_only_when_requested():
+    with patch("check_env._port_free", return_value=True) as port_free:
+        assert check_env.check_ports(include_streamlit=True) is True
+    assert [call.args[0] for call in port_free.call_args_list] == [3000, 8000, 8501]
+
+
+def test_default_dependency_check_does_not_require_streamlit():
+    with patch.dict(sys.modules, {"streamlit": None, "plotly": None}):
+        assert check_env.check_deps() is True
+        assert check_env.check_deps(include_streamlit=True) is False
 
 
 def test_check_ports_blocked():

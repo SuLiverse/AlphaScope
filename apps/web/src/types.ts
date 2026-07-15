@@ -146,6 +146,44 @@ export interface DebateResult {
   disclaimer?: string;
 }
 
+/** 确定性 Quant Referee 规则信号(与 LLM 辩论并行, 零额外模型调用) */
+export interface QuantRefereeSignal {
+  rule_id: string;
+  direction: string;
+  weight: number;
+  claim: string;
+  value?: string;
+}
+
+export interface QuantRefereeResult {
+  status: string;
+  symbol: string;
+  stance: string;
+  net_score: number;
+  signals: QuantRefereeSignal[];
+  n_bull: number;
+  n_bear: number;
+  n_neutral: number;
+  llm_alignment: string;
+  note?: string;
+  disclaimer?: string;
+}
+
+/** 数值/证据引用可追溯核验 */
+export interface CitationValidationResult {
+  status: string;
+  n_claims: number;
+  n_verified: number;
+  n_unverified: number;
+  n_citation_ok: number;
+  n_citation_bad: number;
+  grounding_score: number;
+  suggest_confidence_cap?: number | null;
+  issues?: string[];
+  note?: string;
+  disclaimer?: string;
+}
+
 export interface RatingBreakdown {
   n_agents: number;
   W: number;
@@ -205,6 +243,8 @@ export interface AnalysisResult {
   critic?: string;
   chairman_summary?: string;
   debate?: DebateResult;
+  quant_referee?: QuantRefereeResult;
+  citation_validation?: CitationValidationResult;
   model_status?: AnalysisModelStatus;
   evidence_pool?: EvidencePoolItem[];
   research_trust?: ResearchTrust;

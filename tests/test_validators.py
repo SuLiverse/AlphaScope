@@ -1,7 +1,10 @@
 """Tests for backend.validators — pure-function schema normalizers."""
 
 import socket
+import ipaddress
+from unittest.mock import MagicMock
 
+import httpcore
 import pytest
 
 from llm_agents import (
@@ -9,6 +12,7 @@ from llm_agents import (
     normalize_openai_base_url,
     validate_custom_base_url,
 )
+from backend.models.provider_gateway import _PinnedTargetNetworkBackend, create_ssrf_safe_http_client
 
 from validators import (
     validate_agent_output,
@@ -292,8 +296,8 @@ def test_validate_custom_base_url_rejects_unresolved_hostname_by_default(monkeyp
         validate_custom_base_url("https://unresolved.example.invalid/v1")
 
 
-def test_validate_custom_base_url_allows_unresolved_hostname_with_opt_in(monkeypatch):
-    """Explicit local LLM opt-in preserves offline/dev hostname support."""
+def test_validate_custom_base_url_rejects_unresolved_hostname_with_opt_in(monkeypatch):
+    """Local opt-in does not turn arbitrary unresolved hosts into trusted targets."""
 
     def fail_resolution(*args, **kwargs):
         raise socket.gaierror("name or service not known")
@@ -301,24 +305,125 @@ def test_validate_custom_base_url_allows_unresolved_hostname_with_opt_in(monkeyp
     monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
     monkeypatch.setattr(socket, "getaddrinfo", fail_resolution)
 
-    assert validate_custom_base_url("https://unresolved.example.invalid/v1") == "https://unresolved.example.invalid/v1"
+    with pytest.raises(ValueError, match="DNS|解析"):
+        validate_custom_base_url("https://unresolved.example.invalid/v1")
 
 
-def test_validate_custom_base_url_allows_resolved_local_addresses_with_opt_in(
+def test_validate_custom_base_url_rejects_dns_alias_to_loopback_with_opt_in(
     monkeypatch,
 ):
-    """Explicit local LLM opt-in bypasses DNS SSRF rejection for developer proxies."""
+    """Only explicit localhost/literal loopback targets qualify for local opt-in."""
 
-    def fail_if_resolved(*args, **kwargs):
-        raise AssertionError("local opt-in should bypass DNS resolution")
+    def resolve_loopback(*args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))]
 
     monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
-    monkeypatch.setattr(socket, "getaddrinfo", fail_if_resolved)
+    monkeypatch.setattr(socket, "getaddrinfo", resolve_loopback)
 
-    assert validate_custom_base_url("https://127.0.0.1.nip.io/v1") == "https://127.0.0.1.nip.io/v1"
+    with pytest.raises(ValueError, match="默认禁止连接"):
+        validate_custom_base_url("https://127.0.0.1.nip.io/v1")
 
 
 def test_validate_custom_base_url_allows_local_addresses_with_opt_in(monkeypatch):
     monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
 
     assert validate_custom_base_url("http://localhost:8000/v1") == "http://localhost:8000/v1"
+
+
+def test_validate_custom_base_url_rejects_private_lan_with_opt_in(monkeypatch):
+    monkeypatch.setenv("ALLOW_LOCAL_LLM_BASE_URL", "1")
+
+    with pytest.raises(ValueError, match="默认禁止连接"):
+        validate_custom_base_url("http://10.0.0.8:8000/v1")
+
+
+def test_connect_time_dns_rebinding_to_private_address_is_blocked(monkeypatch):
+    backend = _PinnedTargetNetworkBackend(
+        host="provider.example.com",
+        port=443,
+        allow_loopback=False,
+        local_only=False,
+    )
+    backend._backend = MagicMock()
+    monkeypatch.setattr(
+        "backend.models.provider_gateway._resolved_addresses",
+        lambda host, port: [ipaddress.ip_address("127.0.0.1")],
+    )
+
+    with pytest.raises(httpcore.ConnectError, match="Blocked provider connection target"):
+        backend.connect_tcp("provider.example.com", 443)
+
+    backend._backend.connect_tcp.assert_not_called()
+
+
+def test_local_provider_rebinding_must_remain_loopback(monkeypatch):
+    backend = _PinnedTargetNetworkBackend(
+        host="localhost",
+        port=11434,
+        allow_loopback=True,
+        local_only=True,
+    )
+    backend._backend = MagicMock()
+    monkeypatch.setattr(
+        "backend.models.provider_gateway._resolved_addresses",
+        lambda host, port: [ipaddress.ip_address("10.0.0.8")],
+    )
+
+    with pytest.raises(httpcore.ConnectError, match="Blocked provider connection target"):
+        backend.connect_tcp("localhost", 11434)
+
+    backend._backend.connect_tcp.assert_not_called()
+
+
+def test_connect_time_resolution_is_pinned_to_validated_ip(monkeypatch):
+    backend = _PinnedTargetNetworkBackend(
+        host="provider.example.com",
+        port=443,
+        allow_loopback=False,
+        local_only=False,
+    )
+    backend._backend = MagicMock()
+    backend._backend.connect_tcp.return_value = object()
+    monkeypatch.setattr(
+        "backend.models.provider_gateway._resolved_addresses",
+        lambda host, port: [ipaddress.ip_address("93.184.216.34")],
+    )
+
+    backend.connect_tcp("provider.example.com", 443)
+
+    backend._backend.connect_tcp.assert_called_once()
+    assert backend._backend.connect_tcp.call_args.args[:2] == ("93.184.216.34", 443)
+
+
+def test_safe_provider_http_client_disables_redirects_and_environment_proxy(monkeypatch):
+    monkeypatch.setattr(
+        "backend.models.provider_gateway._resolved_addresses",
+        lambda host, port: [ipaddress.ip_address("93.184.216.34")],
+    )
+
+    client = create_ssrf_safe_http_client("https://provider.example.com/v1", timeout=1.0)
+    try:
+        assert client.follow_redirects is False
+        assert isinstance(client._transport._pool._network_backend, _PinnedTargetNetworkBackend)
+    finally:
+        client.close()
+
+
+@pytest.mark.parametrize(
+    "unsafe_url",
+    [
+        "ftp://example.com/v1",
+        "http://user:password@example.com/v1",
+        "https://example.com/v1?target=local",
+        "https://example.com/v1#fragment",
+    ],
+)
+def test_validate_custom_base_url_rejects_unsafe_structure(monkeypatch, unsafe_url):
+    monkeypatch.setattr(
+        socket,
+        "getaddrinfo",
+        lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
+    )
+
+    with pytest.raises(ValueError):
+        validate_custom_base_url(unsafe_url)

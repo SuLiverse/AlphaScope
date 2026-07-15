@@ -83,7 +83,7 @@ async def normalize_symbol(symbol: str):
 
 @router.get("/{symbol}/latest")
 async def get_latest_price(symbol: str):
-    """获取最新价格"""
+    """获取最新价格(阻塞 I/O 进线程池, 避免卡住事件循环)"""
     from backend.price_periods import fetch_intraday_prices
     from backend.price_quality import filter_incompatible_price_bars
     from backend.price_store import (
@@ -93,18 +93,22 @@ async def get_latest_price(symbol: str):
     )
 
     if get_market(symbol) == "CN":
-        intraday_bars = fetch_intraday_prices(symbol, limit=1)
+        intraday_bars = await asyncio.to_thread(fetch_intraday_prices, symbol, 1)
         if intraday_bars:
             return ApiResponse(success=True, data=intraday_bars[-1])
 
     fetch_result = None
-    raw_daily_bars = _get(symbol=symbol, frequency="1d", limit=20, include_incompatible=True)
+    raw_daily_bars = await asyncio.to_thread(
+        lambda: _get(symbol=symbol, frequency="1d", limit=20, include_incompatible=True)
+    )
     daily_bars = filter_incompatible_price_bars(raw_daily_bars)
     if not daily_bars:
         fetch_result = await fetch_prices(symbol, days=120)
-        raw_daily_bars = _get(symbol=symbol, frequency="1d", limit=20, include_incompatible=True)
+        raw_daily_bars = await asyncio.to_thread(
+            lambda: _get(symbol=symbol, frequency="1d", limit=20, include_incompatible=True)
+        )
         daily_bars = filter_incompatible_price_bars(raw_daily_bars)
-    bar = daily_bars[0] if daily_bars else _latest(symbol)
+    bar = daily_bars[0] if daily_bars else await asyncio.to_thread(_latest, symbol)
     if not bar:
         if fetch_result is not None and not fetch_result.success:
             return ApiResponse(
@@ -137,7 +141,7 @@ async def get_prices(
 
     normalized_frequency = normalize_frequency(frequency)
     if normalized_frequency == "intraday":
-        bars = fetch_intraday_prices(symbol, limit=limit)
+        bars = await asyncio.to_thread(fetch_intraday_prices, symbol, limit)
         return ApiResponse(
             success=True,
             data={

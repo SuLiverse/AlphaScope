@@ -126,15 +126,135 @@ def synthesize_debate(
     critic: dict[str, Any] | None = None,
     risk_gate: dict[str, Any] | None = None,
     data_verification: dict[str, Any] | None = None,
+    *,
+    second_round: bool = False,
 ) -> DebateReport:
     """把已算出的 Agent 信号 + 评审 + 风控 + 数据核验合成多空辩论裁决。
+
+    ``second_round``: 可选「第二轮」强化反方质询(仍**不调用 LLM**),
+    仅在默认辩论上追加交叉质询要点; 默认 False 保持零成本。
 
     永不抛出:任一输入异常 → 返回 ``DEGRADED`` 报告。
     """
     try:
-        return _synthesize(agents or {}, summary, critic, risk_gate, data_verification)
+        report = _synthesize(agents or {}, summary, critic, risk_gate, data_verification)
+        if second_round and report.status == OK:
+            report = _apply_second_round(report, agents or {}, summary)
+        return report
     except Exception as exc:  # noqa: BLE001 - 失败安全
         return _degraded(f"多空辩论合成失败,已降级: {exc}")
+
+
+def _apply_second_round(
+    report: DebateReport,
+    agents: dict[str, Any],
+    summary: dict[str, Any] | None,
+) -> DebateReport:
+    """确定性第二轮: 用对立面交叉质询强化弱侧, 不触网。"""
+    extra_bull: list[DebatePoint] = []
+    extra_bear: list[DebatePoint] = []
+    final = str((summary or {}).get("final") or "")
+    # 对强势一侧追加「反方必须回应」的质询点
+    if report.bull_strength >= report.bear_strength:
+        extra_bear.append(
+            DebatePoint(
+                side="bear",
+                source="second_round",
+                kind="cross_examine",
+                claim=(
+                    f"第二轮质询: 多头净优势 {report.bull_strength - report.bear_strength:.0f},"
+                    f"请核对是否过度依赖单一维度; 主席结论「{final or '—'}」需有证据编号支撑。"
+                ),
+                weight=12.0,
+                confidence=50.0,
+            )
+        )
+    else:
+        extra_bull.append(
+            DebatePoint(
+                side="bull",
+                source="second_round",
+                kind="cross_examine",
+                claim=(
+                    f"第二轮质询: 空头净优势 {report.bear_strength - report.bull_strength:.0f},"
+                    "请核对是否遗漏修复信号或超跌结构; 避免单边叙事。"
+                ),
+                weight=12.0,
+                confidence=50.0,
+            )
+        )
+    # 低置信 Agent 再点名。质询必须落在该 Agent 的对立侧，不能把低置信
+    # 看空观点继续记到空方，否则会反向放大原本就不可靠的结论。
+    for key, raw in agents.items():
+        if not isinstance(raw, dict):
+            continue
+        conf = _num(raw.get("confidence"))
+        if 0 < conf < 45:
+            name = str(raw.get("name") or key)
+            signal = str(raw.get("signal") or "").strip()
+            if signal in _BULL_SIGNALS:
+                target = extra_bear
+                side = "bear"
+                stance = "看多"
+            elif signal in _BEAR_SIGNALS:
+                target = extra_bull
+                side = "bull"
+                stance = "看空"
+            else:
+                continue
+            target.append(
+                DebatePoint(
+                    side=side,
+                    source=key,
+                    kind="cross_examine",
+                    claim=f"第二轮: {name} 的{stance}结论置信仅 {conf:.0f}, 其权重应下调。",
+                    weight=8.0,
+                    confidence=conf,
+                    evidence_ids=list(raw.get("evidence_ids") or []),
+                )
+            )
+    new_bull = list(report.bull_points) + extra_bull
+    new_bear = list(report.bear_points) + extra_bear
+    new_bull.sort(key=lambda point: point.weight, reverse=True)
+    new_bear.sort(key=lambda point: point.weight, reverse=True)
+    bull_s = report.bull_strength + sum(p.weight for p in extra_bull)
+    bear_s = report.bear_strength + sum(p.weight for p in extra_bear)
+    total = bull_s + bear_s
+    consensus_score = round(abs(bull_s - bear_s) / total * 100, 1) if total else 0.0
+    if report.consensus == "风控否决":
+        consensus = report.consensus
+        consensus_score = 0.0
+        ruling = report.ruling
+    else:
+        has_bull = bull_s > 0
+        has_bear = bear_s > 0
+        if not has_bull and not has_bear:
+            consensus = "中性观望" if report.n_neutral else "未知"
+        elif has_bull and not has_bear:
+            consensus = "看多共识" if consensus_score >= 50 else "偏看多"
+        elif has_bear and not has_bull:
+            consensus = "看空共识" if consensus_score >= 50 else "偏看空"
+        elif report.divergence_level == "高" or consensus_score < 25:
+            consensus = "高度分歧"
+        else:
+            consensus = "偏看多" if bull_s > bear_s else "偏看空" if bear_s > bull_s else "多空分歧"
+        ruling = _ruling(consensus, new_bull, new_bear, report.n_bull, report.n_bear)
+    if extra_bull or extra_bear:
+        ruling = (ruling or "") + " | 已启用确定性第二轮交叉质询(无额外 LLM)。"
+    return DebateReport(
+        status=report.status,
+        consensus=consensus,
+        consensus_score=consensus_score,
+        divergence_level=report.divergence_level,
+        bull_strength=bull_s,
+        bear_strength=bear_s,
+        n_bull=report.n_bull,
+        n_bear=report.n_bear,
+        n_neutral=report.n_neutral,
+        bull_points=new_bull,
+        bear_points=new_bear,
+        ruling=ruling,
+    )
 
 
 def _synthesize(

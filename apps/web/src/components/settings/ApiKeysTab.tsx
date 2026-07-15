@@ -1,7 +1,7 @@
 /**
  * Settings API keys / providers tab + model library dialog.
  */
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   CheckCircle2,
@@ -19,13 +19,20 @@ import {
   Sparkles,
   Trash2,
   X,
+  HardDrive,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
-import type { ProviderModelCapabilities, ProviderModelInfo } from "../../lib/aiModelRouting";
+import { fetchApi } from "../../lib/api";
+import type {
+  AiRoutingPack,
+  ProviderModelCapabilities,
+  ProviderModelInfo,
+} from "../../lib/aiModelRouting";
 import { ThemedSelect, type ThemedSelectOption } from "../ThemedSelect";
 import {
   type ProviderDraft,
   type ProviderListItem,
+  type LocalLlmPreset,
   type SettingsModelProvider,
   type SettingsState,
 } from "./types";
@@ -42,6 +49,9 @@ export interface ApiKeysTabProps {
   selectedProviderId: string;
   selectProvider: (provider: ProviderListItem) => void;
   addProvider: () => void;
+  existingProviderIds: string[];
+  applyLocalPreset: (preset: LocalLlmPreset) => string;
+  applyRoutingPack: (pack: AiRoutingPack) => Promise<void>;
   providerDraft: ProviderDraft;
   setProviderDraft: Dispatch<SetStateAction<ProviderDraft>>;
   providerStatus: string;
@@ -83,6 +93,9 @@ export function ApiKeysTab({
   selectedProviderId,
   selectProvider,
   addProvider,
+  existingProviderIds,
+  applyLocalPreset,
+  applyRoutingPack,
   providerDraft,
   setProviderDraft,
   providerStatus,
@@ -113,6 +126,42 @@ export function ApiKeysTab({
   addModelToProvider,
   discoveredModels,
 }: ApiKeysTabProps) {
+  const [localPresets, setLocalPresets] = useState<LocalLlmPreset[]>([]);
+  const [localPresetHint, setLocalPresetHint] = useState('');
+  const [routingPacks, setRoutingPacks] = useState<AiRoutingPack[]>([]);
+  const [routingPackBusy, setRoutingPackBusy] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchApi<{ presets: LocalLlmPreset[] }>('/api/settings/local-llm-presets');
+        if (!cancelled) setLocalPresets(Array.isArray(data?.presets) ? data.presets : []);
+      } catch {
+        if (!cancelled) setLocalPresets([]);
+      }
+      try {
+        const packs = await fetchApi<{ packs: typeof routingPacks }>('/api/settings/routing-packs');
+        if (!cancelled) setRoutingPacks(Array.isArray(packs?.packs) ? packs.packs : []);
+      } catch {
+        if (!cancelled) setRoutingPacks([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleLocalPreset = (preset: LocalLlmPreset) => {
+    const action = applyLocalPreset(preset);
+    const allow = preset.local_base_url_allowed;
+    setLocalPresetHint(
+      allow
+        ? `${action} 请确认本机服务已启动后保存并测试。`
+        : `${action} 保存前请设置环境变量 ALLOW_LOCAL_LLM_BASE_URL=1（SSRF 防护）。${preset.notes || ''}`,
+    );
+  };
+
   return (
     <>
       {/* api panel — rendered when parent selects api tab */}
@@ -215,6 +264,64 @@ export function ApiKeysTab({
                     </div>
 
                     <div className="mt-6 space-y-6">
+                      {localPresets.length > 0 && (
+                        <div className="rounded-2xl border border-cyan-500/15 bg-cyan-500/[0.04] p-4">
+                          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-cyan-100">
+                            <HardDrive className="h-4 w-4" />
+                            本地模型一键填入 (Ollama / LM Studio)
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {localPresets.map((p) => (
+                              <button
+                                key={p.id}
+                                type="button"
+                                onClick={() => handleLocalPreset(p)}
+                                className="rounded-xl border border-white/10 bg-black/30 px-3 py-1.5 text-xs text-neutral-200 transition-colors hover:border-cyan-400/40 hover:bg-cyan-500/10"
+                              >
+                                {existingProviderIds.includes(p.id) ? `切换到 ${p.name}` : `新建 ${p.name}`}
+                              </button>
+                            ))}
+                          </div>
+                          {localPresetHint ? (
+                            <p className="mt-2 text-[11px] leading-relaxed text-cyan-100/70">{localPresetHint}</p>
+                          ) : (
+                            <p className="mt-2 text-[11px] text-neutral-500">
+                              填入后需本机推理服务在线；默认禁止未授权的私网 Base URL。
+                            </p>
+                          )}
+                          {routingPacks.length > 0 && (
+                            <div className="mt-3 border-t border-white/5 pt-3">
+                              <p className="mb-2 text-[11px] text-neutral-400">任务路由预设包（写入本机模型路由）</p>
+                              <div className="flex flex-wrap gap-2">
+                                {routingPacks.map((pack) => (
+                                  <button
+                                    key={pack.id}
+                                    type="button"
+                                    title={pack.description}
+                                    disabled={Boolean(routingPackBusy)}
+                                    onClick={async () => {
+                                      setRoutingPackBusy(pack.id);
+                                      try {
+                                        await applyRoutingPack(pack);
+                                        setLocalPresetHint(`已应用并保存路由包「${pack.name}」。`);
+                                      } catch (error) {
+                                        setLocalPresetHint(
+                                          error instanceof Error ? `路由包保存失败：${error.message}` : '路由包保存失败',
+                                        );
+                                      } finally {
+                                        setRoutingPackBusy('');
+                                      }
+                                    }}
+                                    className="rounded-xl border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs text-violet-100 disabled:opacity-50"
+                                  >
+                                    {routingPackBusy === pack.id ? '保存中…' : pack.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div>
                         <div className="mb-3 flex items-center justify-between gap-3">
                           <h4 className="text-lg font-medium text-white">平台信息</h4>

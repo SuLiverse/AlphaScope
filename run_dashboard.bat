@@ -19,8 +19,27 @@ set STREAMLIT_SERVER_FILE_WATCHER_TYPE=none
 
 cd /d "%ROOT%"
 
+if not exist "%VENV%\Scripts\python.exe" (
+    echo Optional Streamlit debug console environment not found:
+    echo   %VENV%
+    echo Create it and install the complete optional console environment:
+    echo   python -m venv "%VENV%"
+    echo   "%VENV%\Scripts\python.exe" -m pip install -r requirements-streamlit.txt
+    exit /b 1
+)
+
+"%VENV%\Scripts\python.exe" -c "import streamlit, plotly" >nul 2>nul
+if errorlevel 1 (
+    echo Streamlit debug console dependencies are not installed.
+    echo Install with:
+    echo   "%VENV%\Scripts\python.exe" -m pip install -r requirements-streamlit.txt
+    echo Or for an editable package install:
+    echo   "%VENV%\Scripts\python.exe" -m pip install -e ".[streamlit]"
+    exit /b 1
+)
+
 echo Using python: %VENV%\Scripts\python.exe
-echo If this fails, run:  %VENV%\Scripts\pip.exe install -r requirements.txt
+echo Optional debug console dependencies: requirements-streamlit.txt
 echo File-watcher disabled. Stop with Ctrl+C and rerun this .bat after code edits.
 
 "%VENV%\Scripts\python.exe" -m streamlit run frontend\dashboard.py ^

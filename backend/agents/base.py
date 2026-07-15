@@ -14,6 +14,7 @@ Agent Base: 配置、提示词、模型映射。
 从 llm_agents.py 拆分而来。
 """
 
+import os
 from dataclasses import dataclass, asdict
 from typing import Tuple, Optional, List
 
@@ -280,15 +281,47 @@ def _agent_config_from_dict(raw: dict) -> AgentConfig:
 
 
 def _resolve_agent_ai_config(cfg: AgentConfig, global_ai_settings: Optional[dict] = None) -> Tuple[str, str, str, str]:
-    global_ai_settings = global_ai_settings or {}
-    if cfg.inherit_global_key and global_ai_settings.get("use_unified_key", True):
-        return (
-            global_ai_settings.get("provider") or cfg.provider,
-            global_ai_settings.get("model") or cfg.model,
-            global_ai_settings.get("api_key", ""),
-            global_ai_settings.get("base_url", ""),
-        )
-    return cfg.provider, cfg.model, cfg.api_key, cfg.base_url
+    from backend.models.task_router import resolve_model_for_task
+
+    settings = global_ai_settings if isinstance(global_ai_settings, dict) else {}
+    routes = settings.get("routes") if isinstance(settings.get("routes"), dict) else {}
+    agent_key = (cfg.key or "agent_default").strip().lower()
+    agent_task = agent_key
+    has_agent_route = agent_task in routes or isinstance(settings.get(agent_task), dict)
+    if not has_agent_route and not os.getenv(f"ALPHASCOPE_ROUTE_{agent_task.upper()}", "").strip():
+        agent_task = "agent_default"
+
+    force_cheap = bool(settings.get("_force_cheap"))
+    route = resolve_model_for_task(
+        agent_task,
+        global_ai_settings=settings,
+        force_cheap=force_cheap,
+    )
+    route_is_explicit = force_cheap or route.get("source") != "default"
+    route_is_per_agent = agent_key != "agent_default" and agent_task == agent_key and route.get("source") != "default"
+
+    inherit_global = cfg.inherit_global_key and settings.get("use_unified_key", True)
+    if not inherit_global and not route_is_per_agent:
+        return cfg.provider, cfg.model, cfg.api_key, cfg.base_url
+
+    if route_is_explicit:
+        provider = route["provider"]
+        model = route["model"]
+    elif inherit_global:
+        provider = settings.get("provider") or cfg.provider
+        model = settings.get("model") or cfg.model
+    else:
+        provider, model = cfg.provider, cfg.model
+
+    if not inherit_global:
+        if provider != cfg.provider:
+            return provider, model, "", ""
+        return provider, model, cfg.api_key, cfg.base_url
+
+    global_provider = str(settings.get("provider") or "").strip()
+    if global_provider and global_provider != provider:
+        return provider, model, "", ""
+    return provider, model, settings.get("api_key", ""), settings.get("base_url", "")
 
 
 def _strict_json_messages(messages: list) -> list:

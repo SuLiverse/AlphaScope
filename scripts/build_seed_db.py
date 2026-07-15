@@ -25,12 +25,46 @@ SEED_DB = SEED_DIR / "ai_finance.db"
 
 # 常用蓝筹 / 热门股(A股) + 港股龙头
 A_SHARES = [
-    "600519", "000001", "000858", "600036", "601318", "600900", "000651",
-    "002594", "300059", "300750", "688981", "601899", "600276", "000333",
-    "002415", "600030", "601012", "300760", "688256", "688758", "300758",
-    "301666", "600887", "000725", "002230", "600406", "601166", "000002",
-    "600028", "601398", "601288", "600585", "002475", "300124", "600309",
-    "601668", "600031", "000568", "002304", "600436",
+    "600519",
+    "000001",
+    "000858",
+    "600036",
+    "601318",
+    "600900",
+    "000651",
+    "002594",
+    "300059",
+    "300750",
+    "688981",
+    "601899",
+    "600276",
+    "000333",
+    "002415",
+    "600030",
+    "601012",
+    "300760",
+    "688256",
+    "688758",
+    "300758",
+    "301666",
+    "600887",
+    "000725",
+    "002230",
+    "600406",
+    "601166",
+    "000002",
+    "600028",
+    "601398",
+    "601288",
+    "600585",
+    "002475",
+    "300124",
+    "600309",
+    "601668",
+    "600031",
+    "000568",
+    "002304",
+    "600436",
 ]
 HK_SHARES = ["00700", "00100", "00020", "09988", "03690"]
 
@@ -126,8 +160,7 @@ def main() -> int:
             chg = round((c - base) / base * 100, 4) if base else 0.0
             amp = round((h - low_v) / base * 100, 4) if base else 0.0
             rows.append(
-                (sym, p[0], market, "1d", o, h, low_v, c, vol, amt, 0.0,
-                 amp, chg, "", "eastmoney", time.time())
+                (sym, p[0], market, "1d", o, h, low_v, c, vol, amt, 0.0, amp, chg, "", "eastmoney", time.time())
             )
             prev = c
         conn.executemany(
@@ -144,8 +177,7 @@ def main() -> int:
     conn.commit()
 
     # 安全自检: 种子库绝不含任何 provider / key 表
-    tabs = [r[0] for r in conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table'")]
+    tabs = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")]
     assert "model_providers" not in tabs, "种子库不得包含 model_providers 表!"
     nsym = conn.execute("SELECT COUNT(DISTINCT symbol) FROM price_bars").fetchone()[0]
     conn.close()

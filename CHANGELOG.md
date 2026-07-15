@@ -1,5 +1,70 @@
 # Changelog
 
+## v1.9.54 - 2026-07-15
+
+> **战略规划全量工程波次**：限流/预算/DSR/新闻缓存/LangGraph 旁路/评测/vectorbt UI/证据图谱/路由包。
+
+### 安全与成本
+- 进程内滑动窗口限流（`safety.yaml` rpm/rph；高成本 POST 路径 429）
+- 全局 Token/成本预算默认武装（`ALPHASCOPE_DAILY_TOKEN_LIMIT` / `DAILY_COST_USD`）
+- `GET /api/settings/budget`、`GET /api/quality/cache-stats`
+
+### 量化
+- Probabilistic / Deflated Sharpe（`metrics_advanced`，并入绩效摘要）
+- `POST /api/integrations/vectorbt/param-sweep` + 集成中心 UI 扫描面板
+
+### 编排与模型
+- 可选 `ALPHASCOPE_ORCHESTRATION=langgraph` 旁路（失败回退自研）
+- 任务路由 `task_router` + `GET /api/settings/routing-packs`（本地优先/成本/质量）
+- 预算紧张时强制 cheap / 降级 STANDARD
+
+### 数据与证据
+- 新闻 Provider 180s TTL + stale 回退
+- 研报归档自动写入 RAG `report_chunks`
+- 证据链页 SVG 关联图谱（`/api/evidence/chain/graph`）
+
+### 评测
+- `backend/eval/agent_benchmark.py` + `GET /api/quality/agent-benchmark`（无 LLM 回归）
+
+## v1.9.53 - 2026-07-15
+
+> **护城河 + 工程债 + 本地模型 + 文档对齐** 一整包落地（备份分支 `backup/pre-p0-agent-evolution-20260715`）。
+
+### 研究可信度（含 1.9.52）
+- Quant Referee + Citation Validator（编排/API/研报面板）
+- **研究记忆 Post-mortem**：简报注入历史信号转折与复盘约束
+- **确定性第二轮辩论**（默认关）：`ALPHASCOPE_DEBATE_SECOND_ROUND=1` 或 `_DEEP=1`
+
+### 性能与存储
+- SQLite `WAL` + `busy_timeout=5000` + `synchronous=NORMAL`
+- 分时行情 45s TTL 缓存；prices 最新价/分时与 evidence 列表 `asyncio.to_thread`
+
+### 本地模型
+- providers.yaml 增加 Ollama / LM Studio
+- `GET/POST /api/settings/local-llm-presets[+ /probe]`
+- 设置页「本地模型一键填入」
+
+### 工程卫生
+- Streamlit 移出 core → `requirements-streamlit.txt` / `alphascope[streamlit]`
+- 删除未注册死代码：`backtest_new`、`fund_analysis` API、`runtime/task_queue`
+- 重写 `docs/security.md`；README English summary + Topics；徽章 v1.9.53
+
+## v1.9.52 - 2026-07-15
+
+> **P0 护城河强化**：确定性 Quant Referee + Citation Validator，与 LLM 辩论并行、零额外模型调用。
+
+### 研究可信度
+- **Quant Referee** (`backend/agents/quant_referee.py`)：从行情/均线/RSI/MACD/区间/量比产出规则信号卡，立场与净分对照 LLM 结论（一致/同向/冲突），并入研报小节与 API `quant_referee`。
+- **Citation Validator** (`backend/quality/citation_validator.py`)：核验研报/Agent 文本中的数字是否对齐 stock_data、`[n]` 是否落在 evidence_pool；未核验时建议置信度上限并软封顶 `avg_confidence`。
+- 前端研报页新增「量化裁判」「引用与数值核验」面板；分析适配层透出字段。
+
+### 设计原则
+- 纯函数、失败安全、不触网、不新增 LLM Agent（对齐 debate / data_verifier 哲学）。
+- 主路径仍为自研编排；未引入 LangGraph 替换。
+
+### 验证
+- 新增 `tests/test_quant_referee.py`、`tests/test_citation_validator.py`。
+
 ## v1.9.51 - 2026-07-12
 
 > **全面审查修复**：收紧本地鉴权，修复 Docker/发布复现性、依赖安装和资源边界，并清零前端质量告警。

@@ -8,6 +8,7 @@ These tests pin its contract: zero-key, last-priority, honest provenance.
 from __future__ import annotations
 
 import os
+import sqlite3
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -34,6 +35,67 @@ class TestDemoSeedProvider:
         # In this repo the seed DB is present, so availability must be True.
         assert _seed_db_path().exists()
         assert DemoSeedProvider.is_available() is True
+
+    def test_packaged_seed_is_not_shadowed_by_empty_runtime_db(self, tmp_path, monkeypatch):
+        from backend import project_paths
+        from backend.providers.demo_provider import DemoSeedProvider, _seed_db_path
+
+        seed_dir = tmp_path / "seed"
+        runtime_dir = tmp_path / "data"
+        seed_dir.mkdir()
+        (runtime_dir / "db").mkdir(parents=True)
+
+        seed_db = seed_dir / "ai_finance.db"
+        with sqlite3.connect(seed_db) as conn:
+            conn.execute(
+                "CREATE TABLE price_bars ("
+                "symbol TEXT, date TEXT, market TEXT, open REAL, high REAL, "
+                "low REAL, close REAL, volume REAL, amount REAL)"
+            )
+            conn.execute(
+                "INSERT INTO price_bars VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("600519", "2026-01-02", "CN", 10.0, 11.0, 9.0, 10.5, 100.0, 1050.0),
+            )
+
+        # A normal application import can create the mutable DB before this
+        # provider runs. It must not hide the packaged demo data.
+        with sqlite3.connect(runtime_dir / "db" / "ai_finance.db") as conn:
+            conn.execute("CREATE TABLE runtime_state (id INTEGER)")
+
+        monkeypatch.setattr(project_paths, "SEED_DIR", seed_dir)
+        monkeypatch.setattr(project_paths, "DATA_DIR", runtime_dir)
+
+        assert _seed_db_path() == seed_db
+        bars = DemoSeedProvider().get_prices({"symbol": "600519", "limit": 1})
+        assert len(bars) == 1
+        assert bars[0]["source"] == "demo_seed"
+        assert bars[0]["demo_sample"] is True
+
+    def test_runtime_seed_is_used_when_portable_build_has_no_seed_dir(self, tmp_path, monkeypatch):
+        from backend import project_paths
+        from backend.providers.demo_provider import DemoSeedProvider, _seed_db_path
+
+        seed_dir = tmp_path / "missing-seed"
+        runtime_db = tmp_path / "data" / "db" / "ai_finance.db"
+        runtime_db.parent.mkdir(parents=True)
+        with sqlite3.connect(runtime_db) as conn:
+            conn.execute(
+                "CREATE TABLE price_bars ("
+                "symbol TEXT, date TEXT, market TEXT, open REAL, high REAL, "
+                "low REAL, close REAL, volume REAL, amount REAL)"
+            )
+            conn.execute(
+                "INSERT INTO price_bars VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                ("600519", "2026-01-02", "CN", 10.0, 11.0, 9.0, 10.5, 100.0, 1050.0),
+            )
+
+        monkeypatch.setattr(project_paths, "SEED_DIR", seed_dir)
+        monkeypatch.setattr(project_paths, "DATA_DIR", tmp_path / "data")
+
+        assert _seed_db_path() == runtime_db
+        bars = DemoSeedProvider().get_prices({"symbol": "600519", "limit": 1})
+        assert len(bars) == 1
+        assert bars[0]["source"] == "demo_seed"
 
     def test_get_prices_returns_seed_bars_tagged_as_demo(self):
         from backend.providers.demo_provider import DemoSeedProvider

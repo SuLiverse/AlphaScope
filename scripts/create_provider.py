@@ -71,17 +71,13 @@ ALL_METHODS = [
 def main():
     parser = argparse.ArgumentParser(description="Generate a new AlphaScope provider")
     parser.add_argument("--name", required=True, help="Provider name (snake_case)")
-    parser.add_argument(
-        "--markets", default="CN", help="Comma-separated markets (CN,HK,US,ALL)"
-    )
+    parser.add_argument("--markets", default="CN", help="Comma-separated markets (CN,HK,US,ALL)")
     parser.add_argument(
         "--types",
         default="news",
         help="Comma-separated data types (news,reports,announcements,prices,fundamentals,fund_flow)",
     )
-    parser.add_argument(
-        "--priority", type=int, default=50, help="Default priority (0-100)"
-    )
+    parser.add_argument("--priority", type=int, default=50, help="Default priority (0-100)")
     parser.add_argument(
         "--custom",
         action="store_true",

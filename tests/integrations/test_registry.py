@@ -243,29 +243,183 @@ def test_dispatch_supports_all_category_capability_pairs():
     class _StubData:
         NAME = "stub_data"
 
+        def __init__(self):
+            self.kw = {}
+
         def get_ohlcv(self, symbol, start, end, **kw):
+            self.kw = kw
             return [{"symbol": symbol, "date": start, "close": 1.0}]
 
+    stub_data = _StubData()
     res = _dispatch(
-        _StubData(),
+        stub_data,
         "data",
         _default_capability("data"),
-        {"symbol": "AAPL", "start": "2024-01-01", "end": "2024-01-02"},
+        {
+            "symbol": "AAPL",
+            "start": "2024-01-01",
+            "end": "2024-01-02",
+            "provider": "yfinance",
+            "interval": "1d",
+        },
     )
     assert isinstance(res, list) and res[0]["symbol"] == "AAPL"
+    assert stub_data.kw == {"provider": "yfinance", "interval": "1d"}
 
     # backtest/param_sweep — stub (vectorbt 未装时仍要保证 dispatch 分支存在)
     class _StubSweep:
         NAME = "stub_sweep"
 
-        def param_sweep(self, bars=None, param_grid=None, metric="sharpe", top_n=20):
-            return [{"params": {"fast": 5, "slow": 20}, "metric": metric, "top_n": top_n}]
+        def param_sweep(self, bars=None, param_grid=None, metric="sharpe", top_n=20, **kw):
+            return [
+                {
+                    "params": {"fast": 5, "slow": 20},
+                    "metric": metric,
+                    "top_n": top_n,
+                    "fees": kw.get("fees"),
+                }
+            ]
 
-    res = _dispatch(_StubSweep(), "backtest", "param_sweep", {"metric": "sharpe", "top_n": 5})
+    res = _dispatch(
+        _StubSweep(),
+        "backtest",
+        "param_sweep",
+        {"metric": "sharpe", "top_n": 5, "fees": 0.001},
+    )
     assert isinstance(res, list) and res[0]["top_n"] == 5
+    assert res[0]["fees"] == 0.001
+
+    class _StubAgent:
+        NAME = "stub_agent"
+
+        def analyze(self, symbols, **kw):
+            return [{"symbols": symbols, "kwargs": kw}]
+
+    agent_result = _dispatch(
+        _StubAgent(),
+        "agent",
+        "analyze",
+        {"symbols": ["600519"], "trade_date": "2026-07-15", "asset_type": "stock"},
+    )
+    assert agent_result[0]["kwargs"] == {
+        "trade_date": "2026-07-15",
+        "asset_type": "stock",
+    }
+
+    class _StubFactor:
+        NAME = "stub_factor"
+
+        def compute_factors(self, symbols, **kw):
+            return {"symbols": symbols, "kwargs": kw}
+
+    factor_result = _dispatch(
+        _StubFactor(),
+        "factor",
+        "compute_factors",
+        {
+            "symbols": ["600519"],
+            "start_time": "2025-01-01",
+            "end_time": "2026-01-01",
+            "factor_set": "alpha158",
+        },
+    )
+    assert factor_result["kwargs"]["factor_set"] == "alpha158"
 
     # 未声明能力仍应抛 ValueError (守卫)
     import pytest
 
     with pytest.raises(ValueError, match="不支持能力"):
         _dispatch(demo, "backtest", "totally_unknown_cap", {})
+
+
+def test_format_param_sweep_result_enriches_legacy_list():
+    from backend.api.integrations import _format_param_sweep_result
+
+    result = _format_param_sweep_result(
+        [
+            {
+                "params": {"fast": 5, "slow": 20},
+                "metrics": {"sharpe": 1.1},
+                "returns": [0.01, -0.005, 0.008, 0.002],
+            }
+        ],
+        symbol="600519",
+        metric="sharpe",
+        n_trials=6,
+    )
+
+    assert result["status"] == "ok"
+    assert result["n_trials"] == 6
+    assert result["returned"] == 1
+    assert result["top"] == result["results"]
+    row = result["results"][0]
+    assert "returns" not in row
+    assert row["metrics"]["n_trials_for_dsr"] == 6
+    assert "probabilistic_sharpe" in row["metrics"]
+    assert "deflated_sharpe" in row["metrics"]
+    assert "不构成投资建议" in result["disclaimer"]
+
+
+@pytest.mark.anyio
+async def test_run_integration_dispatches_in_worker_and_keeps_agent_kwargs(monkeypatch):
+    import backend.api.integrations as api
+
+    class _StubAgent:
+        NAME = "stub_agent"
+
+        def metadata(self):
+            return IntegrationMetadata(
+                name=self.NAME,
+                category=IntegrationCategory.AGENT,
+                mode=IntegrationMode.PYTHON_ADAPTER,
+                version="1",
+                display_name="Stub Agent",
+                description="test",
+                capabilities=[CapabilitySpec(name="analyze", description="test")],
+                allow_live_order=False,
+            )
+
+        def is_available(self):
+            return True
+
+        def analyze(self, symbols, **kw):
+            return [{"symbols": symbols, "kwargs": kw}]
+
+    adapter = _StubAgent()
+
+    class _Registry:
+        def has(self, name):
+            return name == adapter.NAME
+
+        def get(self, name):
+            assert name == adapter.NAME
+            return adapter
+
+    worker_calls = []
+
+    async def fake_to_thread(function, *args):
+        worker_calls.append((function, args))
+        return function(*args)
+
+    monkeypatch.setattr(api, "get_registry", lambda: _Registry())
+    monkeypatch.setattr(api, "assert_boundary_invariant", lambda: None)
+    monkeypatch.setattr(api.asyncio, "to_thread", fake_to_thread)
+
+    response = await api.run_integration(
+        adapter.NAME,
+        api.RunRequest(
+            capability="analyze",
+            params={
+                "symbols": ["600519"],
+                "trade_date": "2026-07-15",
+                "asset_type": "stock",
+            },
+        ),
+    )
+
+    assert len(worker_calls) == 1
+    result = response.data["result"]
+    assert result[0]["kwargs"] == {
+        "trade_date": "2026-07-15",
+        "asset_type": "stock",
+    }

@@ -30,7 +30,10 @@ API 已对照 TradingAgents v0.3.0 真实源码核对 (非臆测):
 
 from __future__ import annotations
 
+import logging
 import os
+import re
+from datetime import date
 from typing import Any
 
 # ----- 可选依赖: tradingagents 缺失时优雅降级 -----
@@ -54,6 +57,8 @@ from backend.integrations.schemas import (
     NormalizedAgentOpinion,
 )
 from backend.integrations.registry import register
+
+logger = logging.getLogger(__name__)
 
 # TradingAgents 支持的 asset_type (源码 propagate 第三参数)
 _ASSET_TYPES = ("stock", "crypto")
@@ -120,6 +125,7 @@ def map_decision_to_opinion(
     return NormalizedAgentOpinion(
         agent_name=agent_name,
         role="external_team",
+        signal=signal,
         thesis=thesis,
         confidence=confidence,
         horizon=None,
@@ -170,6 +176,26 @@ def _build_config(**overrides: Any) -> dict[str, Any]:
     return cfg
 
 
+def _resolve_trade_date(raw: Any) -> tuple[str, str]:
+    """Return a valid ISO trade date and how it was selected."""
+    value = str(raw or "").strip()
+    if value:
+        try:
+            parsed = date.fromisoformat(value[:10])
+            return parsed.isoformat(), "request"
+        except ValueError:
+            pass
+    return date.today().isoformat(), "today_default"
+
+
+def _safe_failure_reason(exc: Exception) -> str:
+    """Keep adapter failures observable without leaking credentials."""
+    message = str(exc).strip() or exc.__class__.__name__
+    message = re.sub(r"(?i)(api[_-]?key|token|authorization)(\s*[:=]\s*)[^\s,;]+", r"\1\2***", message)
+    message = re.sub(r"(?i)bearer\s+[^\s,;]+", "Bearer ***", message)
+    return f"{exc.__class__.__name__}: {message}"[:300]
+
+
 # ============================================================
 # Adapter
 # ============================================================
@@ -186,6 +212,13 @@ class TradingagentsAdapter(AgentTeamAdapter):
 
     NAME = "tradingagents"
     # CATEGORY 继承自 AgentTeamAdapter.AGENT
+
+    def __init__(self) -> None:
+        self.last_run_status: dict[str, Any] = {
+            "status": "not_run",
+            "message": "TradingAgents 尚未执行",
+            "errors": [],
+        }
 
     def _metadata(self) -> IntegrationMetadata:
         return IntegrationMetadata(
@@ -254,10 +287,38 @@ class TradingagentsAdapter(AgentTeamAdapter):
         失败安全: 不可用 / 缺凭证 / .propagate 抛错 → 返回空列表, 不抛。
         合规: 观点 forbidden_live_order=True, 绝不直接变成订单。
         """
-        if not _TA_AVAILABLE or not has_llm_credentials():
-            return []
+        opinions, _status = self.analyze_with_status(symbols, **kw)
+        return opinions
 
-        trade_date = str(kw.get("trade_date", ""))
+    def analyze_with_status(
+        self,
+        symbols: list[str],
+        **kw: Any,
+    ) -> tuple[list[NormalizedAgentOpinion], dict[str, Any]]:
+        """Run the optional integration and return an observable run status."""
+        trade_date, trade_date_source = _resolve_trade_date(kw.get("trade_date"))
+        status: dict[str, Any] = {
+            "status": "running",
+            "message": "TradingAgents 正在执行",
+            "trade_date": trade_date,
+            "trade_date_source": trade_date_source,
+            "symbols": [str(symbol) for symbol in symbols],
+            "errors": [],
+        }
+
+        if not symbols:
+            status.update(status="failed", message="未提供可分析的标的")
+            self.last_run_status = status
+            return [], dict(status)
+        if not _TA_AVAILABLE:
+            status.update(status="unavailable", message="tradingagents 未安装")
+            self.last_run_status = status
+            return [], dict(status)
+        if not has_llm_credentials():
+            status.update(status="unavailable", message="未检测到 TradingAgents 可用的 LLM 凭证")
+            self.last_run_status = status
+            return [], dict(status)
+
         asset_type = str(kw.get("asset_type", "stock"))
         if asset_type not in _ASSET_TYPES:
             asset_type = "stock"
@@ -275,7 +336,17 @@ class TradingagentsAdapter(AgentTeamAdapter):
                 graph = TradingAgentsGraph(debug=False, config=cfg)  # type: ignore[misc]
                 final_state, decision = graph.propagate(company, trade_date, asset_type=asset_type)
                 out.append(map_decision_to_opinion(final_state, decision))
-            except Exception:
-                # 单标的失败不影响其余 (失败安全); 不抛, 不记订单, 不污染证据
+            except Exception as exc:  # noqa: BLE001 - optional integration must degrade cleanly
+                reason = _safe_failure_reason(exc)
+                status["errors"].append({"symbol": str(sym), "reason": reason})
+                logger.warning("TradingAgents analysis failed for %s: %s", sym, reason)
                 continue
-        return out
+
+        if out and status["errors"]:
+            status.update(status="partial", message=f"{len(out)} 个观点完成，{len(status['errors'])} 个失败")
+        elif out:
+            status.update(status="success", message=f"已生成 {len(out)} 个外部研究观点")
+        else:
+            status.update(status="failed", message="TradingAgents 未生成可用观点")
+        self.last_run_status = status
+        return out, dict(status)

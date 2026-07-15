@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Query
 from pydantic import BaseModel, Field
 
@@ -43,10 +45,10 @@ class ChainBuildRequest(BaseModel):
 async def list_evidence(
     evidence_type: str | None = None, symbol: str | None = None, limit: int = Query(50, ge=1, le=500)
 ):
-    """证据列表"""
+    """证据列表(SQLite 读丢线程池)"""
     from backend.evidence_store import list_evidence as _list
 
-    items = _list(evidence_type=evidence_type, symbol=symbol, limit=limit)
+    items = await asyncio.to_thread(_list, evidence_type=evidence_type, symbol=symbol, limit=limit)
     return ApiResponse(success=True, data={"evidence": items, "total": len(items)})
 
 
@@ -62,7 +64,7 @@ async def aggregate_evidence(symbol: str, data_type: str = "news", max_sources: 
         from backend.quality.evidence_aggregator import get_evidence_aggregator
 
         agg = get_evidence_aggregator()
-        result = agg.collect_and_validate(symbol, data_type=data_type, max_sources=max_sources)
+        result = await asyncio.to_thread(agg.collect_and_validate, symbol, data_type=data_type, max_sources=max_sources)
         return ApiResponse(success=True, data=result.to_dict())
     except Exception as e:
         return ApiResponse(success=False, error=str(e))
@@ -73,7 +75,7 @@ async def get_evidence(evidence_id: str):
     """证据详情"""
     from backend.evidence_store import get_evidence as _get
 
-    item = _get(evidence_id)
+    item = await asyncio.to_thread(_get, evidence_id)
     if not item:
         return ApiResponse(success=False, error="证据不存在")
     return ApiResponse(success=True, data=item)

@@ -175,3 +175,52 @@ def test_openapi_does_not_require_token_in_explicit_open_mode(monkeypatch):
     schema = main.app.openapi()
 
     assert "security" not in schema["paths"]["/api/conversations"]["get"]
+
+
+@pytest.mark.anyio
+async def test_invalid_tokens_cannot_allocate_rate_limit_buckets(monkeypatch):
+    from backend.security.rate_limit import _state_for_tests, reset_for_tests
+
+    reset_for_tests()
+    monkeypatch.setenv("ALPHASCOPE_RATE_LIMIT_RPM", "2")
+    monkeypatch.setenv("ALPHASCOPE_RATE_LIMIT_RPH", "10")
+    main = _reload_api_main(monkeypatch, token="real-rate-limit-token")
+    transport = ASGITransport(app=main.app)
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        for index in range(8):
+            response = await client.post(
+                "/api/settings/local-llm-presets/probe",
+                headers={"X-AlphaScope-Local-Token": f"invalid-{index}"},
+                json={"base_url": "http://127.0.0.1:11434/v1"},
+            )
+            assert response.status_code == 401
+
+    assert _state_for_tests()["bucket_count"] == 0
+    reset_for_tests()
+
+
+@pytest.mark.anyio
+async def test_authenticated_expensive_requests_are_rate_limited(monkeypatch):
+    from backend.security.rate_limit import reset_for_tests
+
+    reset_for_tests()
+    monkeypatch.setenv("ALPHASCOPE_RATE_LIMIT_RPM", "1")
+    monkeypatch.setenv("ALPHASCOPE_RATE_LIMIT_RPH", "10")
+    monkeypatch.delenv("ALLOW_LOCAL_LLM_BASE_URL", raising=False)
+    token = "real-rate-limit-token"
+    main = _reload_api_main(monkeypatch, token=token)
+    transport = ASGITransport(app=main.app)
+    request_kwargs = {
+        "headers": {"X-AlphaScope-Local-Token": token},
+        "json": {"base_url": "http://127.0.0.1:11434/v1"},
+    }
+
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post("/api/settings/local-llm-presets/probe", **request_kwargs)
+        second = await client.post("/api/settings/local-llm-presets/probe", **request_kwargs)
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json()["error_code"] == "rate_limited"
+    reset_for_tests()

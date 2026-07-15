@@ -1,4 +1,4 @@
-# 研策中枢 AlphaScope 停止本地服务
+﻿# 研策中枢 AlphaScope 停止本地服务
 $ErrorActionPreference = "SilentlyContinue"
 $ProjectRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
 $PidsFile = Join-Path $ProjectRoot ".local_pids.json"

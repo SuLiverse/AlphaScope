@@ -1,14 +1,14 @@
 # 研策中枢 AlphaScope Core Runtime Dependencies
 # Install: pip install -r requirements-core.txt
 #
-# 仅包含运行时必需依赖。可选的量化/MLOps 依赖见:
-#   requirements-quant.txt  (组合优化/回测/数据湖)
-#   requirements-mlops.txt  (实验管理/超参优化/工作流编排/监控)
+# 仅包含运行时必需依赖。可选的量化/MLOps/调试台依赖见:
+#   requirements-quant.txt     (组合优化/回测/数据湖)
+#   requirements-mlops.txt     (实验管理/超参优化/工作流编排/监控)
+#   requirements-streamlit.txt (遗留 Streamlit 调试台; 产品 UI 为 apps/web)
 
-streamlit==1.57.0
+# streamlit / plotly 已移至 requirements-streamlit.txt (v1.9.53+)
 pandas==3.0.3
 numpy==2.4.5
-plotly==6.7.0
 mcp>=1.0  # Model Context Protocol server (暴露研究工具给外部 LLM); 缺失时 MCP 能力降级, 不影响其余功能
 akshare==1.18.60
 requests==2.32.3

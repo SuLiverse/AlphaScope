@@ -2,6 +2,10 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { motion } from 'motion/react';
 import { Boxes, RefreshCcw, ShieldCheck, ExternalLink, CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import { fetchApi } from '../lib/api';
+import {
+  normalizeParamSweepResult,
+  type ParamSweepResult,
+} from '../lib/integrationContracts';
 
 // ====== types ======
 interface CapabilitySpec {
@@ -65,6 +69,24 @@ const MODE_LABEL: Record<string, string> = {
   external_process: '外部进程',
 };
 
+function formatMetric(value: number | null | undefined, digits = 2) {
+  return value == null || !Number.isFinite(value) ? '--' : value.toFixed(digits);
+}
+
+function formatProbability(value: number | null | undefined) {
+  return value == null || !Number.isFinite(value) ? '--' : `${(value * 100).toFixed(1)}%`;
+}
+
+function formatPercentMetric(value: number | null | undefined) {
+  return value == null || !Number.isFinite(value) ? '--' : `${value.toFixed(2)}%`;
+}
+
+function selectionBiasLabel(status: string) {
+  if (status === 'insufficient') return '样本不足';
+  if (status === 'error') return '计算失败';
+  return '未核验';
+}
+
 function HealthBadge({ status }: { status: string }) {
   const map: Record<string, { icon: React.ReactNode; text: string; tone: string }> = {
     healthy: { icon: <CheckCircle2 className="h-3.5 w-3.5" />, text: '可用', tone: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' },
@@ -86,17 +108,33 @@ export const IntegrationCenter: React.FC = () => {
   const [boundary, setBoundary] = useState<BoundaryOverview | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sweepSymbol, setSweepSymbol] = useState('600519');
+  const [sweepBusy, setSweepBusy] = useState(false);
+  const [sweepResult, setSweepResult] = useState<ParamSweepResult | null>(null);
+  const [sweepError, setSweepError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [listRes, boundRes] = await Promise.all([
+      const [listResult, boundaryResult] = await Promise.allSettled([
         fetchApi<{ integrations: IntegrationItem[]; count: number }>('/api/integrations'),
         fetchApi<BoundaryOverview>('/api/integrations/boundary'),
       ]);
-      setItems(listRes.integrations || []);
-      setBoundary(boundRes);
+      const errors: string[] = [];
+      if (listResult.status === 'fulfilled') {
+        setItems(listResult.value.integrations || []);
+      } else {
+        setItems([]);
+        errors.push(listResult.reason instanceof Error ? listResult.reason.message : '集成列表读取失败');
+      }
+      if (boundaryResult.status === 'fulfilled') {
+        setBoundary(boundaryResult.value);
+      } else {
+        setBoundary(null);
+        errors.push(boundaryResult.reason instanceof Error ? boundaryResult.reason.message : '交易边界读取失败');
+      }
+      setError(errors.join('；'));
     } catch (err) {
       setError(err instanceof Error ? err.message : '读取集成中心失败');
     } finally {
@@ -261,6 +299,125 @@ export const IntegrationCenter: React.FC = () => {
           暂无已注册的 adapter
         </div>
       )}
+
+      {/* vectorbt 参数扫描 */}
+      <div className="rounded-xl border border-indigo-500/20 bg-indigo-500/[0.04] p-4">
+        <h3 className="mb-2 text-sm font-medium text-neutral-100">vectorbt 快速参数扫描</h3>
+        <p className="mb-3 text-[11px] text-neutral-500">
+          服务端取行情 + 网格扫描; 结果附 DSR 选择偏差校正。需 pip install vectorbt。不模拟完整 A 股摩擦。
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={sweepSymbol}
+            onChange={(e) => setSweepSymbol(e.target.value)}
+            className="h-9 w-32 rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-neutral-100"
+            placeholder="代码"
+          />
+          <button
+            type="button"
+            disabled={sweepBusy}
+            onClick={async () => {
+              setSweepBusy(true);
+              setSweepError('');
+              setSweepResult(null);
+              try {
+                const data = await fetchApi<unknown>('/api/integrations/vectorbt/param-sweep', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    symbol: sweepSymbol.trim(),
+                    days: 250,
+                    param_grid: { fast: [5, 10, 20], slow: [30, 60] },
+                    top_n: 10,
+                  }),
+                });
+                setSweepResult(normalizeParamSweepResult(data));
+              } catch (err) {
+                setSweepError(err instanceof Error ? err.message : '扫描失败');
+              } finally {
+                setSweepBusy(false);
+              }
+            }}
+            className="h-9 rounded-lg border border-indigo-400/30 bg-indigo-500/15 px-3 text-xs text-indigo-100 disabled:opacity-50"
+          >
+            {sweepBusy ? '扫描中…' : '运行 MA 网格扫描'}
+          </button>
+        </div>
+        {sweepError && <p className="mt-2 text-[11px] text-red-300">{sweepError}</p>}
+        {sweepResult && (
+          <div className="mt-3 overflow-hidden rounded-lg border border-white/5 bg-black/30">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/5 px-3 py-2 text-[11px]">
+              <div className="flex items-center gap-2">
+                <span
+                  className={
+                    sweepResult.status === 'ok'
+                      ? 'text-emerald-300'
+                      : sweepResult.status === 'empty'
+                        ? 'text-neutral-400'
+                        : 'text-amber-300'
+                  }
+                >
+                  {sweepResult.status === 'ok'
+                    ? '扫描完成'
+                    : sweepResult.status === 'empty'
+                      ? '无有效组合'
+                      : '结果降级'}
+                </span>
+                <span className="text-neutral-500">
+                  {sweepResult.returned} 条结果 · {sweepResult.n_trials} 次有效尝试
+                </span>
+              </div>
+              <span className="font-mono text-neutral-500">排序 {sweepResult.metric}</span>
+            </div>
+            {sweepResult.results.length > 0 ? (
+              <div className="max-h-72 overflow-auto">
+                <table className="w-full min-w-[46rem] border-collapse text-left text-[11px]">
+                  <thead className="sticky top-0 bg-neutral-950 text-neutral-500">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">#</th>
+                      <th className="px-3 py-2 font-medium">Fast / Slow</th>
+                      <th className="px-3 py-2 font-medium">收益</th>
+                      <th className="px-3 py-2 font-medium">Sharpe</th>
+                      <th className="px-3 py-2 font-medium">PSR</th>
+                      <th className="px-3 py-2 font-medium">DSR</th>
+                      <th className="px-3 py-2 font-medium">最大回撤</th>
+                      <th className="px-3 py-2 font-medium">样本</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-neutral-300">
+                    {sweepResult.results.map((row, index) => (
+                      <tr key={`${row.params.fast ?? 'f'}-${row.params.slow ?? 's'}-${index}`}>
+                        <td className="px-3 py-2 font-mono text-neutral-500">{index + 1}</td>
+                        <td className="px-3 py-2 font-mono">{row.params.fast ?? '--'} / {row.params.slow ?? '--'}</td>
+                        <td className="px-3 py-2 font-mono">{formatPercentMetric(row.metrics.total_return)}</td>
+                        <td className="px-3 py-2 font-mono">{formatMetric(row.metrics.sharpe, 3)}</td>
+                        <td className="px-3 py-2 font-mono text-sky-200">
+                          {row.selection_bias_status === 'ok'
+                            ? formatProbability(row.probabilistic_sharpe)
+                            : selectionBiasLabel(row.selection_bias_status)}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-indigo-200">
+                          {row.selection_bias_status === 'ok'
+                            ? formatProbability(row.deflated_sharpe)
+                            : selectionBiasLabel(row.selection_bias_status)}
+                        </td>
+                        <td className="px-3 py-2 font-mono">{formatPercentMetric(row.metrics.max_drawdown)}</td>
+                        <td className="px-3 py-2 font-mono text-neutral-500">{row.observations || '--'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="px-3 py-6 text-center text-xs text-neutral-500">当前网格没有可展示的有效回测结果。</p>
+            )}
+            {sweepResult.disclaimer && (
+              <p className="border-t border-white/5 px-3 py-2 text-[10px] leading-relaxed text-neutral-500">
+                {sweepResult.disclaimer}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* 免责 */}
       <p className="mt-2 text-[10px] leading-relaxed text-neutral-600">

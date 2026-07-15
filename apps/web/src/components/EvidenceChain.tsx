@@ -18,6 +18,7 @@ import { STOCK_UNIVERSE, StockTarget, findStockTarget, formatStockLabel } from '
 import { dispatchStockSelected, getPersistedStock, subscribeStockSelected } from '../lib/workspaceEvents';
 import { fetchApi } from '../lib/api';
 import { getErrorMessage, stripSymbolSuffix } from '../lib/dataFetch';
+import { buildEvidenceGraphLayout } from '../lib/evidenceGraph';
 
 type PillarId = 'fundamental' | 'quant' | 'sentiment' | 'liquidity';
 
@@ -113,6 +114,8 @@ export function EvidenceChain() {
   const [newContent, setNewContent] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [graph, setGraph] = useState<{ nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> } | null>(null);
+  const [graphError, setGraphError] = useState<string | null>(null);
 
   const selectedStock = formatStockLabel(selectedTarget);
   const stockOptions = useMemo(
@@ -137,17 +140,46 @@ export function EvidenceChain() {
       const items = (payload.evidence || []).map(toNode);
       setEvidence(items);
       setSourceLabel(`真实证据库 · ${items.length} 条 · 共 ${payload.total ?? items.length} 条`);
+      // 图谱: 调用后端 chain/graph
+      try {
+        const g = await fetchApi<{ nodes?: Array<Record<string, unknown>>; edges?: Array<Record<string, unknown>> }>(
+          '/api/evidence/chain/graph',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              symbol: stripSymbolSuffix(stock.symbol),
+              evidence: payload.evidence || [],
+            }),
+          },
+        );
+        if (seq === evidenceSeqRef.current) {
+          setGraph({ nodes: g.nodes || [], edges: g.edges || [] });
+          setGraphError(null);
+        }
+      } catch (gErr) {
+        if (seq === evidenceSeqRef.current) {
+          setGraph(null);
+          setGraphError(getErrorMessage(gErr));
+        }
+      }
     } catch (err) {
       if (seq !== evidenceSeqRef.current) return;
       setEvidence([]);
       setLoadError(getErrorMessage(err));
       setSourceLabel('证据库不可用');
+      setGraph(null);
     } finally {
       if (seq === evidenceSeqRef.current) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
+    setEvidence([]);
+    setSelectedNode(null);
+    setSourceLabel('正在加载当前标的证据…');
+    setLoadError(null);
+    setGraph(null);
+    setGraphError(null);
     void loadEvidence(selectedTarget);
   }, [selectedTarget, loadEvidence]);
 
@@ -221,6 +253,11 @@ export function EvidenceChain() {
     const total = evidence.reduce((sum, node) => sum + (node.confidence ?? 0.5), 0);
     return Math.round((total / evidence.length) * 100);
   }, [evidence]);
+
+  const graphLayout = useMemo(
+    () => buildEvidenceGraphLayout(graph?.nodes || [], graph?.edges || []),
+    [graph],
+  );
 
   return (
     <motion.div
@@ -300,6 +337,62 @@ export function EvidenceChain() {
         </div>
       )}
 
+      {/* 证据关联图谱 (POST /api/evidence/chain/graph) */}
+      <div className="mb-4 rounded-2xl border border-white/8 bg-black/30 p-4 flex-shrink-0">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-medium text-neutral-100">证据关联图谱</h3>
+          <span className="text-[11px] font-mono text-neutral-500">
+            nodes {graphLayout.points.length} · edges {graphLayout.edges.length}
+            {graphLayout.truncated > 0 ? ` · 隐藏 ${graphLayout.truncated}` : ''}
+          </span>
+        </div>
+        {loadError ? (
+          <p className="py-6 text-center text-xs text-red-200/80">证据读取失败，未生成图谱。</p>
+        ) : graphError ? (
+          <p className="py-6 text-center text-xs text-amber-200/80">图谱加载失败：{graphError}</p>
+        ) : loading ? (
+          <p className="py-6 text-center text-xs text-neutral-500">正在生成当前标的图谱…</p>
+        ) : graphLayout.points.length === 0 ? (
+          <p className="text-xs text-neutral-600 py-6 text-center">暂无图谱节点，请先加载证据。</p>
+        ) : (
+          <div className="max-h-80 overflow-auto custom-scrollbar">
+            <svg
+              viewBox={`0 0 ${graphLayout.width} ${graphLayout.height}`}
+              width={graphLayout.width}
+              height={graphLayout.height}
+              className="max-w-none"
+            >
+              {graphLayout.edges.map((e, i) => {
+                const src = String((e as { source?: string }).source ?? (e as { from?: string }).from ?? '');
+                const tgt = String((e as { target?: string }).target ?? (e as { to?: string }).to ?? '');
+                const a = graphLayout.points.find((p) => p.id === src);
+                const b = graphLayout.points.find((p) => p.id === tgt);
+                if (!a || !b) return null;
+                return (
+                  <line
+                    key={`e-${i}`}
+                    x1={a.x}
+                    y1={a.y}
+                    x2={b.x}
+                    y2={b.y}
+                    stroke="rgba(148,163,184,0.35)"
+                    strokeWidth={1}
+                  />
+                );
+              })}
+              {graphLayout.points.map((p) => (
+                <g key={p.id}>
+                  <circle cx={p.x} cy={p.y} r={9} fill={p.color} opacity={0.85} />
+                  <text x={p.x} y={p.y + 20} textAnchor="middle" fill="#a3a3a3" fontSize="9">
+                    {p.label}
+                  </text>
+                </g>
+              ))}
+            </svg>
+          </div>
+        )}
+      </div>
+
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0 overflow-hidden">
         {/* Left: pillars + add form */}
         <div className="lg:col-span-2 flex flex-col min-h-0 relative">
@@ -365,7 +458,9 @@ export function EvidenceChain() {
                     <span className="px-1.5 py-0.5 rounded-md font-mono text-[9px] bg-white/5 border border-white/10 text-neutral-400">{nodesInPillar.length} 论据</span>
                   </div>
                   <div className="flex-grow space-y-2">
-                    {loading ? (
+                    {loadError ? (
+                      <div className="py-4 text-[10px] font-mono text-red-300/80">[错误] 当前标的证据读取失败</div>
+                    ) : loading ? (
                       <div className="text-[10px] font-mono text-neutral-600 italic py-4">[同步] 正在从证据库加载...</div>
                     ) : nodesInPillar.length === 0 ? (
                       <div className="text-[10px] font-mono text-neutral-600 italic py-4">[缺省] 暂无该类证据，可追加</div>

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -126,6 +126,52 @@ async def test_async_analysis_records_cutoff_and_question_in_task_input(client):
     input_data = submit.call_args.kwargs["input_data"]
     assert input_data["as_of"] == "2026-06-30"
     assert input_data["research_question"] == "利润增长是否可持续？"
+
+
+@pytest.mark.anyio
+async def test_async_analysis_populates_quant_referee_indicators(client):
+    first_day = date(2026, 4, 1)
+    bars = [
+        {
+            "date": (first_day + timedelta(days=index)).isoformat(),
+            "open": 99 + index,
+            "close": 100 + index,
+            "high": 101 + index,
+            "low": 98 + index,
+            "volume": 1_000 + index * 10,
+            "amount": 1_000_000,
+        }
+        for index in range(65)
+    ]
+    captured: dict = {}
+
+    def fake_run_agents_with_mode(*, stock_data, **_kwargs):
+        captured.update(stock_data)
+        return {
+            "mode": "deep",
+            "summary": {"final": "观望"},
+            "agents": {},
+            "model_status": {"ok_agents": 0, "total_agents": 0},
+        }
+
+    def run_submitted_task(*, func, **_kwargs):
+        func()
+        return "quant123"
+
+    with (
+        patch("backend.price_store.get_prices", return_value=bars),
+        patch("backend.runtime.orchestrator.run_agents_with_mode", side_effect=fake_run_agents_with_mode),
+        patch("backend.task_queue.TaskQueue.submit", side_effect=run_submitted_task),
+    ):
+        response = await client.post(
+            "/api/analysis/async",
+            json={"stock_symbol": "600519", "stock_name": "贵州茅台", "mode": "deep"},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["task_id"] == "quant123"
+    for field in ("ma5", "ma20", "ma60", "rsi", "dif", "dea", "macd", "vol_ratio"):
+        assert isinstance(captured[field], float), field
 
 
 @pytest.mark.anyio

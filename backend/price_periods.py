@@ -198,10 +198,23 @@ def _compatible_previous_close(previous_close: float, current_price: float) -> f
 
 
 def fetch_intraday_prices(symbol: str, limit: int = 240, period: str = "1") -> list[dict[str, Any]]:
-    """实时拉取分钟级分时数据。失败返回空列表，不用日线冒充。"""
+    """实时拉取分钟级分时数据。失败返回空列表，不用日线冒充。
+
+    短 TTL 内存缓存(默认 45s)降低盘中重复打上游; 空结果不缓存以便重试。
+    """
     code = normalize_symbol(symbol)
     if not code or get_market(code) != "CN":
         return []
+
+    cache_key = f"intraday:{code}:{period}:{int(limit)}"
+    try:
+        from backend.cache import get_cache
+
+        cached = get_cache().get(cache_key)
+        if isinstance(cached, list) and cached:
+            return cached
+    except Exception:
+        pass
 
     try:
         import akshare as ak
@@ -294,6 +307,13 @@ def fetch_intraday_prices(symbol: str, limit: int = 240, period: str = "1") -> l
                 "fetched_at": datetime.now().timestamp(),
             }
         )
+    if results:
+        try:
+            from backend.cache import get_cache
+
+            get_cache().set(cache_key, results, ttl_seconds=45)
+        except Exception:
+            pass
     return results
 
 

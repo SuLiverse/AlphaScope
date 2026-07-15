@@ -81,3 +81,20 @@ async def research_compare(req: ResearchCompareRequest):
         success=True,
         data=compare_research_outputs(req.baseline, req.candidate, now=as_of_timestamp(req.as_of)),
     )
+
+
+@router.get("/agent-benchmark")
+async def agent_benchmark():
+    """确定性 Agent 评测套件(无 LLM): 幻觉数字/引用/裁判/DSR 回归。"""
+    from backend.eval.agent_benchmark import run_benchmark_suite
+
+    report = run_benchmark_suite()
+    return ApiResponse(success=bool(report.get("all_passed")), data=report)
+
+
+@router.get("/cache-stats")
+async def cache_stats():
+    """进程内 TTL 缓存命中统计。"""
+    from backend.cache import get_cache
+
+    return ApiResponse(success=True, data=get_cache().stats())

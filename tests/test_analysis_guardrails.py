@@ -120,6 +120,11 @@ async def test_analysis_run_marks_all_agent_model_failures_unsuccessful(client):
         },
         "critic": None,
         "chairman_summary": None,
+        "external_agent": {
+            "name": "tradingagents",
+            "status": "failed",
+            "error": "upstream timeout",
+        },
         "mode_name": "standard",
         "model_status": {
             "status": "degraded",
@@ -154,6 +159,7 @@ async def test_analysis_run_marks_all_agent_model_failures_unsuccessful(client):
     assert data["error_code"] == "analysis_all_agents_failed"
     assert data["data"]["result"]["model_status"]["ok_agents"] == 0
     assert data["data"]["result"]["model_status"]["total_agents"] == 3
+    assert data["data"]["result"]["external_agent"]["error"] == "upstream timeout"
 
 
 @pytest.mark.anyio
@@ -196,6 +202,45 @@ async def test_analysis_run_propagates_research_cutoff_and_question(client):
     assert captured["research_question"] == "利润增长是否可持续？"
     assert captured["day_change"] == 10.0
     assert resp.json()["data"]["result"]["research_snapshot"] == {"snapshot_id": "snap-1"}
+
+
+@pytest.mark.anyio
+async def test_analysis_run_populates_quant_referee_indicators(client):
+    bars = [
+        {
+            "date": f"2026-04-{index + 1:02d}",
+            "open": 99 + index,
+            "close": 100 + index,
+            "high": 101 + index,
+            "low": 98 + index,
+            "volume": 1_000 + index * 10,
+            "amount": 1_000_000,
+        }
+        for index in range(65)
+    ]
+    captured = {}
+
+    def fake_run_agents_with_mode(*, stock_data, **_kwargs):
+        captured.update(stock_data)
+        return {
+            "mode": "deep",
+            "summary": {"final": "观望"},
+            "agents": {},
+            "model_status": {"ok_agents": 0, "total_agents": 0},
+        }
+
+    with (
+        patch("backend.api.main.get_prices", return_value=bars),
+        patch("backend.runtime.orchestrator.run_agents_with_mode", side_effect=fake_run_agents_with_mode),
+    ):
+        response = await client.post(
+            "/api/analysis/run",
+            json={"stock_symbol": "600519", "stock_name": "贵州茅台", "mode": "deep"},
+        )
+
+    assert response.status_code == 200
+    for field in ("ma5", "ma20", "ma60", "rsi", "dif", "dea", "macd", "vol_ratio"):
+        assert isinstance(captured[field], float), field
 
 
 @pytest.mark.anyio
