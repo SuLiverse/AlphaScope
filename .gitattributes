@@ -24,3 +24,4 @@
 *.ico       binary
 *.parquet   binary
 *.zip       binary
+*.db        binary

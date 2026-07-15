@@ -33,22 +33,24 @@ logger = logging.getLogger(__name__)
 
 
 def _seed_db_path() -> Path:
-    """Locate the bundled seed DB. Looks at the runtime data dir first."""
-    try:
-        from backend.project_paths import DATA_DIR
-
-        candidate = DATA_DIR / "db" / "ai_finance.db"
-        if candidate.exists():
-            return candidate
-    except Exception:
-        pass
-    # Fallback: the in-repo seed copy used during development.
+    """Locate the bundled seed DB without preferring mutable runtime state."""
     try:
         from backend.project_paths import SEED_DIR
 
-        dev = SEED_DIR / "ai_finance.db"
-        if dev.exists():
-            return dev
+        packaged = SEED_DIR / "ai_finance.db"
+        if packaged.exists():
+            return packaged
+    except Exception:
+        pass
+
+    # Portable builds copy the seed into the runtime data directory and do not
+    # ship a separate seed directory.
+    try:
+        from backend.project_paths import DATA_DIR
+
+        runtime = DATA_DIR / "db" / "ai_finance.db"
+        if runtime.exists():
+            return runtime
     except Exception:
         pass
     return Path("data/db/ai_finance.db")
