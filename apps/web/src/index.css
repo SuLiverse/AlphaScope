@@ -4,6 +4,22 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+
+  /* ===== 语义设计 token =====
+     值与全库现有硬编码完全一致（本任务零视觉变化）。按出现频率统计（grep src）：
+       border-white/5 ×272、border-white/10 ×223、bg-white/[0.03] ×89、
+       bg-white/5 ×74、border-white/[0.06] ×71、bg-white/[0.02] ×64；
+       品牌色 #6366f1 = indigo-500、#818cf8 = indigo-400。
+     约定：新代码一律使用以下 token 类名（bg-surface / border-border / bg-brand …，
+     支持 /N 透明度修饰），不再手写 white/N 透明度与品牌色 hex；存量迁移另行进行。 */
+  --color-surface: rgb(255 255 255 / 0.02);        /* = bg-white/[0.02] 玻璃卡片底 */
+  --color-surface-raised: rgb(255 255 255 / 0.03); /* = bg-white/[0.03] 抬升面 */
+  --color-surface-hover: rgb(255 255 255 / 0.05);  /* = bg-white/5 悬停态 */
+  --color-border: rgb(255 255 255 / 0.05);         /* = border-white/5 默认描边 */
+  --color-border-card: rgb(255 255 255 / 0.06);    /* = border-white/[0.06] 卡片描边 */
+  --color-border-strong: rgb(255 255 255 / 0.1);   /* = border-white/10 强调描边 */
+  --color-brand: #6366f1;                          /* = indigo-500 品牌主色 */
+  --color-brand-light: #818cf8;                    /* = indigo-400 品牌亮色 */
 }
 
 html,
