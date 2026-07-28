@@ -167,6 +167,12 @@ def copy_runtime_files() -> None:
 
     write_readme()
 
+    # 防御:发布目录绝不携带真实 .env(曾因手工运行遗留进 dist/),只允许 .env.example 占位
+    stray_env = DIST_DIR / ".env"
+    if stray_env.exists():
+        stray_env.unlink()
+        print(f"[warn] 已删除误入发布目录的 {stray_env}(发布物只允许 .env.example 占位)")
+
 
 def build_installer() -> Path | None:
     iscc = iscc_command()
