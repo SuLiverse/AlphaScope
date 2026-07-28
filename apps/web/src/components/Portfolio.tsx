@@ -8,6 +8,7 @@ import { fetchApi } from '../lib/api';
 import { findStockTarget, resolveStockTarget, STOCK_UNIVERSE, StockTarget } from '../lib/stocks';
 import { getPersistedStock, subscribeWatchlistChanged } from '../lib/workspaceEvents';
 import { StableChartContainer } from './StableChartContainer';
+import { ErrorState } from './ui/ErrorState';
 
 const PORTFOLIO_STORAGE_KEY = 'alphascope:research-portfolio-positions';
 const SECTOR_LIMIT_PCT = 35;
@@ -197,11 +198,14 @@ export function Portfolio() {
   }, [positions]);
 
   // 后端持久化:启动时从 SQLite 载入并合并(本地为缓存,后端为真实源)
+  const [positionsReloadKey, setPositionsReloadKey] = useState(0);
+  const [positionsLoadError, setPositionsLoadError] = useState('');
   useEffect(() => {
     let cancelled = false;
     void fetchApi<{ items: ResearchPosition[] }>('/api/portfolio/positions')
       .then((data) => {
         if (cancelled) return;
+        setPositionsLoadError('');
         const remote = (data?.items || []).filter((p) => p?.symbol && Number(p.shares) > 0);
         if (!remote.length) return;
         setPositions((prev) => {
@@ -226,13 +230,16 @@ export function Portfolio() {
           );
         });
       })
-      .catch(() => {
-        /* 后端不可用时静默,继续用本地缓存 */
+      .catch((e) => {
+        /* 后端不可用时回落本地缓存;但本地也为空时记录错误,在持仓表内给出可重试提示 */
+        if (!cancelled) {
+          setPositionsLoadError(e instanceof Error ? e.message : '网络错误');
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [positionsReloadKey]);
 
   const [watchlistReloadKey, setWatchlistReloadKey] = useState(0);
   useEffect(() => subscribeWatchlistChanged(() => setWatchlistReloadKey((k) => k + 1)), []);
@@ -758,7 +765,20 @@ export function Portfolio() {
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td className="px-5 py-8 text-center text-neutral-500" colSpan={9}>暂无持仓</td>
+                    <td className="px-5 py-8 text-center text-neutral-500" colSpan={9}>
+                      {positionsLoadError ? (
+                        <ErrorState
+                          message={`无法从后端载入持仓（${positionsLoadError}），本地缓存也为空。请检查后端连接后重试。`}
+                          onRetry={() => {
+                            setPositionsLoadError('');
+                            setPositionsReloadKey((key) => key + 1);
+                          }}
+                          className="py-4"
+                        />
+                      ) : (
+                        '暂无持仓'
+                      )}
+                    </td>
                   </tr>
                 )}
                 {rows.map((position) => (

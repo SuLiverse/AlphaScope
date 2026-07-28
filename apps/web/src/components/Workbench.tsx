@@ -111,6 +111,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
   const [fundFlowCards, setFundFlowCards] = useState<MetricCard[]>(LOADING_FUND_CARDS);
   const [quantCards, setQuantCards] = useState<MetricCard[]>(LOADING_QUANT_CARDS);
   const [stockNews, setStockNews] = useState<PanelNewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
   const [infoStatus, setInfoStatus] = useState<Record<PanelTabId, string>>({
     news: '正在同步当前标的资讯...',
     finance: '正在同步基本面数据...',
@@ -385,6 +386,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
     setFundFlowCards(LOADING_FUND_CARDS);
     setQuantCards(LOADING_QUANT_CARDS);
     setStockNews([]);
+    setNewsLoading(true);
     setInfoStatus({
       news: `正在同步 ${currentStock.name} 的资讯...`,
       finance: `正在同步 ${currentStock.name} 的基本面...`,
@@ -405,6 +407,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
       if (newsResult.status === 'fulfilled') {
         const items = buildNewsItems(newsResult.value);
         setStockNews(items);
+        setNewsLoading(false);
         setInfoStatus((prev) => ({
           ...prev,
           news: items.length
@@ -413,6 +416,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
         }));
       } else {
         setStockNews([]);
+        setNewsLoading(false);
         setInfoStatus((prev) => ({
           ...prev,
           news: `资讯源不可用：${getErrorMessage(newsResult.reason)}`,
@@ -849,6 +853,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
           handlePanelTabChange={handlePanelTabChange}
           infoStatus={infoStatus}
           stockNews={stockNews}
+          newsLoading={newsLoading}
           financeCards={financeCards}
           fundFlowCards={fundFlowCards}
           quantCards={quantCards}
