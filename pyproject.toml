@@ -64,7 +64,9 @@ quant = [
     "bt>=1.2",
 ]
 mlops = [
-    "mlflow>=2.0",
+    "cryptography>=50.0",
+    "mlflow>=3.15.1",
+    "pyarrow>=23.0.1",
     "optuna>=3.0",
     "langgraph>=0.2",
     "evidently>=0.4",
