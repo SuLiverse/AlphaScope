@@ -25,10 +25,24 @@ from __future__ import annotations
 
 import statistics
 from dataclasses import dataclass, field
+from datetime import date as _calendar_date
 from typing import Any, Callable, Union
 
 from .metrics import build_performance_summary
 from .strategies import BaseStrategy, StrategyRegistry
+
+
+def _calendar_span(bars: list[dict]) -> int:
+    """首末 bar 之间的自然日天数(年化基准, 与 engine 口径一致); 非 ISO 日期回退为 bar 数。"""
+    if len(bars) < 2:
+        return len(bars)
+    try:
+        first = _calendar_date.fromisoformat(str(bars[0].get("date", ""))[:10])
+        last = _calendar_date.fromisoformat(str(bars[-1].get("date", ""))[:10])
+        return max((last - first).days, 1)
+    except ValueError:
+        return len(bars)
+
 
 # ---------------------------------------------------------------------------
 # Tunables
@@ -258,12 +272,14 @@ def _build_window(
         trades=is_trades,
         initial_capital=initial_capital,
         days=n_is,
+        calendar_days=_calendar_span(slice_bars[:n_is]),
     )
     oos_perf = build_performance_summary(
         equity_curve=oos_equity,
         trades=oos_trades,
         initial_capital=oos_open_equity,
         days=n_oos,
+        calendar_days=_calendar_span(bars[oos_start:oos_end]),
     )
 
     is_ann = float(is_perf.get("annualized_return", 0.0))
@@ -401,6 +417,7 @@ def run_walk_forward(
                 trades=tr,
                 initial_capital=initial_capital,
                 days=n_bars,
+                calendar_days=_calendar_span(clean),
             )
 
     if n_bars < (_MIN_FOLD_BARS * (_MIN_SPLITS + 1)):

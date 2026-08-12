@@ -128,3 +128,55 @@ def test_tool_descriptions_mention_research_semantics():
         low = n.lower()
         for tok in ("buy", "sell", "submit", "place_order", "auto_trade", "live"):
             assert tok not in low, f"工具名 {n} 含交易语义 {tok}"
+
+
+# ============================================================
+# 5. search_evidence 工具 (RAG 证据检索; 离线, mock 检索器)
+# ============================================================
+
+
+def _get_search_evidence():
+    """取 create_server() 内注册的 search_evidence 函数 (嵌套闭包, 非模块级)。"""
+    server = mcp_server.create_server()
+    assert server is not None
+    return server._tool_manager.get_tool("search_evidence").fn
+
+
+def test_search_evidence_uses_hybrid_retriever():
+    """search_evidence 应经 get_hybrid_retriever().search() 检索, 并按 RetrievalResult 字段映射。"""
+    import json
+    from unittest.mock import patch
+
+    from backend.rag.hybrid_retriever import RetrievalResult
+
+    fake = RetrievalResult(text="<片段>", source="<来源>", combined_score=0.8)
+    search_evidence = _get_search_evidence()
+
+    with patch("backend.rag.hybrid_retriever.get_hybrid_retriever") as m:
+        m.return_value.search.return_value = [fake, fake]
+        result = search_evidence("茅台", 2)
+
+    m.return_value.search.assert_called_once_with("茅台", n_results=2)
+    data = json.loads(result)
+    assert data["query"] == "茅台"
+    assert "hits" in data
+    assert len(data["hits"]) == 2
+    assert data["hits"][0]["content"] == "<片段>"
+    assert data["hits"][0]["source"] == "<来源>"
+    assert data["hits"][0]["score"] == 0.8
+
+
+def test_search_evidence_error_path_returns_json_error():
+    """检索器抛异常时, search_evidence 应返回结构化错误而非抛异常。"""
+    from unittest.mock import patch
+
+    search_evidence = _get_search_evidence()
+
+    with patch(
+        "backend.rag.hybrid_retriever.get_hybrid_retriever",
+        side_effect=RuntimeError("boom"),
+    ):
+        result = search_evidence("茅台", 2)
+
+    assert '"error"' in result
+    assert "证据检索失败" in result

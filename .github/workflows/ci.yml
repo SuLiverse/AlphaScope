@@ -38,6 +38,38 @@ jobs:
       run: |
         python -m pytest tests/ -v --tb=short -m "not network" --ignore=tests/probes
 
+  dependency-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Audit Python dependencies
+      env:
+        PYTHONUTF8: "1"
+      run: |
+        python -m pip install --upgrade pip pip-audit
+        python -m pip_audit -r requirements-core.txt -r requirements-api.txt
+        python -m pip_audit -r requirements-streamlit.txt
+        python -m pip_audit -r requirements-quant.txt
+        python -m pip_audit -r requirements-mlops.txt
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "20.19.0"
+        cache: "npm"
+        cache-dependency-path: apps/web/package-lock.json
+
+    - name: Audit web dependencies
+      working-directory: apps/web
+      run: npm audit --audit-level=moderate
+
   web-build:
     runs-on: ubuntu-latest
 
@@ -47,7 +79,7 @@ jobs:
     - name: Set up Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: "20"
+        node-version: "20.19.0"
         cache: "npm"
         cache-dependency-path: apps/web/package-lock.json
 
@@ -69,7 +101,7 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [lint-and-test, web-build]
+    needs: [lint-and-test, dependency-audit, web-build]
 
     steps:
     - uses: actions/checkout@v4

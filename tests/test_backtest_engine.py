@@ -10,6 +10,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 
+from backend.quant.strategies import BaseStrategy, Signal
+
 
 # ----------------------------------------------------------------
 # Sample data
@@ -107,6 +109,18 @@ class TestMetrics:
         from backend.quant.metrics import calc_win_rate
 
         assert calc_win_rate([]) == 0.0
+
+    def test_calc_win_rate_uses_closed_trades_only(self):
+        from backend.quant.metrics import calc_win_rate
+
+        trades = [
+            {"side": "buy", "pnl": 0},
+            {"side": "sell", "pnl": 100},
+            {"side": "buy", "pnl": 0},
+            {"side": "sell", "pnl": -50},
+        ]
+        assert calc_win_rate(trades) == 0.5
+        assert calc_win_rate(trades[:2]) == 1.0
 
     def test_calc_profit_factor(self):
         from backend.quant.metrics import calc_profit_factor
@@ -301,7 +315,7 @@ class TestStrategies:
 
         s = MACDMomentumStrategy()
         signals = s.generate_signals(SAMPLE_BARS)
-        assert len(signals) == len(SAMPLE_BARS) - 1  # starts from index 1
+        assert len(signals) == len(SAMPLE_BARS)  # 与 bars 等长, 暖机位为 hold
         actions = {sig.action for sig in signals}
         assert "hold" in actions
 
@@ -310,7 +324,7 @@ class TestStrategies:
 
         s = MAStrategy()
         signals = s.generate_signals(SAMPLE_BARS)
-        assert len(signals) == len(SAMPLE_BARS) - 1
+        assert len(signals) == len(SAMPLE_BARS)  # 与 bars 等长, 暖机位为 hold
 
     def test_rsi_strategy_generates_signals(self):
         from backend.quant.strategies import RSIStrategy
@@ -423,6 +437,169 @@ class TestBacktestEngine:
         assert "equity_curve" in d
         assert "performance" in d
         assert "trades" in d
+
+
+# ================================================================
+# Golden exact-value regression net (plan 025, hand-computed)
+# ================================================================
+
+
+class _FixedSignalStrategy(BaseStrategy):
+    """Test-only deterministic strategy: emits a pre-set signal per bar index."""
+
+    name = "fixed_signal_golden"
+    description = "test fixture: fixed per-bar signal schedule"
+    default_params: dict = {}
+
+    def __init__(self, schedule: dict[int, Signal]):
+        super().__init__()
+        self._schedule = schedule
+
+    def generate_signals(self, bars, portfolio_state=None):
+        return [self._schedule.get(i, Signal("hold", "TEST")) for i in range(len(bars))]
+
+
+GOLDEN_BARS = [
+    {
+        "date": f"2024-01-{i + 1:02d}",
+        "open": 10.0 + 0.5 * i,
+        "high": 10.0 + 0.5 * i,
+        "low": 10.0 + 0.5 * i,
+        "close": 10.0 + 0.5 * i,
+        "volume": 1000,
+    }
+    for i in range(12)
+]
+
+
+def _golden_engine():
+    """Zero-friction engine (no commission / stamp / slippage) for hand-computable runs."""
+    from backend.quant.constraints import TradingCostModel
+    from backend.quant.engine import BacktestEngine
+
+    return BacktestEngine(
+        initial_capital=100000,
+        commission_rate=0.0,
+        cost_model=TradingCostModel(
+            commission_rate=0.0,
+            commission_min=0.0,
+            stamp_duty_rate=0.0,
+            slippage_rate=0.0,
+        ),
+    )
+
+
+class TestBacktestEngineGolden:
+    """手算精确值回归网 —— 零摩擦确定性场景锁定引擎记账与指标口径。
+
+    plan 003 会改信号对齐/指标口径，届时本测试的期望值必须随 plan 003
+    有意更新；若 plan 003 合并后本测试仍全绿，需人工确认修复未影响本
+    场景或期望值已同步。
+    """
+
+    def test_golden_run_hand_computed(self):
+        # 手算推导（engine.py 当前语义，execution_price="open" 次日开盘成交）:
+        # 1) 12 根 K 线 2024-01-01..2024-01-12, open=close=10.0+0.5*i, 无涨跌停
+        # 2) bar0 生成 BUY 100 股 -> bar1 开盘 10.5 成交:
+        #    cash = 100000 - 100*10.5 = 98950, 持仓 100 股 @ 10.5
+        # 3) bar1 起每日按收盘标记市值:
+        #    equity = 98950 + 100*close = 100000, 100050, 100100, ...
+        #    (bar2..bar10 收盘 11.0..15.0 -> 100050..100450)
+        # 4) bar10 生成 SELL -> bar11 开盘 15.5 全部卖出:
+        #    proceeds = 1550, cash = 100500, pnl = (15.5-10.5)*100 = 500
+        # 5) total_return = (100500-100000)/100000*100 = 0.5 (%),
+        #    final_equity = 100500, trades = 2 (buy@10.5 / sell@15.5)
+        engine = _golden_engine()
+        schedule = {
+            0: Signal("buy", "TEST", shares=100),
+            10: Signal("sell", "TEST"),
+        }
+        result = engine.run(_FixedSignalStrategy(schedule), GOLDEN_BARS, "TEST")
+
+        assert result.strategy_name == "fixed_signal_golden"
+        assert result.symbol == "TEST"
+        assert result.equity_curve == pytest.approx(
+            [
+                100000,
+                100000,
+                100000,
+                100050,
+                100100,
+                100150,
+                100200,
+                100250,
+                100300,
+                100350,
+                100400,
+                100450,
+                100500,
+            ]
+        )
+        assert result.dates == [f"2024-01-{i + 1:02d}" for i in range(12)]
+        assert len(result.trades) == 2
+        assert result.trades[0] == {
+            "symbol": "TEST",
+            "side": "buy",
+            "shares": 100,
+            "price": 10.5,
+            "commission": 0.0,
+            "pnl": 0.0,
+            "timestamp": "2024-01-02",
+        }
+        assert result.trades[1] == {
+            "symbol": "TEST",
+            "side": "sell",
+            "shares": 100,
+            "price": 15.5,
+            "commission": 0.0,
+            "pnl": 500.0,
+            "timestamp": "2024-01-12",
+        }
+        assert result.performance["total_return"] == pytest.approx(0.5)
+        assert result.performance["final_equity"] == pytest.approx(100500.0)
+        assert result.performance["total_trades"] == 2
+        assert result.performance["trading_days"] == 12
+        assert result.performance["win_rate"] == pytest.approx(100.0)
+        assert result.performance["max_drawdown"] == pytest.approx(0.0)
+        # 023 合并后非有限值统一为 None（06182ca 时为 float("inf")）
+        assert result.performance["profit_factor"] is None
+        assert result.risk_violations == []
+
+    def test_engine_accounting_identity(self):
+        """记账恒等式: final_equity == cash + Σ(shares_i * price_i)。
+
+        引擎结果不直接暴露 cash/持仓，改为由 trades + 末根收盘价重建
+        现金与持仓，再与 equity_curve[-1]（每点为标记市值）比对。
+        """
+        from backend.quant.strategies import MACDMomentumStrategy
+
+        initial_capital = 100000
+        engine = _golden_engine()
+        result = engine.run(MACDMomentumStrategy(), SAMPLE_BARS, "TEST")
+
+        assert result.equity_curve[0] == pytest.approx(initial_capital)
+        assert len(result.equity_curve) == len(SAMPLE_BARS) + 1
+
+        last_close_by_symbol: dict[str, float] = {}
+        for bar in reversed(SAMPLE_BARS):
+            sym = bar.get("symbol", "")
+            if sym not in last_close_by_symbol:
+                last_close_by_symbol[sym] = bar["close"]
+
+        cash = float(initial_capital)
+        shares_by_symbol: dict[str, int] = {}
+        for t in result.trades:
+            sym = t["symbol"]
+            if t["side"] == "buy":
+                cash -= t["price"] * t["shares"] + t["commission"]
+                shares_by_symbol[sym] = shares_by_symbol.get(sym, 0) + t["shares"]
+            else:
+                cash += t["price"] * t["shares"] - t["commission"]
+                shares_by_symbol[sym] = shares_by_symbol.get(sym, 0) - t["shares"]
+
+        reconstructed = cash + sum(s * last_close_by_symbol[sym] for sym, s in shares_by_symbol.items() if s > 0)
+        assert reconstructed == pytest.approx(result.equity_curve[-1], rel=1e-9)
+        assert reconstructed == pytest.approx(result.performance["final_equity"], rel=1e-9)
 
 
 # ================================================================

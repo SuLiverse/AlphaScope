@@ -11,7 +11,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 REQUIRED_PYTHON_MIN = (3, 11)
 REQUIRED_PYTHON_MAX = (3, 13)
-REQUIRED_NODE = 18
+REQUIRED_NODE_20 = (20, 19, 0)
+REQUIRED_NODE_MODERN = (22, 12, 0)
 
 # Windows 终端 ANSI 颜色支持
 if sys.platform == "win32":
@@ -73,12 +74,13 @@ def check_node() -> bool:
         return _check("Node.js", False, "未安装")
     try:
         # node --version 输出格式: "v24.15.0"
-        version_str = ver.lstrip("v").split()[0]
-        major = int(version_str.split(".")[0])
+        version_str = ver.lstrip("v").split()[0].split("-", 1)[0]
+        parts = tuple(int(part) for part in version_str.split("."))
+        version = (parts + (0, 0, 0))[:3]
     except (IndexError, ValueError):
-        major = 0
-    ok = major >= REQUIRED_NODE
-    return _check("Node.js", ok, f"{ver} (需要 >= {REQUIRED_NODE})")
+        version = (0, 0, 0)
+    ok = (version[0] == 20 and version >= REQUIRED_NODE_20) or version >= REQUIRED_NODE_MODERN
+    return _check("Node.js", ok, f"{ver} (需要 20.19.x 或 >= 22.12.0)")
 
 
 def check_npm() -> bool:

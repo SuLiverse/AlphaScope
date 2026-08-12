@@ -18,6 +18,17 @@ def client():
     return AsyncClient(transport=transport, base_url="http://test")
 
 
+@pytest.fixture
+def clean_run_details_cache():
+    import backend.api.quant_core as quant_core
+
+    saved = dict(quant_core._local_run_details)
+    quant_core._local_run_details.clear()
+    yield quant_core._local_run_details
+    quant_core._local_run_details.clear()
+    quant_core._local_run_details.update(saved)
+
+
 class TestQuantStatus:
     """本地量化能力状态端点。"""
 
@@ -232,6 +243,36 @@ class TestQuantRuns:
         resp = await client.get("/api/quant/runs/missing-run")
 
         assert resp.status_code == 404
+
+
+class TestLocalRunDetailsEviction:
+    """_local_run_details 淘汰方向:删旧留新,保留最新 50 条。"""
+
+    def test_evicts_oldest_details_first(self, clean_run_details_cache):
+        import backend.api.quant_core as quant_core
+
+        for i in range(1, 56):
+            run_id = f"run-{i:03d}"
+            clean_run_details_cache[run_id] = {"run_id": run_id}
+            quant_core._evict_local_run_details()
+
+        assert len(clean_run_details_cache) == 50
+        for i in range(1, 6):
+            assert f"run-{i:03d}" not in clean_run_details_cache
+        for i in range(6, 56):
+            assert f"run-{i:03d}" in clean_run_details_cache
+
+    def test_new_entry_survives_eviction_when_cache_full(self, clean_run_details_cache):
+        import backend.api.quant_core as quant_core
+
+        for i in range(1, 51):
+            clean_run_details_cache[f"run-{i:03d}"] = {"run_id": f"run-{i:03d}"}
+        clean_run_details_cache["run-051"] = {"run_id": "run-051"}
+        quant_core._evict_local_run_details()
+
+        assert "run-051" in clean_run_details_cache
+        assert "run-001" not in clean_run_details_cache
+        assert len(clean_run_details_cache) == 50
 
 
 class TestQuantLiveEndpoints:

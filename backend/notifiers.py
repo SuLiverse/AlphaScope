@@ -11,11 +11,14 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import logging
+import os
+import socket
 from dataclasses import dataclass
 from typing import Any, Optional
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -92,15 +95,61 @@ def send_pushplus(token: str, title: str, body: str) -> SendResult:
 
 def send_feishu(webhook: str, title: str, body: str) -> SendResult:
     """飞书自定义机器人 webhook:POST {msg_type: text, content: {text}}"""
+    from backend.security.url_guard import validate_public_http_url
+
     webhook = (webhook or "").strip()
-    if not webhook or "feishu.cn" not in webhook and "larksuite" not in webhook:
+    parsed = urlparse(webhook)
+    hostname = (parsed.hostname or "").lower()
+    is_feishu = parsed.scheme == "https" and bool(hostname) and hostname in {"open.feishu.cn", "open.larksuite.com"}
+    if not is_feishu:
+        return SendResult(False, "feishu", "webhook 缺失或非飞书地址")
+    try:
+        # 第二道防线:目标主机必须为公网 IP(私网/环回/链路本地一律拒绝)
+        safe_url = validate_public_http_url(webhook, allow_local=False)
+    except ValueError:
         return SendResult(False, "feishu", "webhook 缺失或非飞书地址")
     # [:3500] 必须在 f-string 外(飞书文本上限 ~3500 字), 否则是字面文本会原样发送。
     res = _http_post_json(
-        webhook,
+        safe_url,
         {"msg_type": "text", "content": {"text": f"{title}\n\n{body}"[:3500]}},
     )
     return SendResult(res["ok"], "feishu", res.get("error") or res.get("body", ""))
+
+
+def _smtp_connect_host(host: str) -> str | None:
+    """Return a validated, pinned SMTP connection target.
+
+    The public-host path returns the first validated IP rather than the input
+    hostname, preventing DNS rebinding between validation and ``smtplib``'s
+    socket connection. Private relays remain an explicit opt-in escape hatch.
+    """
+    if os.environ.get("ALPHASCOPE_ALLOW_PRIVATE_SMTP", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return host
+    try:
+        addrinfo = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except socket.gaierror:
+        return None
+    public_addresses: list[str] = []
+    try:
+        for info in addrinfo:
+            address = info[4][0]
+            ip = ipaddress.ip_address(address)
+            if any(
+                (
+                    ip.is_private,
+                    ip.is_loopback,
+                    ip.is_link_local,
+                    ip.is_multicast,
+                    ip.is_reserved,
+                    ip.is_unspecified,
+                )
+            ):
+                return None
+            if address not in public_addresses:
+                public_addresses.append(address)
+    except ValueError:
+        return None
+    return public_addresses[0] if public_addresses else None
 
 
 def send_telegram(bot_token: str, chat_id: str, title: str, body: str) -> SendResult:
@@ -128,23 +177,34 @@ def send_email(
 ) -> SendResult:
     """SMTP 邮件(标准库 smtplib);TLS 587 / SSL 465。"""
     import smtplib
+    import ssl
     from email.mime.text import MIMEText
 
     if not all([smtp_host, username, password, from_addr, to_addr]):
         return SendResult(False, "email", "SMTP 配置不完整")
+    connect_host = _smtp_connect_host(smtp_host)
+    if not connect_host:
+        return SendResult(False, "email", "SMTP 主机位于内网/环回, 如需私网中继请设置 ALPHASCOPE_ALLOW_PRIVATE_SMTP=1")
     msg = MIMEText(body[:8000], "plain", "utf-8")
     msg["Subject"] = title[:120]
     msg["From"] = from_addr
     msg["To"] = to_addr
     try:
         port = int(smtp_port or 587)
+        tls_context = ssl.create_default_context()
         if port == 465:
-            with smtplib.SMTP_SSL(smtp_host, port, timeout=15) as s:
+            client = smtplib.SMTP_SSL(timeout=15, context=tls_context)
+            client._host = smtp_host
+            client.connect(connect_host, port)
+            with client as s:
                 s.login(username, password)
                 s.sendmail(from_addr, [to_addr], msg.as_string())
         else:
-            with smtplib.SMTP(smtp_host, port, timeout=15) as s:
-                s.starttls()
+            client = smtplib.SMTP(timeout=15)
+            client._host = smtp_host
+            client.connect(connect_host, port)
+            with client as s:
+                s.starttls(context=tls_context)
                 s.login(username, password)
                 s.sendmail(from_addr, [to_addr], msg.as_string())
         return SendResult(True, "email", "ok")

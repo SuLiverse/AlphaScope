@@ -134,6 +134,67 @@ class TestIsSelectOnly:
         assert dl.is_select_only("SELECT offset, dataset, asset FROM prices") is True
 
 
+class TestIsSelectOnlyScanAliases:
+    """read_* 家族的 *_scan 别名 / glob / parquet 元数据函数必须同样拦截(审计 C5 PoC)。"""
+
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM parquet_scan('C:/secret/x.parquet')",
+            "SELECT * FROM csv_scan('/etc/passwd')",
+            "SELECT * FROM json_scan('C:/x.json')",
+            "SELECT * FROM sqlite_scan('/db.sqlite', 't')",
+            "SELECT glob('C:/Users/*')",
+            "SELECT * FROM parquet_metadata('/secret/x.parquet')",
+            "SELECT * FROM parquet_schema('/secret/x.parquet')",
+            "SELECT * FROM parquet_file_metadata('/secret/x.parquet')",
+            "SELECT * FROM parquet_scan('https://169.254.169.254/latest/meta-data/')",
+        ],
+    )
+    def test_rejects_file_scan_alias_functions(self, sql):
+        assert dl.is_select_only(sql) is False
+
+    def test_scan_alias_no_false_positive(self):
+        """无括号不算函数调用; 作为标识符前缀不误判(词边界 + 括号锚定)。"""
+        assert dl.is_select_only("SELECT glob FROM prices") is True
+        assert dl.is_select_only("SELECT my_parquet_scan_col FROM prices") is True
+        assert dl.is_select_only("SELECT parquet_metadata FROM prices") is True
+
+
+class TestIsSelectOnlyStringLiteralTable:
+    """字符串字面量表名(替换扫描)是绕过函数黑名单的任意文件读通道, 必须拦截。"""
+
+    def test_rejects_string_literal_tables(self):
+        assert dl.is_select_only("SELECT * FROM 'C:/x.csv'") is False
+        assert dl.is_select_only('SELECT * FROM "s3://bucket/x.parquet"') is False
+        assert dl.is_select_only("SELECT * FROM prices JOIN 'C:/secret.csv' USING (x)") is False
+
+    def test_allows_identifier_tables(self):
+        assert dl.is_select_only("SELECT * FROM prices") is True
+        assert dl.is_select_only("WITH t AS (SELECT 1) SELECT * FROM t") is True
+
+
+class TestIsSelectOnlyCommentBypasses:
+    @pytest.mark.parametrize(
+        "sql",
+        [
+            "SELECT * FROM read_csv/**/('C:/secret.csv')",
+            "SELECT * FROM/**/'C:/secret.csv'",
+            "SELECT * FROM read_csv-- comment\n('C:/secret.csv')",
+            "SELECT * FROM/* outer /* nested */ comment */'C:/secret.csv'",
+        ],
+    )
+    def test_rejects_comment_obfuscated_file_reads(self, sql):
+        assert dl.is_select_only(sql) is False
+
+    def test_comment_markers_inside_literals_are_not_rewritten(self):
+        assert dl.is_select_only("SELECT '-- not a comment', '/* not a comment */' FROM prices") is True
+
+    def test_rejects_unterminated_comment_or_literal(self):
+        assert dl.is_select_only("SELECT * FROM prices /*") is False
+        assert dl.is_select_only("SELECT 'unterminated FROM prices") is False
+
+
 def test_degraded_when_unavailable(monkeypatch):
     """duckdb 不可用时所有 duckdb-gated 入口优雅降级, 绝不抛出。"""
     monkeypatch.setattr(dl, "is_available", lambda: False)
@@ -211,6 +272,40 @@ class TestRoundTrip:
     def test_query_empty_lake(self, lake):
         res = lake.query("SELECT * FROM prices")
         assert res["ok"] is True and res["row_count"] == 0
+
+    def test_query_rejects_scan_alias_without_leak(self, lake):
+        """扫描别名被拦且 reason 不泄露路径/异常原文。"""
+        lake.ingest_prices("600519", _bars("600519"))
+        res = lake.query("SELECT * FROM parquet_scan('C:/secret/x.parquet')")
+        assert res["ok"] is False
+        assert "C:/secret" not in res["reason"]
+
+    def test_query_rejects_string_literal_table_without_leak(self, lake):
+        lake.ingest_prices("600519", _bars("600519"))
+        res = lake.query("SELECT * FROM 'C:/x.csv'")
+        assert res["ok"] is False
+        assert "C:/x.csv" not in res["reason"]
+
+    def test_query_execution_layer_disables_external_access(self, lake, tmp_path, monkeypatch):
+        """Even a future parser miss cannot read files after connection lockdown."""
+        lake.ingest_prices("600519", _bars("600519"))
+        secret = tmp_path / "secret.ndjson"
+        secret.write_text('{"secret":"must-not-leak"}\n', encoding="utf-8")
+        monkeypatch.setattr(lake, "is_select_only", lambda sql: True)
+
+        res = lake.query(f"SELECT * FROM read_ndjson_auto('{secret.as_posix()}')")
+
+        assert res["ok"] is False
+        assert "must-not-leak" not in str(res)
+        assert str(secret) not in res["reason"]
+
+    def test_query_redacts_execution_error(self, lake):
+        """执行期错误只回显通用文案, 异常原文只进服务端日志。"""
+        lake.ingest_prices("600519", _bars("600519"))
+        res = lake.query("SELECT * FROM no_such_table_xyz")
+        assert res["ok"] is False
+        assert "查询执行失败" in res["reason"]
+        assert "no_such_table_xyz" not in res["reason"]
 
     def test_clear_symbol_and_all(self, lake):
         lake.ingest_prices("600519", _bars("600519"))

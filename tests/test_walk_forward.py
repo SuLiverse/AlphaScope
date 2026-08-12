@@ -84,6 +84,23 @@ class TestSchemes:
         assert starts == sorted(starts)
         assert len(set(starts)) > 1
 
+    def test_rolling_oos_calendar_uses_global_bar_indexes(self):
+        """Regression: OOS calendar span must not index the local slice with global oos_start.
+
+        For a rolling window with is_start>0, slice_bars[oos_start:oos_end] is
+        empty, so _calendar_span would return 0 and wipe OOS annualization.
+        """
+        from backend.quant.walk_forward import _calendar_span
+
+        bars = _make_bars(200)
+        is_start, oos_start, oos_end = 80, 160, 200
+        slice_bars = bars[is_start:oos_end]
+        assert _calendar_span(slice_bars[oos_start:oos_end]) == 0
+        assert _calendar_span(bars[oos_start:oos_end]) >= 1
+        assert _calendar_span(slice_bars[oos_start - is_start : oos_end - is_start]) == _calendar_span(
+            bars[oos_start:oos_end]
+        )
+
     def test_invalid_scheme_defaults_to_anchored(self):
         from backend.quant.walk_forward import run_walk_forward
 

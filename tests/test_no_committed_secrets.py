@@ -21,9 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # 只扫文档/配置类文本后缀中的字面赋值；.py 等代码文件不扫
 SCANNED_SUFFIXES = {".md", ".txt", ".yaml", ".yml", ".js", ".example"}
 
-ASSIGNMENT_RE = re.compile(
-    r"(?:_API_KEY|_API_SECRET|MASTER_KEY|_TOKEN)\s*=\s*\"?'?(\S{16,})\"?'?"
-)
+ASSIGNMENT_RE = re.compile(r"(?:_API_KEY|_API_SECRET|MASTER_KEY|_TOKEN)\s*=\s*\"?'?(\S{16,})\"?'?")
 
 
 def _is_placeholder(value: str) -> bool:

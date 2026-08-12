@@ -26,15 +26,16 @@ class DipReversalStrategy(BaseStrategy):
 
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         n = self.params["lookback"]
-        if len(bars) <= n:
-            return []
 
         closes = self._closes(bars)
         dip_thr = self.params["dip_threshold"]
         target = self.params["rebound_target"]
         signals: list[Signal] = []
         dip_ref: float | None = None  # reference close at last dip entry
-        for i in range(n, len(bars)):
+        for i in range(len(bars)):
+            if i < n:
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
+                continue
             change = (closes[i] - closes[i - n]) / closes[i - n] if closes[i - n] else 0.0
             symbol = bars[i].get("symbol", "")
             if change <= dip_thr and dip_ref is None:
@@ -58,6 +59,7 @@ class DipReversalStrategy(BaseStrategy):
                 signals.append(Signal("hold", symbol, reason="持有等待反弹"))
             else:
                 signals.append(Signal("hold", symbol, reason="观望"))
+        assert len(signals) == len(bars)
         return signals
 
 

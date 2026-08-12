@@ -9,10 +9,6 @@
 - 所有 akshare 调用经 _safe() 包装，单接口失败不影响整体
 """
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 import json
 import time
 import re
@@ -552,8 +548,9 @@ def load_fundamentals(symbol: str, stock_name: str = "", force_refresh: bool = F
         data.has_error = True
         data.error_msg = "; ".join(errors) if errors else "全部数据源不可用"
 
-    # 写缓存
-    _write_cache(symbol, data.to_dict())
+    # 写缓存（错误结果不缓存——避免一次抖动毒害 24h TTL）
+    if not data.has_error:
+        _write_cache(symbol, data.to_dict())
     return data
 
 

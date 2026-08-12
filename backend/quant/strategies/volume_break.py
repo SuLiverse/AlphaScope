@@ -24,14 +24,15 @@ class VolumeBreakStrategy(BaseStrategy):
 
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         n = self.params["vol_period"]
-        if len(bars) <= n:
-            return []
 
         closes = self._closes(bars)
         volumes = self._volumes(bars)
         mult = self.params["vol_mult"]
         signals: list[Signal] = []
-        for i in range(n, len(bars)):
+        for i in range(len(bars)):
+            if i < n:
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
+                continue
             avg_vol = sum(volumes[i - n : i]) / n
             vol = volumes[i]
             symbol = bars[i].get("symbol", "")
@@ -51,6 +52,7 @@ class VolumeBreakStrategy(BaseStrategy):
                 signals.append(Signal("sell", symbol, reason=f"缩量下跌 (量比 {vol / avg_vol:.2f}×)"))
             else:
                 signals.append(Signal("hold", symbol, reason="量价未触发"))
+        assert len(signals) == len(bars)
         return signals
 
 

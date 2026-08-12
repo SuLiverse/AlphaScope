@@ -71,7 +71,7 @@ $pids = @{}
 
 # FastAPI
 Write-Host "启动 FastAPI (端口 8000)..." -ForegroundColor Green
-$apiProc = Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000" -WorkingDirectory $ProjectRoot -PassThru -WindowStyle Hidden
+$apiProc = Start-Process -FilePath "python" -ArgumentList "-m", "uvicorn", "backend.api.main:app", "--host", "127.0.0.1", "--port", "8000" -WorkingDirectory $ProjectRoot -PassThru -WindowStyle Hidden
 $pids["api"] = $apiProc.Id
 Write-Host "  PID: $($apiProc.Id)" -ForegroundColor Gray
 
@@ -94,7 +94,7 @@ Write-Host "  PID: $($webProc.Id)" -ForegroundColor Gray
 # Streamlit (可选)
 if ($WithStreamlit) {
     Write-Host "启动 Streamlit (端口 8501)..." -ForegroundColor Green
-    $stProc = Start-Process -FilePath "python" -ArgumentList "-m", "streamlit", "run", "frontend/dashboard.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true" -WorkingDirectory $ProjectRoot -PassThru -WindowStyle Hidden
+    $stProc = Start-Process -FilePath "python" -ArgumentList "-m", "streamlit", "run", "frontend/dashboard.py", "--server.port=8501", "--server.address=127.0.0.1", "--server.headless=true" -WorkingDirectory $ProjectRoot -PassThru -WindowStyle Hidden
     $pids["streamlit"] = $stProc.Id
     Write-Host "  PID: $($stProc.Id)" -ForegroundColor Gray
 }

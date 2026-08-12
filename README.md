@@ -6,7 +6,7 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-100%2B%20APIs-009688)](docs/api.md)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Release](https://img.shields.io/badge/release-v1.9.53-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
+[![Release](https://img.shields.io/badge/release-v1.9.55-blue)](https://github.com/TIANWEN-cpu/AlphaScope/releases)
 
 > **把 AI 选股从「黑箱结论」变成「可复核的研究流程」。**
 >
@@ -29,7 +29,9 @@
 
 **Suggested GitHub topics:** `ai-agents` · `quantitative-finance` · `multi-agent` · `a-share` · `backtesting` · `local-first` · `fastapi` · `react`
 
-Quick start: install deps → `uvicorn backend.api.main:app --port 8000` → `cd apps/web && npm run dev`. Or use the Windows installer from Releases. Demo mode works with **zero API keys**.
+Quick start: install deps → `uvicorn backend.api.main:app --host 127.0.0.1 --port 8000` → `cd apps/web && npm run dev`. Or use the Windows installer from Releases. Demo mode works with **zero API keys**.
+
+**Current release: [v1.9.55](docs/releases/RELEASE-NOTES-v1.9.55.md)** (2026-08-13) — backtest/DCA math honesty, datalake & notifier SSRF guards, Docker token hygiene, hybrid retriever ranking, safer local binds and launcher stop.
 
 研策中枢 AlphaScope 把行情、新闻、公告、财务指标、技术分析、多 Agent 研究、证据链、研究报告、量化回测、基金定投和组合管理整合到一个**可运行、可测试、可扩展**的工程系统中。它的目标不是给出不可追溯的“单句结论”，而是提供一套**可审计的研究流程**：多模型协同分析、数据源状态透明、证据可追踪、结果可复核。
 
@@ -164,7 +166,7 @@ flowchart TB
 
 - FastAPI 后端提供 100+ REST / SSE 接口。
 - 数据源采用 Provider 插件化设计，可扩展行情、新闻、公告、研报、宏观和自定义数据源。
-- 后端核心路径有 1800+ 项自动化测试覆盖，并在 Python 3.11 / 3.12 上执行非网络套件。
+- 后端核心路径有 2000+ 项非网络自动化测试在 Python 3.11 / 3.12 CI 上执行（另有网络标记与探针用例不计入）。
 - 保留 Streamlit 调试台，便于快速实验和诊断。
 
 ## 版本里程碑
@@ -173,6 +175,7 @@ flowchart TB
 
 | 里程碑 | 一句话 |
 |--------|--------|
+| **v1.9.55 审查收口** | 回测/定投数字口径对齐（T+1 开盘成交、自然日年化、XIRR）；数据湖与通知 SSRF 加固；Docker token 不再泄漏到前端；混合检索排序修正 |
 | **v1.9.x 可信度 + 零门槛** | 回测补齐 A 股真实交易摩擦（T+1/印花税/滑点/防未来函数）；Demo 零 Key 模式让上手 < 5 分钟；策略库重构为一策略一文件 + 自动发现 |
 | **v1.7–1.8 工程稳定与一键交付** | Windows 一键安装包、K 线周期稳定、上传安全、分析真实性约束（空数据不再伪装成功）、付费数据源接入 |
 | **v1.6 前端工作台成型** | 新闻研究流、专家团迁移到系统设置、自定义 OpenAI-compatible Provider、研报结构化正文 |
@@ -426,7 +429,7 @@ python build.py --installer
 ### 源码运行环境要求
 
 - Python 3.11 或 3.12
-- Node.js 20+
+- Node.js 20.19.x 或 22.12+
 - 至少一个可用的大模型 API Key，建议先配置 DeepSeek
 - Windows、Linux、macOS 均可运行
 
@@ -453,7 +456,7 @@ DEEPSEEK_API_KEY=your_api_key
 ### 3. 启动 FastAPI 后端
 
 ```bash
-uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
 ```
 
 启动后可访问：
@@ -587,6 +590,9 @@ data/                   # 本地运行数据，默认 gitignore
 
 | 版本 | 日期 | 重点 |
 |------|------|------|
+| v1.9.55 | 2026-08-13 | 审查计划 002–025 收口：回测/定投口径、SSRF、Docker token、检索排序、启动器停止安全；详见 [Release Notes](docs/releases/RELEASE-NOTES-v1.9.55.md) |
+| v1.9.54 | 2026-07-15 | 限流/预算、Deflated Sharpe、LangGraph 旁路、证据图谱、vectorbt 扫描 UI |
+| v1.9.39 | 2026-07-01 | 全面质量审查：线程安全、资源泄漏、依赖声明、导入路径 |
 | v1.7.4 | 2026-06-05 | 新增 Workbench 年K聚合与自定义周期选择，支持自定义分时/日/周/月/年粒度和窗口 |
 | v1.7.3 | 2026-06-05 | 修复 Workbench K 线周期与横轴日期粒度联动，分时显示时间、日/周显示日期、月K显示月份 |
 | v1.7.2 | 2026-06-05 | 图表容器稳定渲染、Recharts 首屏和页签切换 warning 清零、Windows portable 包资源与行情接口复验 |

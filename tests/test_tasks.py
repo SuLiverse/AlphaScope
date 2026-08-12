@@ -273,3 +273,101 @@ def test_build_analysis_stock_data_honors_cutoff_and_records_price_date():
     assert result["as_of"] == "2026-06-30"
     assert result["price_data_date"] == "2026-06-30"
     assert result["research_question"] == "利润增长是否可持续？"
+
+
+class _StubQueue:
+    """只实现 _collect_task_events 依赖的最小查询接口"""
+
+    def __init__(self, task):
+        self._task = task
+
+    def get_task(self, task_id):
+        return self._task
+
+    def list_tasks(self, limit=50):
+        return [self._task] if self._task else []
+
+
+def _terminal_task(task_id: str, status: str) -> dict:
+    return {"id": task_id, "status": status, "error": "", "created_at": time.time()}
+
+
+def test_collect_task_events_terminal_sets_done():
+    """指定任务到终态时 _collect_task_events 返回 done=True 且事件含终态状态"""
+    from backend.api.tasks import _collect_task_events
+
+    events, done = _collect_task_events(_StubQueue(_terminal_task("term0001", "success")), "term0001", 50, set())
+    assert done is True
+    assert len(events) == 1
+    assert events[0]["task_id"] == "term0001"
+    assert events[0]["status"] == "success"
+    assert events[0]["type"] == "task_completed"
+
+    events, done = _collect_task_events(_StubQueue(_terminal_task("run00001", "running")), "run00001", 50, set())
+    assert done is False
+    assert events[0]["type"] == "task_progress"
+
+
+def test_collect_task_events_dedup_terminal():
+    """终态去重保持: 同一终态任务第二轮调用不再产生事件"""
+    from backend.api.tasks import _collect_task_events
+
+    terminal_sent: set[str] = set()
+    stub = _StubQueue(_terminal_task("term0002", "cancelled"))
+
+    events, done = _collect_task_events(stub, "term0002", 50, terminal_sent)
+    assert len(events) == 1
+    assert done is True
+
+    events2, done2 = _collect_task_events(stub, "term0002", 50, terminal_sent)
+    assert events2 == []
+    assert done2 is False
+
+
+def test_cancel_task_unknown_does_not_leak_marker():
+    """对不存在任务取消返回 False 且不污染 _cancelled"""
+    from backend.task_queue import TaskQueue
+
+    original = TaskQueue._instance
+    TaskQueue._instance = None
+    try:
+        q = TaskQueue()
+        assert q.cancel_task("missing-0001") is False
+        with q._state_lock:
+            assert q._cancelled == set()
+    finally:
+        TaskQueue._instance = original
+
+
+@pytest.mark.parametrize("status", ["success", "failed", "cancelled"])
+def test_cancel_terminal_task_does_not_leak_marker(status):
+    """对终态任务取消返回 False 且不污染 _cancelled"""
+    from backend.task_queue import TaskQueue
+
+    original = TaskQueue._instance
+    TaskQueue._instance = None
+    try:
+        q = TaskQueue()
+        with patch("backend.task_queue.TaskQueue.get_task", return_value=_terminal_task("done0001", status)):
+            assert q.cancel_task("done0001") is False
+        with q._state_lock:
+            assert q._cancelled == set()
+    finally:
+        TaskQueue._instance = original
+
+
+def test_cancel_runnable_task_still_marks_marker():
+    """可取消任务仍被标记进 _cancelled(标记时机后移不破坏取消语义)"""
+    from backend.task_queue import TaskQueue
+
+    original = TaskQueue._instance
+    TaskQueue._instance = None
+    try:
+        q = TaskQueue()
+        with patch("backend.task_queue.TaskQueue.get_task", return_value=_terminal_task("pend0001", "pending")):
+            assert q.cancel_task("pend0001") is True
+        with q._state_lock:
+            assert "pend0001" in q._cancelled
+            q._cancelled.discard("pend0001")
+    finally:
+        TaskQueue._instance = original

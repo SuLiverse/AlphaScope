@@ -233,9 +233,9 @@ class ToolRouter:
     def _tool_market_data(self, symbol: str = "", **kwargs) -> Dict[str, Any]:
         """行情数据工具"""
         try:
-            from backend.price_fetcher import get_price_range
+            from backend.price_fetcher import get_recent_bars
 
-            data = get_price_range(symbol, days=30)
+            data = get_recent_bars(symbol, count=30)
             return {"symbol": symbol, "data": data}
         except Exception as e:
             return {"symbol": symbol, "error": str(e)}
@@ -344,7 +344,7 @@ class ToolRouter:
                 return {"fund_code": fund_code, "error": "无净值数据"}
 
             navs = [r["nav"] for r in records]
-            metrics = calc_fund_metrics(navs)
+            metrics = calc_fund_metrics(navs, dates=[r["date"] for r in records])
             return {"fund_code": fund_code, "metrics": metrics}
         except Exception as e:
             return {"fund_code": fund_code, "error": str(e)}

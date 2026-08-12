@@ -53,7 +53,7 @@ async def list_news(
     """新闻列表"""
     from backend.news_store import list_news as _list
 
-    items = _list(symbol=symbol, event_type=event_type, limit=limit)
+    items = await asyncio.to_thread(_list, symbol=symbol, event_type=event_type, limit=limit)
     fetch_status = "ok"
     fetch_error = ""
     if not items:
@@ -63,7 +63,7 @@ async def list_news(
                 limit=limit,
             )
         )
-        items = _list(symbol=symbol, event_type=event_type, limit=limit)
+        items = await asyncio.to_thread(_list, symbol=symbol, event_type=event_type, limit=limit)
     degraded = not items and fetch_status != "ok"
     return ApiResponse(
         success=True,
@@ -89,7 +89,7 @@ async def list_announcements(
     from backend.news_store import list_announcements as _list
     from backend.news_store import list_news as _list_news
 
-    items = _list(symbol=symbol, category=category, limit=limit)
+    items = await asyncio.to_thread(_list, symbol=symbol, category=category, limit=limit)
     attempted_provider_fetch = False
     if not items and symbol:
         attempted_provider_fetch = True
@@ -99,7 +99,7 @@ async def list_announcements(
                 limit=limit,
             )
         )
-        items = _list(symbol=symbol, category=category, limit=limit)
+        items = await asyncio.to_thread(_list, symbol=symbol, category=category, limit=limit)
     else:
         fetch_status, fetch_error = "ok", ""
 

@@ -126,20 +126,22 @@ def create_server() -> "FastMCP | None":
             匹配的证据片段列表 (JSON 字符串, 含来源与得分)
         """
         try:
-            from backend.rag.hybrid_retriever import retrieve
+            from backend.rag.hybrid_retriever import get_hybrid_retriever
 
             import json
 
             k = max(1, min(int(top_k), 20))
-            hits = retrieve(query, top_k=k)
+            hits = get_hybrid_retriever().search(query, n_results=k)
             if not hits:
                 # 用 json.dumps 而非 f-string 拼 — query 含双引号会破坏 JSON 结构
                 return json.dumps({"query": query, "hits": []}, ensure_ascii=False)
             rows = [
                 {
-                    "content": str(getattr(h, "content", h.get("content", "")))[:300],
-                    "source": str(getattr(h, "source", h.get("source", "")))[:80],
-                    "score": float(getattr(h, "score", h.get("score", 0.0))),
+                    "content": str(h.get("text", "") if isinstance(h, dict) else getattr(h, "text", ""))[:300],
+                    "source": str(h.get("source", "") if isinstance(h, dict) else getattr(h, "source", ""))[:80],
+                    "score": float(
+                        h.get("combined_score", 0.0) if isinstance(h, dict) else getattr(h, "combined_score", 0.0)
+                    ),
                 }
                 for h in hits
             ]

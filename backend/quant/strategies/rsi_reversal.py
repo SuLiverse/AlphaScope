@@ -21,25 +21,31 @@ class RSIStrategy(BaseStrategy):
     }
 
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
-        if len(bars) < self.params["period"] + 1:
-            return []
-
         closes = self._closes(bars)
         rsi_values = self._calc_rsi(closes, self.params["period"])
+        # Index conversion: deltas[j] == closes[j+1] - closes[j], so the first
+        # RSI (delta index ``period``) corresponds to closes[period+1], i.e.
+        # bar index ``period + 1``. For bar ``i >= period + 1`` the aligned RSI
+        # is ``rsi_values[i - period - 1]``; earlier bars are warm-up holds.
+        warmup = self.params["period"] + 1
 
         signals = []
-        for i in range(len(rsi_values)):
-            rsi = rsi_values[i]
+        for i in range(len(bars)):
+            if i < warmup:
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
+                continue
+
+            rsi = rsi_values[i - warmup]
             if math.isnan(rsi):
-                signals.append(Signal("hold", bars[i + 1].get("symbol", ""), reason="数据不足"))
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
                 continue
 
             if rsi < self.params["oversold"]:
-                shares = self._calc_shares(bars[i + 1]["close"], portfolio_state)
+                shares = self._calc_shares(bars[i]["close"], portfolio_state)
                 signals.append(
                     Signal(
                         "buy",
-                        bars[i + 1].get("symbol", ""),
+                        bars[i].get("symbol", ""),
                         shares=shares,
                         reason=f"RSI={rsi:.1f} 超卖",
                     )
@@ -48,7 +54,7 @@ class RSIStrategy(BaseStrategy):
                 signals.append(
                     Signal(
                         "sell",
-                        bars[i + 1].get("symbol", ""),
+                        bars[i].get("symbol", ""),
                         reason=f"RSI={rsi:.1f} 超买",
                     )
                 )
@@ -56,11 +62,12 @@ class RSIStrategy(BaseStrategy):
                 signals.append(
                     Signal(
                         "hold",
-                        bars[i + 1].get("symbol", ""),
+                        bars[i].get("symbol", ""),
                         reason=f"RSI={rsi:.1f} 中性",
                     )
                 )
 
+        assert len(signals) == len(bars)
         return signals
 
     def _calc_rsi(self, closes: list[float], period: int) -> list[float]:

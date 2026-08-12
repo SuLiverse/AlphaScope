@@ -4,7 +4,7 @@
 
 启动方式：
 ```bash
-uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
 # API 文档: http://localhost:8000/docs
 ```
 
@@ -46,8 +46,8 @@ uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 |------|------|------|
 | POST | `/api/conversations` | 创建会话 |
 | GET | `/api/conversations` | 列出会话 |
-| GET | `/api/conversations/{id}` | 获取会话详情 |
-| DELETE | `/api/conversations/{id}` | 删除会话 |
+| GET | `/api/conversations/{conversation_id}` | 获取会话详情 |
+| DELETE | `/api/conversations/{conversation_id}` | 删除会话 |
 
 ### 聊天与分析
 
@@ -64,18 +64,18 @@ uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 | GET | `/api/agents` | Agent 配置列表 |
 | GET | `/api/agents/models` | Agent 模型分配表 |
 | GET | `/api/teams` | 专家团列表 |
-| GET | `/api/teams/{id}` | 专家团详情 |
+| GET | `/api/teams/{team_id}` | 专家团详情 |
 | GET | `/api/models/providers` | 模型供应商列表 |
-| GET | `/api/models/providers/{id}/models` | 供应商模型列表 |
+| GET | `/api/models/providers/{provider_id}/models` | 供应商模型列表 |
 | GET | `/api/modes` | 分析模式列表 |
 | GET | `/api/templates` | 研究模板列表 |
-| GET | `/api/templates/{id}` | 模板详情 |
+| GET | `/api/templates/{template_id}` | 模板详情 |
 
 ### 报告与数据
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/api/reports/{id}` | 获取分析报告 |
+| GET | `/api/reports/{report_id}` | 获取分析报告 |
 | GET | `/api/search` | 联网搜索 |
 | GET | `/api/costs` | LLM 成本统计 |
 | GET | `/api/backtest/stats` | 回测统计 |
@@ -90,9 +90,9 @@ uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 |------|------|------|
 | GET | `/api/settings/providers` | 列出所有 Provider |
 | POST | `/api/settings/providers` | 添加/更新 Provider |
-| DELETE | `/api/settings/providers/{id}` | 删除 Provider |
-| POST | `/api/settings/providers/{id}/test` | 测试连接 |
-| GET | `/api/settings/providers/{id}/models` | 列出 Provider 模型 |
+| DELETE | `/api/settings/providers/{provider_id}` | 删除 Provider |
+| POST | `/api/settings/providers/{provider_id}/test` | 测试连接 |
+| GET | `/api/settings/providers/{provider_id}/models` | 列出 Provider 模型 |
 | GET | `/api/settings/export` | 导出设置（脱敏） |
 | POST | `/api/settings/import` | 导入设置 |
 
@@ -111,8 +111,8 @@ uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/tasks` | 任务列表（支持 status 筛选） |
-| GET | `/api/tasks/{id}` | 任务详情 |
-| POST | `/api/tasks/{id}/cancel` | 取消任务 |
+| GET | `/api/tasks/{task_id}` | 任务详情 |
+| POST | `/api/tasks/{task_id}/cancel` | 取消任务 |
 | POST | `/api/analysis/async` | 异步运行分析（返回 task_id） |
 
 同步与异步分析均支持：
@@ -135,10 +135,10 @@ uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
 |------|------|------|
 | GET | `/api/manage/agents` | Agent 列表 |
 | POST | `/api/manage/agents` | 创建/更新 Agent |
-| DELETE | `/api/manage/agents/{id}` | 删除 Agent |
+| DELETE | `/api/manage/agents/{agent_id}` | 删除 Agent |
 | GET | `/api/manage/teams` | 专家团列表 |
 | POST | `/api/manage/teams` | 创建/更新专家团 |
-| DELETE | `/api/manage/teams/{id}` | 删除专家团 |
+| DELETE | `/api/manage/teams/{team_id}` | 删除专家团 |
 
 ## SSE 流式聊天
 

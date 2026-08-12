@@ -67,7 +67,7 @@ def ensure_local_api_token() -> str:
                 os.environ[_TOKEN_ENV] = saved
                 write_dev_runtime_configs(_repo_root(), saved)
                 logger.info(
-                    "已加载本地 API token（%s）。前端请使用 public/runtime-config.js 中的 localApiToken。",
+                    "已加载本地 API token（%s）。前端首次连接时需在令牌引导页输入。",
                     token_path,
                 )
                 return saved
@@ -85,7 +85,7 @@ def ensure_local_api_token() -> str:
     write_dev_runtime_configs(_repo_root(), token)
     logger.warning(
         "已自动生成 ALPHASCOPE_LOCAL_API_TOKEN（源码启动默认鉴权）。"
-        "已写入 %s 与 apps/web/public/runtime-config.js。"
+        "已写入 %s；静态 runtime-config.js 不包含该令牌。"
         "若要关闭鉴权，设置 ALPHASCOPE_ALLOW_OPEN_API=1（不推荐）。",
         token_path,
     )

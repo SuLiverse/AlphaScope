@@ -16,10 +16,6 @@ v0.11 新增: Provider 插件集成
 - 东财个股研报 stock_research_report_em
 """
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 import json
 import logging
 import akshare as ak

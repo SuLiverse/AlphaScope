@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import date
 from typing import Any
 
 
@@ -101,8 +102,14 @@ def _round_json_float(value: float, digits: int) -> float | None:
 def calc_fund_metrics(
     navs: list[float],
     risk_free_rate: float = 0.03,
+    dates: list[str] | None = None,
 ) -> dict[str, Any]:
-    """计算基金综合指标"""
+    """计算基金综合指标
+
+    ``dates`` 为可选的自然日序列(YYYY-MM-DD, 与 ``navs`` 等长): 提供时年化
+    收益率按首末记录的自然日差计算; 不提供时回退为记录数(旧口径, 仅供
+    纯数值调用方/测试使用)。
+    """
     if len(navs) < 2:
         return {
             "total_return": 0.0,
@@ -118,6 +125,13 @@ def calc_fund_metrics(
     returns = calc_nav_returns(navs)
     total_return = calc_total_return(navs)
     days = len(navs)
+    if dates:
+        try:
+            first = date.fromisoformat(str(dates[0])[:10])
+            last = date.fromisoformat(str(dates[-1])[:10])
+            days = max((last - first).days, 1)
+        except (TypeError, ValueError):
+            days = len(navs)
     annualized_return = calc_annualized_return(total_return, days)
     volatility = calc_volatility(returns)
     max_drawdown = calc_max_drawdown(navs)

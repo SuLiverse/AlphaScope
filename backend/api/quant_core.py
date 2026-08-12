@@ -33,6 +33,13 @@ _local_run_details: dict[str, dict[str, Any]] = {}
 QUANT_PROVIDER_TIMEOUT_SECONDS = 8.0
 _MAX_HISTORY_DAYS = 10_000
 _COVERAGE_TOLERANCE_DAYS = 14
+_MAX_LOCAL_RUN_DETAILS = 50
+
+
+def _evict_local_run_details() -> None:
+    """淘汰最旧的运行详情,保留最新 _MAX_LOCAL_RUN_DETAILS 条。"""
+    for stale_run_id in list(_local_run_details.keys())[:-_MAX_LOCAL_RUN_DETAILS]:
+        _local_run_details.pop(stale_run_id, None)
 
 
 def _infer_param_type(value: Any) -> str:
@@ -421,8 +428,7 @@ def _remember_portfolio_run(payload: dict[str, Any], *, list_mode: str) -> None:
     )
     del _local_runs[20:]
     _local_run_details[payload["run_id"]] = payload
-    for stale_run_id in list(_local_run_details.keys())[50:]:
-        _local_run_details.pop(stale_run_id, None)
+    _evict_local_run_details()
 
 
 def _persist_experiment(payload: dict[str, Any]) -> None:
@@ -464,8 +470,13 @@ def _run_local_backtest(body: BacktestRequestBody) -> dict[str, Any]:
     final_equity = float(
         performance.get("final_equity") or (result.equity_curve[-1] if result.equity_curve else body.initial_capital)
     )
+    # Align each date to the equity mark-to-market AFTER that bar
+    # (equity_values[0] is the pre-trading opening capital).
+    equity_values = result.equity_curve
     equity_curve = [
-        {"date": date, "equity": equity, "value": equity} for date, equity in zip(result.dates, result.equity_curve)
+        {"date": date, "equity": equity_values[index + 1], "value": equity_values[index + 1]}
+        for index, date in enumerate(result.dates)
+        if index + 1 < len(equity_values)
     ]
     payload = {
         "run_id": run_id,
@@ -528,8 +539,7 @@ def _run_local_backtest(body: BacktestRequestBody) -> dict[str, Any]:
     )
     del _local_runs[20:]
     _local_run_details[run_id] = payload
-    for stale_run_id in list(_local_run_details.keys())[50:]:
-        _local_run_details.pop(stale_run_id, None)
+    _evict_local_run_details()
     _persist_experiment(payload)
     return payload
 

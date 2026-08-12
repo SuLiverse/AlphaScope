@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.9.55 - 2026-08-13
+
+> **审查收口 + 量化口径 + 安全加固**：把 002–025 审查计划与本地未提交加固一次推到 GitHub。相对上一份 GitHub Release（v1.9.39）这是一次完整的可信度与工程卫生发版。
+
+### 安全
+- DuckDB 数据湖堵住文件读 / SSRF 绕过；通知渠道校验飞书 webhook 主机并闸住私网 SMTP
+- Docker 不再把本机 API token 打进前端镜像；远程部署增加前端 token 入口闸门；关闭 compose access log
+- 启动器 `--stop` 只终止带可信运行时标记的本实例，不再误杀其它 Python 进程
+- 文档与示例默认绑定 `127.0.0.1`（uvicorn / Vite / Streamlit）
+
+### 量化正确性
+- 回测信号与 bar 对齐，T 日信号 T+1 开盘成交；走查年化改自然日
+- 定投改 XIRR，禁止用未来净值填充，回撤按单位净值口径
+- `profit_factor` 等非有限值不再把回测 JSON 打成 500
+- 非法 / 非正 OHLC 不再进入周期聚合；补齐 DCA / 回测精确值回归网
+
+### 可靠性
+- Auto 预筛失败降级，不再误升 DEEP
+- 回测详情缓存淘汰最旧项；聊天共享 ConversationStore，避免 SQLite 连接泄漏
+- 任务 SSE 终态结束；自选股告警复活；MCP `search_evidence` 接到真实混合检索
+- 混合检索排序方向修正，BM25 走锁定连接；组合写失败显式传播，基本面错误不入缓存
+
+### 工程
+- 依赖钉版：去掉未使用的 aiohttp，`requests` / `curl_cffi` / `python-dotenv` 升到已修 CVE 版本
+- `httpx` / FastAPI / pytest-cov 写入 dev 清单；Prefect 测试不再拉真实服务器
+- Node 引擎声明为 20.19.x 或 ≥22.12；`pybroker` / `ragas` 拆成可选 extra
+- 审查计划 `plans/001`–`025` 入库，便于复盘
+
 ## v1.9.54 - 2026-07-15
 
 > **战略规划全量工程波次**：限流/预算/DSR/新闻缓存/LangGraph 旁路/评测/vectorbt UI/证据图谱/路由包。

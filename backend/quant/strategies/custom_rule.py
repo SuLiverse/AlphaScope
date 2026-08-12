@@ -184,8 +184,6 @@ class CustomRuleStrategy(BaseStrategy):
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         buy_rules = self.params.get("buy_rules") or []
         sell_rules = self.params.get("sell_rules") or []
-        if not buy_rules and not sell_rules:
-            return []
         logic = str(self.params.get("logic", "and")).lower()
         if logic not in ("and", "or"):
             logic = "and"
@@ -195,13 +193,17 @@ class CustomRuleStrategy(BaseStrategy):
         for i, bar in enumerate(bars):
             ctx = {k: series[i] for k, series in fields.items()}
             sym = bar.get("symbol", "")
-            if _eval_rules(buy_rules, ctx, logic):
+            # 空规则:与 bars 等长的 hold(引擎侧等同无信号),不破坏长度契约。
+            if not buy_rules and not sell_rules:
+                signals.append(Signal("hold", sym, reason="无规则"))
+            elif _eval_rules(buy_rules, ctx, logic):
                 shares = self._calc_shares(bar.get("close", 0), portfolio_state)
                 signals.append(Signal("buy", sym, shares=shares, reason="规则买入触发"))
             elif _eval_rules(sell_rules, ctx, logic):
                 signals.append(Signal("sell", sym, reason="规则卖出触发"))
             else:
                 signals.append(Signal("hold", sym, reason="无信号"))
+        assert len(signals) == len(bars)
         return signals
 
 

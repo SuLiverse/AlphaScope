@@ -21,7 +21,7 @@ pip install -r requirements.txt
 ```bash
 ruff check backend/ frontend/ tests/
 ruff format --check backend/ frontend/ tests/
-python -m pytest tests/ -v
+python -m pytest tests/ -v -m "not network" --ignore=tests/probes
 ```
 
 可选：安装 pre-commit，提交前自动跑与 CI 相同的 ruff check/format（避免再因 format 门禁整段 CI 变红）：

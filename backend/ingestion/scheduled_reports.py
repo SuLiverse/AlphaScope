@@ -147,9 +147,9 @@ class ScheduledReportManager:
         """
         alerts = []
         try:
-            from backend.price_fetcher import get_price_range
+            from backend.price_fetcher import get_recent_bars
 
-            data = get_price_range(item.symbol, days=5)
+            data = get_recent_bars(item.symbol, count=5)
             if not data:
                 return alerts
 

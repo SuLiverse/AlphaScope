@@ -269,6 +269,35 @@ async def test_test_connection_failure(client):
 
 
 @pytest.mark.anyio
+async def test_test_connection_offloaded_off_event_loop(client):
+    """POST /api/settings/providers/{id}/test 的同步调用必须在事件循环之外执行。"""
+    import threading
+
+    main_thread_id = threading.get_ident()
+    call_thread_id = None
+    result = {
+        "success": True,
+        "models": ["deepseek-chat"],
+        "message": "连接成功",
+    }
+
+    def fake_test_connection(provider_id):
+        nonlocal call_thread_id
+        call_thread_id = threading.get_ident()
+        return result
+
+    with patch("backend.settings_store.test_connection", side_effect=fake_test_connection):
+        resp = await client.post("/api/settings/providers/deepseek/test")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["success"] is True
+    assert "models" in data["data"]
+    assert call_thread_id is not None
+    assert call_thread_id != main_thread_id
+
+
+@pytest.mark.anyio
 async def test_masked_key_in_response(client):
     """响应中 API Key 已脱敏"""
     with patch("backend.settings_store.list_providers", return_value=MOCK_PROVIDERS):

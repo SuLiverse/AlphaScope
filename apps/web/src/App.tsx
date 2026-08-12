@@ -2,7 +2,8 @@ import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { Onboarding } from './components/Onboarding';
 import { GoldenPathTour } from './components/GoldenPathTour';
 import { subscribeTabChange } from './lib/workspaceEvents';
-import type { ErrorInfo, ReactNode } from 'react';
+import { ApiRequestError, fetchApi, LOCAL_API_TOKEN, storeLocalToken } from './lib/api';
+import type { ErrorInfo, FormEvent, ReactNode } from 'react';
 import { KeepAlive } from './components/KeepAlive';
 import { MobileNav, Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
@@ -122,9 +123,114 @@ class ModuleErrorBoundary extends React.Component<ModuleErrorBoundaryProps, Modu
   }
 }
 
+type GateState = 'checking' | 'locked' | 'ready';
+
+function TokenGate({ rejected, onSubmit }: { rejected: boolean; onSubmit: (token: string) => void }) {
+  const [token, setToken] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    const value = token.trim();
+    if (!value || submitting) return;
+    setSubmitting(true);
+    onSubmit(value);
+  };
+
+  return (
+    <div className="flex h-screen w-full items-center justify-center bg-[#07080b] px-6 font-sans">
+      <div className="w-full max-w-sm rounded-lg border border-indigo-500/20 bg-white/5 p-6">
+        <h1 className="text-base font-medium text-neutral-100">需要本地访问令牌</h1>
+        <p className="mt-2 text-sm leading-relaxed text-neutral-400">
+          本地令牌不会随静态页面分发。请查看部署目录
+          <code className="mx-1 rounded bg-white/10 px-1 py-0.5 text-xs text-neutral-300">data/runtime/local_api_token.txt</code>
+          ，或根目录
+          <code className="mx-1 rounded bg-white/10 px-1 py-0.5 text-xs text-neutral-300">.env</code>
+          中的
+          <code className="mx-1 rounded bg-white/10 px-1 py-0.5 text-xs text-neutral-300">ALPHASCOPE_LOCAL_API_TOKEN</code>
+          中查看，粘贴后仅存于当前页面会话（关页即清）。
+        </p>
+        {rejected && <p className="mt-3 text-sm text-red-300">令牌无效，请重新输入。</p>}
+        <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3">
+          <input
+            type="password"
+            value={token}
+            onChange={(event) => setToken(event.target.value)}
+            placeholder="粘贴本地访问令牌"
+            autoFocus
+            className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-neutral-100 placeholder-neutral-500 outline-none transition-colors focus:border-indigo-400/50"
+          />
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded-lg bg-indigo-500/90 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {submitting ? '验证中…' : '连接'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [currentTab, setCurrentTab] = useState<TabID>(() => initialTabFromUrl());
   const [settingsInitialTab, setSettingsInitialTab] = useState<string>('api');
+
+  // 轻量鉴权引导门：仅当需鉴权探测返回 401/403 时要求用户输入一次 token
+  // （docker 远程部署下共享卷副本不再携带 token）。探测端点必须是读路径。
+  const [gateState, setGateState] = useState<GateState>('checking');
+  const [gateAttempt, setGateAttempt] = useState(0);
+  const [gateRejected, setGateRejected] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setGateRejected(false);
+      try {
+        await fetchApi('/api/settings/preferences');
+        if (!cancelled) setGateState('ready');
+      } catch (error) {
+        if (cancelled) return;
+        const unauthorized =
+          error instanceof ApiRequestError && (error.status === 401 || error.status === 403);
+        if (unauthorized) {
+          setGateState('locked');
+          setGateRejected(Boolean(LOCAL_API_TOKEN));
+        } else {
+          setGateState('ready');
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [gateAttempt]);
+
+  useEffect(() => subscribeTabChange((tab) => setCurrentTab(tab as TabID)), []);
+
+  const handleTokenSubmit = (token: string) => {
+    storeLocalToken(token);
+    setGateState('checking');
+    setGateAttempt((n) => n + 1);
+  };
+
+  if (gateState !== 'ready') {
+    return (
+      <div className="relative flex h-screen w-full overflow-hidden bg-[#07080b] font-sans text-neutral-300">
+        {gateState === 'locked' ? (
+          <TokenGate rejected={gateRejected} onSubmit={handleTokenSubmit} />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <div className="flex items-center gap-3 text-sm text-neutral-500">
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80 animate-pulse" />
+              <span>正在连接服务…</span>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   const openAgentSettings = () => {
     setSettingsInitialTab('agents');
@@ -135,8 +241,6 @@ export default function App() {
     setSettingsInitialTab('models');
     setCurrentTab('settings');
   };
-
-  useEffect(() => subscribeTabChange((tab) => setCurrentTab(tab as TabID)), []);
 
   return (
     <div className="relative flex h-screen w-full overflow-hidden bg-[#07080b] font-sans text-neutral-300 selection:bg-indigo-500/30">

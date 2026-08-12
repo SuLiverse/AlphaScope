@@ -115,47 +115,54 @@ class HybridRetriever:
     def _bm25_search(self, query: str, symbol: str, n: int) -> List[RetrievalResult]:
         """BM25 关键词检索"""
         try:
+            from backend.evidence_store import _ensure_schema
             from backend.storage.db import Database
 
+            _ensure_schema()
+            keywords = [part for part in query.split()[:5] if part]
+            if not keywords:
+                return []
             db = Database()
-            conn = db.get_connection()
+            with db.transaction() as conn:
+                # 简单的 LIKE 搜索作为 BM25 近似
+                conditions = " OR ".join("(claim LIKE ? OR content_summary LIKE ? OR title LIKE ?)" for _ in keywords)
+                params = [value for kw in keywords for value in (f"%{kw}%", f"%{kw}%", f"%{kw}%")]
 
-            # 简单的 LIKE 搜索作为 BM25 近似
-            keywords = query.split()[:5]
-            conditions = " OR ".join(["content LIKE ?" for _ in keywords])
-            params = [f"%{kw}%" for kw in keywords]
+                if symbol:
+                    symbol_pattern = f'%"{symbol}"%'
+                    conditions = f"({conditions}) AND (symbols LIKE ? OR symbols LIKE ? OR symbols IN ('', '[]'))"
+                    params.extend((symbol_pattern, f"%{symbol}%"))
 
-            if symbol:
-                conditions = f"({conditions}) AND (symbol = ? OR symbol = '')"
-                params.append(symbol)
+                # 搜索 evidence_items
+                rows = conn.execute(
+                    f"""SELECT id,
+                               COALESCE(NULLIF(claim, ''), NULLIF(content_summary, ''), title),
+                               source, evidence_type, data_date
+                        FROM evidence_items
+                        WHERE {conditions}
+                        LIMIT ?""",
+                    params + [n],
+                ).fetchall()
 
-            # 搜索 evidence_items
-            rows = conn.execute(
-                f"""SELECT id, claim, source_name, evidence_type, data_date
-                    FROM evidence_items
-                    WHERE {conditions}
-                    LIMIT ?""",
-                params + [n],
-            ).fetchall()
+                results = []
+                for row in rows:
+                    # 简单的 BM25 近似分数
+                    text = row[1] or ""
+                    match_count = sum(1 for kw in keywords if kw.casefold() in text.casefold())
+                    bm25_score = match_count / max(len(keywords), 1)
 
-            results = []
-            for row in rows:
-                # 简单的 BM25 近似分数
-                match_count = sum(1 for kw in keywords if kw in (row[1] or ""))
-                bm25_score = match_count / max(len(keywords), 1)
-
-                results.append(
-                    RetrievalResult(
-                        text=row[1] or "",
-                        source=row[2] or "",
-                        doc_type=row[3] or "other",
-                        published_at=self._parse_timestamp(row[4] or ""),
-                        trust_score=0.7,  # evidence_items 默认较高信任
-                        bm25_score=bm25_score,
-                        combined_score=bm25_score,
-                        metadata={"id": row[0]},
+                    results.append(
+                        RetrievalResult(
+                            text=row[1] or "",
+                            source=row[2] or "",
+                            doc_type=row[3] or "other",
+                            published_at=self._parse_timestamp(row[4] or ""),
+                            trust_score=0.7,  # evidence_items 默认较高信任
+                            bm25_score=bm25_score,
+                            combined_score=bm25_score,
+                            metadata={"id": row[0]},
+                        )
                     )
-                )
 
             return results
         except Exception as e:
@@ -173,7 +180,7 @@ class HybridRetriever:
             key = r.text[:100]
             if key not in seen_texts:
                 seen_texts.add(key)
-                r.combined_score = r.vector_score * self.vector_weight
+                r.combined_score = (1.0 - min(r.vector_score, 1.0)) * self.vector_weight
                 merged.append(r)
 
         for r in bm25_results:

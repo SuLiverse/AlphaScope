@@ -242,7 +242,7 @@ async def test_provider_connection(provider_id: str):
     """测试 provider 连接"""
     from backend.settings_store import test_connection as _test
 
-    result = _test(provider_id)
+    result = await asyncio.to_thread(_test, provider_id)
     return ApiResponse(success=result["success"], data=result)
 
 

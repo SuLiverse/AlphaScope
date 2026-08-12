@@ -26,14 +26,16 @@ class TurtleBreakoutStrategy(BaseStrategy):
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         entry = self.params["entry_period"]
         exit_p = self.params["exit_period"]
-        if len(bars) <= entry:
-            return []
 
         highs = [b.get("high", b["close"]) for b in bars]
         lows = [b.get("low", b["close"]) for b in bars]
         closes = self._closes(bars)
         signals: list[Signal] = []
-        for i in range(entry, len(bars)):
+        for i in range(len(bars)):
+            if i < entry:
+                # warm-up: no Donchian channel yet (signals[i] uses bar i only).
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
+                continue
             prev_high = max(highs[i - entry : i])  # exclude today's high (no look-ahead)
             prev_low = min(lows[i - exit_p : i])
             symbol = bars[i].get("symbol", "")
@@ -52,6 +54,7 @@ class TurtleBreakoutStrategy(BaseStrategy):
                 signals.append(Signal("sell", symbol, reason=f"跌破 {exit_p}日低点 {prev_low:.2f}"))
             else:
                 signals.append(Signal("hold", symbol, reason="通道内"))
+        assert len(signals) == len(bars)
         return signals
 
 

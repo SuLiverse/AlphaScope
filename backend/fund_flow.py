@@ -4,10 +4,6 @@
 - 大盘资金流向（上证/深证 + 主力分布）
 """
 
-import warnings
-
-warnings.filterwarnings("ignore")
-
 import json
 import re
 import time

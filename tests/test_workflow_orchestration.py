@@ -90,29 +90,56 @@ def test_trace_span_creates_span():
 # 4. Prefect 路径 (skipif)
 # ============================================================
 
-prefect_required = pytest.mark.skipif(not wo.is_available("prefect"), reason="prefect 未装")
+
+@pytest.fixture
+def fake_prefect(monkeypatch):
+    """Stub Prefect decorators so tests verify wiring without starting Prefect."""
+
+    def fake_decorator(fn=None, **decorator_kwargs):
+        def wrap(f):
+            def runner(*args, **kwargs):
+                return f(*args, **kwargs)
+
+            runner.__wrapped__ = f
+            runner._prefect_kwargs = decorator_kwargs
+            return runner
+
+        if fn is None:
+            return wrap
+        return wrap(fn)
+
+    monkeypatch.setattr(wo, "_PREFECT", True)
+    monkeypatch.setattr(wo, "_prefect_flow", fake_decorator)
+    monkeypatch.setattr(wo, "_prefect_task", fake_decorator)
 
 
-@prefect_required
-def test_as_prefect_flow_decorates():
+def test_as_prefect_flow_decorates(fake_prefect):
     """as_prefect_flow 应把函数变成 prefect flow。"""
 
     @wo.as_prefect_flow
     def my_flow(x: int) -> int:
         return x * 2
 
-    # prefect flow 仍可同步调用 (同步 flow)
+    # 桩下仍可同步调用
     result = my_flow(5)
     assert result == 10
 
 
-@prefect_required
-def test_as_prefect_task_decorates():
+def test_as_prefect_flow_factory_decorates(fake_prefect):
+    @wo.as_prefect_flow(name="demo-flow")
+    def my_flow(x: int) -> int:
+        return x * 3
+
+    assert my_flow(4) == 12
+    assert my_flow._prefect_kwargs["name"] == "demo-flow"
+
+
+def test_as_prefect_task_decorates(fake_prefect):
     @wo.as_prefect_task
     def my_task(x: int) -> int:
         return x + 1
 
-    assert callable(my_task)
+    assert my_task(4) == 5
 
 
 # ============================================================

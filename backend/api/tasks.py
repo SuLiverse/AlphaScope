@@ -128,6 +128,47 @@ def _sse_data(payload: dict[str, Any] | str) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+def _collect_task_events(
+    queue, task_id: Optional[str], limit: int, terminal_sent: set[str]
+) -> tuple[list[dict[str, Any]], bool]:
+    """返回 (events, done)。done=True 表示指定任务已到终态, 流应结束。"""
+    if task_id:
+        task = queue.get_task(task_id)
+        if not task:
+            return (
+                [
+                    {
+                        "type": "task_failed",
+                        "task_id": task_id,
+                        "status": "failed",
+                        "progress": 100,
+                        "message": "任务不存在",
+                        "error": "任务不存在或已被清理",
+                    }
+                ],
+                True,
+            )
+        tasks = [task]
+    else:
+        tasks = queue.list_tasks(limit=limit)
+
+    events: list[dict[str, Any]] = []
+    done = False
+    for task in tasks:
+        current_task_id = str(task.get("id") or "")
+        if not current_task_id:
+            continue
+        status = task.get("status") or "pending"
+        if status in {"success", "failed", "cancelled"}:
+            if current_task_id in terminal_sent:
+                continue
+            terminal_sent.add(current_task_id)
+            if task_id and current_task_id == task_id:
+                done = True
+        events.append(_task_to_event(task))
+    return events, done
+
+
 class AsyncAnalysisRequest(BaseModel):
     stock_symbol: str = Field(description="股票代码")
     stock_name: str = Field(default="", description="股票名称")
@@ -179,41 +220,14 @@ async def stream_task_events(
         terminal_sent: set[str] = set()
 
         while True:
-            if task_id:
-                task = queue.get_task(task_id)
-                if not task:
-                    yield _sse_data(
-                        {
-                            "type": "task_failed",
-                            "task_id": task_id,
-                            "status": "failed",
-                            "progress": 100,
-                            "message": "任务不存在",
-                            "error": "任务不存在或已被清理",
-                        }
-                    )
-                    return
-                tasks = [task]
+            events, done = await asyncio.to_thread(_collect_task_events, queue, task_id, limit, terminal_sent)
+            if events:
+                for event in events:
+                    yield _sse_data(event)
             else:
-                tasks = queue.list_tasks(limit=limit)
-
-            emitted = False
-            for task in tasks:
-                current_task_id = str(task.get("id") or "")
-                if not current_task_id:
-                    continue
-                status = task.get("status") or "pending"
-                if status in {"success", "failed", "cancelled"}:
-                    if current_task_id in terminal_sent:
-                        continue
-                    terminal_sent.add(current_task_id)
-
-                yield _sse_data(_task_to_event(task))
-                emitted = True
-
-            if not emitted:
                 yield _sse_data(": heartbeat")
-
+            if done:
+                return
             await asyncio.sleep(1)
 
     return StreamingResponse(

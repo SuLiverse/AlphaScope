@@ -1,6 +1,8 @@
-# API Contract Reference (v0.40.8)
+# API Contract Reference
 
 前后端契约文档。所有接口格式以此为准。
+
+> 当前版本以 `pyproject.toml` 为准（撰写时 1.9.x）。
 
 ## 1. ApiResponse 格式
 

@@ -498,3 +498,98 @@ def test_citation_confidence_cap_updates_summary_and_report(monkeypatch):
     assert result["summary"]["confidence_capped_by_citation"] is True
     assert "- 平均置信度: 55.0%" in result["research_report"]
     assert "- 平均置信度: 80.0%" not in result["research_report"]
+
+
+def test_auto_mode_prescreen_failure_degrades_without_escalation():
+    """预筛 LLM 调用抛异常时, Auto 模式就地降级返回, 不再升级 DEEP。"""
+    real_run_agents_with_mode = orchestrator.run_agents_with_mode
+
+    def spy_run_agents_with_mode(*args, **kwargs):
+        return real_run_agents_with_mode(*args, **kwargs)
+
+    with (
+        patch(
+            "backend.runtime.context_builder.build_market_brief",
+            return_value="测试简报",
+        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
+        patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
+        patch(
+            "backend.runtime.orchestrator._call_with",
+            side_effect=RuntimeError("模拟 Provider 挂掉"),
+        ),
+        patch(
+            "backend.runtime.orchestrator.run_agents_with_mode",
+            side_effect=spy_run_agents_with_mode,
+        ) as run_agents_with_mode,
+    ):
+        result = orchestrator.run_agents_with_mode(
+            {"symbol": "600519", "name": "贵州茅台"},
+            mode=AnalysisMode.AUTO,
+        )
+
+    assert result["auto_escalated"] is False
+    assert "降级" in result["mode_name"]
+    assert result["agent_order"] == ["pre_screen"]
+    deep_calls = [c for c in run_agents_with_mode.call_args_list if c.kwargs.get("mode") == AnalysisMode.DEEP]
+    assert deep_calls == []
+    assert "预筛失败" in result["pre_screen_result"]["reason"]
+
+
+def test_auto_mode_confidence_50_still_escalates_to_deep():
+    """预筛正常返回模糊置信度(50)时仍然升级 DEEP, 防止误短路正常升级路径。"""
+    managed_agents = [
+        {
+            "id": "fundamental",
+            "name": "基本面分析师",
+            "description": "分析财报和估值",
+            "system_prompt": "分析基本面",
+            "provider": "deepseek",
+            "model": "deepseek-chat",
+            "enabled": True,
+        }
+    ]
+
+    def fake_run_custom_agent(config, *_args, **_kwargs):
+        return {
+            "key": config["key"],
+            "signal": "观望",
+            "confidence": 60,
+            "reason": "升级分析结果",
+            "ok": True,
+        }
+
+    real_run_agents_with_mode = orchestrator.run_agents_with_mode
+
+    def spy_run_agents_with_mode(*args, **kwargs):
+        return real_run_agents_with_mode(*args, **kwargs)
+
+    with (
+        patch("backend.agent_store.list_agents", return_value=managed_agents),
+        patch(
+            "backend.runtime.context_builder.build_market_brief",
+            return_value="测试简报",
+        ),
+        patch("backend.runtime.context_builder.fetch_evidence_context", return_value=""),
+        patch("backend.runtime.context_builder.fetch_factor_context", return_value=""),
+        patch(
+            "backend.runtime.orchestrator._call_with",
+            return_value='{"signal":"观望","confidence":50,"reason":"模糊结论"}',
+        ),
+        patch(
+            "backend.runtime.orchestrator.run_agents_with_mode",
+            side_effect=spy_run_agents_with_mode,
+        ) as run_agents_with_mode,
+        patch(
+            "backend.agents.financial_agents.run_custom_agent",
+            side_effect=fake_run_custom_agent,
+        ),
+    ):
+        result = orchestrator.run_agents_with_mode(
+            {"symbol": "600519", "name": "贵州茅台"},
+            mode=AnalysisMode.AUTO,
+        )
+
+    assert result["auto_escalated"] is True
+    assert "升级" in result["mode_name"]
+    assert any(c.kwargs.get("mode") == AnalysisMode.DEEP for c in run_agents_with_mode.call_args_list)

@@ -201,13 +201,13 @@ class TaskQueue:
 
     def cancel_task(self, task_id: str) -> bool:
         """取消任务"""
-        with self._state_lock:
-            self._cancelled.add(task_id)
         task = self.get_task(task_id)
         if not task:
             return False
         if task["status"] in ("success", "failed", "cancelled"):
             return False
+        with self._state_lock:
+            self._cancelled.add(task_id)
         # 如果任务还在 pending，直接标记取消
         if task["status"] == "pending":
             db = Database()

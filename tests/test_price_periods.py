@@ -178,6 +178,135 @@ def test_aggregate_yearly_bars_groups_by_calendar_year():
     assert result[0]["frequency"] == "1y"
 
 
+def test_aggregate_weekly_missing_low_bar_does_not_pollute_aggregate_low():
+    bars = [
+        {
+            "symbol": "600519",
+            "date": "2026-05-04",
+            "open": 10,
+            "high": 13,
+            "low": 9,
+            "close": 12,
+            "volume": 100,
+            "amount": 1000,
+            "source": "test",
+        },
+        {
+            "symbol": "600519",
+            "date": "2026-05-05",
+            "open": 12,
+            "high": 15,
+            "low": None,
+            "close": 14,
+            "volume": 200,
+            "amount": 2000,
+            "source": "test",
+        },
+        {
+            "symbol": "600519",
+            "date": "2026-05-06",
+            "open": 12,
+            "high": 14,
+            "low": 11,
+            "close": 13,
+            "volume": 150,
+            "amount": 1500,
+            "source": "test",
+        },
+    ]
+
+    result = aggregate_price_bars(bars, "1w")
+
+    assert result[0]["low"] == 9
+    assert result[0]["low"] > 0
+    assert result[0]["amplitude"] < 100
+
+
+def test_aggregate_skips_period_when_all_bars_are_invalid():
+    bars = [
+        {
+            "symbol": "600519",
+            "date": "2026-05-04",
+            "open": 10,
+            "high": 13,
+            "low": None,
+            "close": 12,
+            "volume": 100,
+            "amount": 1000,
+            "source": "test",
+        },
+        {
+            "symbol": "600519",
+            "date": "2026-05-05",
+            "open": None,
+            "high": 15,
+            "low": 11,
+            "close": 14,
+            "volume": 200,
+            "amount": 2000,
+            "source": "test",
+        },
+    ]
+
+    result = aggregate_price_bars(bars, "1w")
+
+    assert result == []
+
+
+def test_aggregate_single_bar_group_produces_same_bar_values():
+    bars = [
+        {
+            "symbol": "600519",
+            "date": "2026-05-06",
+            "open": 12,
+            "high": 14,
+            "low": 11,
+            "close": 13,
+            "volume": 150,
+            "amount": 1500,
+            "source": "test",
+        },
+    ]
+
+    result = aggregate_price_bars(bars, "1w")
+
+    assert len(result) == 1
+    assert result[0]["open"] == 12
+    assert result[0]["high"] == 14
+    assert result[0]["low"] == 11
+    assert result[0]["close"] == 13
+
+
+def test_aggregate_counts_missing_volume_as_zero():
+    bars = [
+        {
+            "symbol": "600519",
+            "date": "2026-05-04",
+            "open": 10,
+            "high": 13,
+            "low": 9,
+            "close": 12,
+            "amount": 1000,
+            "source": "test",
+        },
+        {
+            "symbol": "600519",
+            "date": "2026-05-05",
+            "open": 12,
+            "high": 15,
+            "low": 11,
+            "close": 14,
+            "volume": 200,
+            "amount": 2000,
+            "source": "test",
+        },
+    ]
+
+    result = aggregate_price_bars(bars, "1w")
+
+    assert result[0]["volume"] == 200
+
+
 def test_cn_trading_minute_filter():
     from datetime import datetime
 

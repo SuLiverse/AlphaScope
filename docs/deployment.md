@@ -73,7 +73,7 @@ docker-compose up -d app api web
 | `api` | 8000 | FastAPI REST / SSE API（100+ 端点） |
 | `web` | 3000 | Vite React 前端（预览服务） |
 
-API 首次启动会生成本地 Token，并通过 Compose 命名卷把 `runtime-config.js` 只读共享给 Web 容器。若浏览器不在 Docker 主机上，启动前设置 `ALPHASCOPE_PUBLIC_API_BASE_URL=http://<主机地址>:8000`。
+API 首次启动会生成本地 Token。Web 容器通过 Compose 命名卷取得 `runtime-config.js` 时**不再包含该 token**（token 不随静态文件分发）；远程访问时首次打开 Web 界面会要求输入一次 token（仅存于当前页面会话的 sessionStorage，关页即清），token 可在 API 容器日志或根 `.env` 的 `ALPHASCOPE_LOCAL_API_TOKEN` 查看。若浏览器不在 Docker 主机上，启动前设置 `ALPHASCOPE_PUBLIC_API_BASE_URL=http://<主机地址>:8000`。API 容器已关闭 uvicorn access log，防止 `local_token` query 参数落日志。
 
 健康检查：
 ```bash

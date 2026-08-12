@@ -6,7 +6,7 @@
 
 import pandas as pd
 from datetime import datetime, timedelta
-from typing import List, Tuple, Optional
+from typing import Dict, List, Optional, Tuple
 
 
 def _normalize_symbol(symbol: str) -> str:
@@ -29,8 +29,8 @@ def _load_history(symbol: str, base_date: datetime) -> Optional[pd.DataFrame]:
     """加载 base_date 前后约 6 个月的日线行情。
 
     Returns:
-        含 ``date``(YYYY-MM-DD 字符串) 与 ``close``(float) 列、按日期升序排列的 DataFrame;
-        失败或为空时返回 None。
+        含 ``date``(YYYY-MM-DD 字符串)、``close``(float) 与 ``volume``(float,缺失补 0)
+        列、按日期升序排列的 DataFrame;失败或为空时返回 None。
     """
     try:
         import akshare as ak
@@ -65,6 +65,10 @@ def _load_history(symbol: str, base_date: datetime) -> Optional[pd.DataFrame]:
         (c for c in df.columns if c in ("close", "收盘", "收盘价", "closeprice")),
         None,
     )
+    volume_col = next(
+        (c for c in df.columns if c in ("volume", "成交量")),
+        None,
+    )
     if date_col is None or close_col is None:
         return None
 
@@ -72,9 +76,11 @@ def _load_history(symbol: str, base_date: datetime) -> Optional[pd.DataFrame]:
         {
             "date": pd.to_datetime(df[date_col]).dt.strftime("%Y-%m-%d"),
             "close": pd.to_numeric(df[close_col], errors="coerce"),
+            "volume": pd.to_numeric(df[volume_col], errors="coerce") if volume_col else 0.0,
         }
     )
     out = out.dropna(subset=["close"]).sort_values("date").reset_index(drop=True)
+    out["volume"] = out["volume"].where(pd.notna(out["volume"]), 0.0)
     return out if not out.empty else None
 
 
@@ -147,6 +153,30 @@ def get_price_range(
             [float(v) for v in future["close"].tolist()],
         )
     )
+
+
+def get_recent_bars(symbol: str, count: int = 5) -> List[Dict[str, float | str]]:
+    """获取最近 count 个交易日的 [{"date","close","volume"}] 序列(按日期升序)。
+
+    供告警检查/行情工具使用;数据失败或为空返回 []。
+    """
+    if not symbol or count <= 0:
+        return []
+
+    base_date = datetime.now()
+    df = _load_history(symbol, base_date)
+    if df is None or df.empty:
+        return []
+
+    recent = df.tail(count)
+    return [
+        {
+            "date": row["date"],
+            "close": float(row["close"]),
+            "volume": float(row["volume"]),
+        }
+        for _, row in recent.iterrows()
+    ]
 
 
 if __name__ == "__main__":

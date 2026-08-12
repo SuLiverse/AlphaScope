@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -229,3 +230,71 @@ async def test_get_peers(client):
     assert resp.status_code == 200
     assert resp.json()["success"] is True
     assert resp.json()["data"]["industry"] == "白酒"
+
+
+# ============== load_fundamentals 缓存行为 ==============
+
+
+def _patch_all_fetches(side_effect=None, **return_values):
+    from backend.fundamentals import (
+        fetch_circulate_holders,
+        fetch_financial_summary,
+        fetch_industry_peers,
+        fetch_inst_changes,
+        fetch_top_holders,
+    )
+
+    def _side_effect(fn):
+        return side_effect if side_effect is not None else return_values.get(fn.__name__, [])
+
+    patchers = []
+    for fn in (
+        fetch_financial_summary,
+        fetch_top_holders,
+        fetch_circulate_holders,
+        fetch_inst_changes,
+        fetch_industry_peers,
+    ):
+        patchers.append((fn.__name__, patch(f"backend.fundamentals.{fn.__name__}", side_effect=_side_effect(fn))))
+    return patchers
+
+
+class TestLoadFundamentalsCache:
+    """错误结果不入缓存，成功结果正常入缓存"""
+
+    def test_all_sources_fail_not_cached(self):
+        from backend.fundamentals import load_fundamentals
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("backend.fundamentals._read_cache", return_value=None))
+            write_spy = stack.enter_context(patch("backend.fundamentals._write_cache"))
+            fetch_mocks = {
+                name: stack.enter_context(p)
+                for name, p in _patch_all_fetches(side_effect=RuntimeError("upstream down"))
+            }
+            first = load_fundamentals("600000")
+            second = load_fundamentals("600000")
+        assert first.has_error is True
+        assert second.has_error is True
+        write_spy.assert_not_called()
+        # fetch 被调了两轮: 错误结果未被缓存短路
+        for fn in (
+            "fetch_financial_summary",
+            "fetch_top_holders",
+            "fetch_circulate_holders",
+            "fetch_inst_changes",
+            "fetch_industry_peers",
+        ):
+            assert fetch_mocks[fn].call_count == 2
+
+    def test_success_result_is_cached(self):
+        from backend.fundamentals import FinancialPeriod, load_fundamentals
+
+        with ExitStack() as stack:
+            stack.enter_context(patch("backend.fundamentals._read_cache", return_value=None))
+            write_spy = stack.enter_context(patch("backend.fundamentals._write_cache"))
+            for _, p in _patch_all_fetches(fetch_financial_summary=[FinancialPeriod(period="2024Q1", revenue_yi=1.0)]):
+                stack.enter_context(p)
+            data = load_fundamentals("600000")
+        assert data.has_error is False
+        write_spy.assert_called_once()
