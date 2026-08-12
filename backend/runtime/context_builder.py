@@ -199,4 +199,7 @@ def build_market_brief(stock_data: Dict[str, Any], evidence_context: str = "", f
         base += f"\n{factor_context}\n"
     if evidence_context:
         base += f"\n{evidence_context}\n"
+    chanlun_brief = str(stock_data.get("chanlun_brief") or "").strip()
+    if chanlun_brief:
+        base += f"\n{chanlun_brief}\n"
     return base

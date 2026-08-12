@@ -275,6 +275,25 @@ def load_experts_config(yaml_path: Optional[Path] = None) -> List[ExpertConfig]:
 _OUTPUT_SCHEMA = ""  # load_experts_config 时填充
 
 
+_CHANLUN_MARK = "【缠论结构标注】"
+
+
+def _is_chanlun_expert(cfg) -> bool:
+    key = (getattr(cfg, "key", "") or getattr(cfg, "id", "") or "").strip().lower()
+    prompt = str(getattr(cfg, "prompt_file", "") or "").replace("\\", "/").lower()
+    return key == "chanlun" or prompt.endswith("chanlun.md") or "/chanlun.md" in prompt
+
+
+def _brief_for_expert(cfg, stock_brief: str) -> str:
+    """Chanlun geometry stays on the Chanlun expert only; others never see the block."""
+    brief = stock_brief or ""
+    if _is_chanlun_expert(cfg):
+        return brief
+    if _CHANLUN_MARK not in brief:
+        return brief
+    return brief.split(_CHANLUN_MARK, 1)[0].rstrip()
+
+
 # ============== 单专家调用 ==============
 def _build_user_message(cfg, stock_brief: str, stock_name: str) -> str:
     """组装专家的 user message: 关注维度 + 市场简报 + 输出 schema"""
@@ -290,13 +309,14 @@ def _build_user_message(cfg, stock_brief: str, stock_name: str) -> str:
 
     focus_line = "、".join(focus_dims) if focus_dims else "综合判断"
     stop_loss_style = getattr(cfg, "stop_loss_style", "中等")
+    brief = _brief_for_expert(cfg, stock_brief)
 
     return f"""请基于以下 {stock_name} 的市场简报,从你的【{style}】视角出发分析。
 
 【你的关注维度】{focus_line}
 【你的止损风格】{stop_loss_style}
 
-{stock_brief}
+{brief}
 
 {schema_text}
 """
@@ -769,6 +789,7 @@ def _build_debate_user_message(cfg, stock_brief: str, stock_name: str, opinions_
 {"view": "...", "evidence": ["...", "..."], "action": "买入|观望|减持|卖出", "position": 30, "stop_loss": 1500.0}"""
     )
 
+    brief = _brief_for_expert(cfg, stock_brief)
     return f"""以下是其他专家对 {stock_name} 的分析意见摘要：
 
 {opinions_summary}
@@ -779,7 +800,7 @@ def _build_debate_user_message(cfg, stock_brief: str, stock_name: str, opinions_
 - 请特别关注是否存在与你判断相反的论据。
 
 原始市场简报:
-{stock_brief}
+{brief}
 
 {schema_text}
 """

@@ -17,6 +17,7 @@ from backend.api.quant_core import (
     _local_run_details,
     _local_runs,
     _local_status_payload,
+    _run_chanlun_local,
     _run_chip_distribution_local,
     _run_evolution_local,
     _run_local_backtest,
@@ -29,6 +30,7 @@ from backend.api.quant_core import (
 )
 from backend.api.quant_schemas import (
     BacktestRequestBody,
+    ChanlunRequestBody,
     ChipDistributionRequestBody,
     EvolveRequestBody,
     ExperimentCompareBody,
@@ -215,6 +217,23 @@ async def run_chip_distribution_endpoint(body: ChipDistributionRequestBody):
             success=False,
             error=str(e),
             error_code="LOCAL_CHIP_DISTRIBUTION_ERROR",
+        )
+
+
+@router.post("/chanlun")
+async def run_chanlun_endpoint(body: ChanlunRequestBody):
+    """缠论结构标注。合并 K / 分型 / 笔 / 中枢 / 背驰, 纯本地、失败安全。
+
+    描述历史走势几何, 不预测涨跌、不构成任何投资建议。同步重计算丢线程池。
+    """
+    try:
+        result = await asyncio.to_thread(_run_chanlun_local, body)
+        return ApiResponse(success=True, data=result, message=result.get("note") or None)
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            error=str(e),
+            error_code="LOCAL_CHANLUN_ERROR",
         )
 
 
