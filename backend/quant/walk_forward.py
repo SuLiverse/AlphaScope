@@ -279,7 +279,7 @@ def _build_window(
         trades=oos_trades,
         initial_capital=oos_open_equity,
         days=n_oos,
-        calendar_days=_calendar_span(slice_bars[oos_start:oos_end]),
+        calendar_days=_calendar_span(bars[oos_start:oos_end]),
     )
 
     is_ann = float(is_perf.get("annualized_return", 0.0))
