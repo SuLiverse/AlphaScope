@@ -3,13 +3,17 @@
 #
 # 所有包缺失时对应能力优雅降级, 不影响核心功能。
 
-mlflow>=3.15.1  # 实验管理/模型注册/LLM trace; 3.2.x carries a pile of 2026 advisories
 optuna>=3.0  # 超参优化
 langgraph>=0.2  # 多 Agent 工作流编排
 evidently>=0.4  # 数据漂移与质量监控
 prefect>=3.0  # Python 工作流 (调度/重试/缓存)
 opentelemetry-sdk>=1.20  # 分布式追踪 (trace/metrics/logs 标准)
 
+# mlflow stays out of the default MLOps bundle: current releases cannot
+# resolve alongside cryptography>=50 (required by core key vault) and older
+# 3.2.x trees trip a large 2026 advisory set. Install explicitly if needed:
+#   pip install mlflow>=3.15.1
+#
 # ragas intentionally stays out of the default MLOps bundle while 0.4.3 is the
 # latest release and carries PYSEC-2026-3046 / CVE-2026-6587 (no fixed release).
 # Install it explicitly only in isolated evaluation environments:

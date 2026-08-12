@@ -57,9 +57,7 @@ jobs:
         python -m pip_audit -r requirements-core.txt -r requirements-api.txt
         python -m pip_audit -r requirements-streamlit.txt
         python -m pip_audit -r requirements-quant.txt
-        # Audit mlops with core so cryptography>=50 from core wins over
-        # mlflow's isolated resolve (which otherwise settles on 49).
-        python -m pip_audit -r requirements-core.txt -r requirements-mlops.txt
+        python -m pip_audit -r requirements-mlops.txt
 
     - name: Set up Node.js
       uses: actions/setup-node@v4

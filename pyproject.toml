@@ -64,7 +64,6 @@ quant = [
     "bt>=1.2",
 ]
 mlops = [
-    "mlflow>=3.15.1",
     "optuna>=3.0",
     "langgraph>=0.2",
     "evidently>=0.4",
@@ -73,6 +72,7 @@ mlops = [
 ]
 pybroker = ["lib-pybroker>=1.2.0"]
 ragas = ["ragas>=0.1"]
+mlflow = ["mlflow>=3.15.1"]
 all = ["alphascope[api,rag,dev,quant,mlops,streamlit]"]
 
 [tool.setuptools.packages.find]
