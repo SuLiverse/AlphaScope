@@ -44,7 +44,7 @@ docker-compose 部署中，API 容器把含 `localApiToken` 的 `runtime-config.
 - `launcher.py:221-228` — 桌面端先例：`uvicorn.Config(..., log_level="warning", access_log=False)`。
 - 前端 token 解析：`apps/web/src/lib/api.ts:11` —
   ```ts
-  export const LOCAL_API_TOKEN = runtimeConfig?.localApiToken || import.meta.env.VITE_LOCAL_API_TOKEN || '';
+  export const LOCAL_API_TOKEN = <runtime-or-vite-env>
   ```
   `:30-34` — 非空时以 `X-AlphaScope-Local-Token` header 发出。`apps/web/index.html:12` 加载 `/runtime-config.js`。
 - 桌面打包路径（`write_runtime_config(..., packaged=True)`，`runtime_config.py:50-62`）写 token 是**安全的**（localhost 边界），本计划不动它。
