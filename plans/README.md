@@ -43,6 +43,12 @@ honor its STOP conditions, and update your row when done.
 | 025 | DCA/回测精确值测试网（**003/004 前置**） | P1 | M | 023 | DONE（分支 `advisor/025-exact-value-test-net` @c8aab49，内含 023 合并，全量 2007 过） |
 | 026 | walk_forward 年化口径随 003 对齐（003 follow-up） | P1 | S | 003 | DONE（随 003 分支 @6a71a46 一起合并，无独立分支） |
 
+## 第三轮（2026-08-13，HEAD `c8fb531` / v1.9.55）
+
+| Plan | Title | Priority | Effort | Depends on | Status |
+|------|-------|----------|--------|------------|--------|
+| 027 | 汲取买卖点工具的结构算法（海龟 N/2N、缠论几何、收紧大形态）；不搬综合打分 | P2 | L | — | TODO |
+
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale — finding fixed independently or approach abandoned)
 
 ## Dependency notes
