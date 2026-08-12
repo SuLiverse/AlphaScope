@@ -15,6 +15,7 @@ import os
 import secrets
 import shutil
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -28,6 +29,7 @@ from typing import Any
 APP_NAME = "研策中枢 AlphaScope"
 DEFAULT_API_PORT = 8000
 DEFAULT_WEB_PORT = 3000
+RUNTIME_MARKER = "alphascope-launcher-v1"
 
 
 class AlphaScopeStaticHandler(SimpleHTTPRequestHandler):
@@ -158,8 +160,7 @@ def ensure_master_key(root: Path) -> None:
             if existing and not existing.endswith("\n"):
                 handle.write("\n")
             handle.write(
-                "\n# 自动生成的主密钥(加密自定义 Provider Key 用),请勿改动或泄露\n"
-                f"AI_FINANCE_MASTER_KEY={key}\n"
+                f"\n# 自动生成的主密钥(加密自定义 Provider Key 用),请勿改动或泄露\nAI_FINANCE_MASTER_KEY={key}\n"
             )
         print("[AlphaScope] Generated persistent master key in .env")
     except OSError as exc:
@@ -232,13 +233,9 @@ def start_api(api_port: int) -> threading.Thread:
     return thread
 
 
-def start_web(
-    web_dir: Path, web_port: int
-) -> tuple[ThreadingHTTPServer, threading.Thread]:
+def start_web(web_dir: Path, web_port: int) -> tuple[ThreadingHTTPServer, threading.Thread]:
     if not (web_dir / "index.html").exists():
-        raise FileNotFoundError(
-            f"Missing built frontend at {web_dir}. Run npm run build before packaging."
-        )
+        raise FileNotFoundError(f"Missing built frontend at {web_dir}. Run npm run build before packaging.")
 
     handler = partial(AlphaScopeStaticHandler, directory=str(web_dir))
     server = ThreadingHTTPServer(("127.0.0.1", web_port), handler)
@@ -253,9 +250,7 @@ def start_web(
 
 def wait_for_http(port: int, path: str = "/", timeout: float = 30.0) -> bool:
     deadline = time.time() + timeout
-    request = (
-        f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
-    )
+    request = f"GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nConnection: close\r\n\r\n"
     while time.time() < deadline:
         try:
             with socket.create_connection(("127.0.0.1", port), timeout=1.5) as sock:
@@ -270,15 +265,19 @@ def wait_for_http(port: int, path: str = "/", timeout: float = 30.0) -> bool:
 
 def write_pid_file(root: Path, api_port: int, web_port: int) -> None:
     pid_file = root / ".alphascope_runtime.json"
+    resolved_root = root.resolve()
+    identity = _process_identity(os.getpid()) or {}
     data: dict[str, Any] = {
+        "marker": RUNTIME_MARKER,
         "pid": os.getpid(),
         "api_port": api_port,
         "web_port": web_port,
+        "runtime_root": str(resolved_root),
+        "executable": identity.get("executable", str(Path(sys.executable).resolve())),
+        "process_start_token": identity.get("process_start_token", ""),
         "started_at": time.strftime("%Y-%m-%d %H:%M:%S"),
     }
-    pid_file.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    pid_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def remove_pid_file(root: Path) -> None:
@@ -286,6 +285,106 @@ def remove_pid_file(root: Path) -> None:
         (root / ".alphascope_runtime.json").unlink()
     except FileNotFoundError:
         pass
+
+
+def _process_identity(pid: int) -> dict[str, str] | None:
+    if sys.platform.startswith("win"):
+        query = (
+            f'$p = Get-CimInstance Win32_Process -Filter "ProcessId={pid}"; '
+            "if ($null -eq $p) { exit 3 }; "
+            "$created = if ($null -ne $p.CreationDate) "
+            "{ $p.CreationDate.ToUniversalTime().Ticks.ToString() } else { '' }; "
+            "[pscustomobject]@{ "
+            "executable = [string]$p.ExecutablePath; "
+            "process_start_token = [string]$created "
+            "} | ConvertTo-Json -Compress"
+        )
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", query],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if result.returncode != 0:
+            return None
+        try:
+            identity = json.loads(result.stdout)
+        except (json.JSONDecodeError, TypeError):
+            return None
+        executable = str(identity.get("executable", "")).strip()
+        process_start_token = str(identity.get("process_start_token", "")).strip()
+        if not executable or not process_start_token:
+            return None
+        return {
+            "executable": executable,
+            "process_start_token": process_start_token,
+        }
+
+    proc_dir = Path("/proc") / str(pid)
+    try:
+        executable = str((proc_dir / "exe").resolve(strict=True))
+        stat = (proc_dir / "stat").read_text(encoding="utf-8")
+    except OSError:
+        return None
+    closing_paren = stat.rfind(")")
+    fields = stat[closing_paren + 2 :].split() if closing_paren >= 0 else []
+    if len(fields) <= 19:
+        return None
+    return {
+        "executable": executable,
+        "process_start_token": fields[19],
+    }
+
+
+def _normalized_path(value: str) -> str:
+    return os.path.normcase(os.path.abspath(value)).casefold()
+
+
+def _runtime_marker_trusted(root: Path, data: dict[str, Any], identity: dict[str, str] | None) -> bool:
+    if data.get("marker") != RUNTIME_MARKER:
+        return False
+
+    try:
+        expected_root = _normalized_path(str(root.resolve()))
+    except OSError:
+        expected_root = _normalized_path(str(root))
+    marker_root = _normalized_path(str(data.get("runtime_root", "")))
+    if marker_root != expected_root:
+        return False
+
+    if not identity:
+        return False
+    marker_executable = str(data.get("executable", "")).strip()
+    marker_token = str(data.get("process_start_token", "")).strip()
+    live_executable = str(identity.get("executable", "")).strip()
+    live_token = str(identity.get("process_start_token", "")).strip()
+    if not all((marker_executable, marker_token, live_executable, live_token)):
+        return False
+    return _normalized_path(marker_executable) == _normalized_path(live_executable) and secrets.compare_digest(
+        marker_token, live_token
+    )
+
+
+def _terminate_process_tree(pid: int) -> bool:
+    if sys.platform.startswith("win"):
+        command = ["taskkill", "/PID", str(pid), "/T", "/F"]
+    else:
+        command = ["kill", str(pid)]
+    try:
+        result = subprocess.run(
+            command,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
 
 
 def stop_running_instance(root: Path) -> int:
@@ -309,10 +408,16 @@ def stop_running_instance(root: Path) -> int:
         print("[AlphaScope] Refusing to stop current process.")
         return 1
 
-    if sys.platform.startswith("win"):
-        os.system(f"taskkill /PID {pid} /T /F >NUL 2>NUL")
-    else:
-        os.system(f"kill {pid} >/dev/null 2>&1")
+    identity = _process_identity(pid)
+    if not _runtime_marker_trusted(root, data, identity):
+        pid_file.unlink(missing_ok=True)
+        print(f"[AlphaScope] Removed stale or untrusted runtime marker for PID {pid}; no process was killed.")
+        return 1
+
+    if not _terminate_process_tree(pid):
+        print(f"[AlphaScope] Failed to stop PID {pid}.")
+        return 1
+
     pid_file.unlink(missing_ok=True)
     print(f"[AlphaScope] Stop signal sent to PID {pid}.")
     return 0
@@ -346,12 +451,8 @@ def configure_runtime_environment(root: Path) -> None:
 
 def run() -> int:
     parser = argparse.ArgumentParser(description=f"{APP_NAME} desktop launcher")
-    parser.add_argument(
-        "--stop", action="store_true", help="stop a running local instance"
-    )
-    parser.add_argument(
-        "--no-browser", action="store_true", help="do not open browser automatically"
-    )
+    parser.add_argument("--stop", action="store_true", help="stop a running local instance")
+    parser.add_argument("--no-browser", action="store_true", help="do not open browser automatically")
     args = parser.parse_args()
 
     root = runtime_root()
@@ -368,12 +469,8 @@ def run() -> int:
     load_dotenv(root)
     ensure_master_key(root)
 
-    api_port = find_free_port(
-        int(os.environ.get("ALPHASCOPE_API_PORT", DEFAULT_API_PORT))
-    )
-    web_port = find_free_port(
-        int(os.environ.get("ALPHASCOPE_WEB_PORT", DEFAULT_WEB_PORT))
-    )
+    api_port = find_free_port(int(os.environ.get("ALPHASCOPE_API_PORT", DEFAULT_API_PORT)))
+    web_port = find_free_port(int(os.environ.get("ALPHASCOPE_WEB_PORT", DEFAULT_WEB_PORT)))
     local_api_token = generate_local_api_token()
     os.environ["ALPHASCOPE_LOCAL_API_TOKEN"] = local_api_token
 
@@ -397,9 +494,7 @@ def run() -> int:
         api_ready = wait_for_http(api_port, "/health", timeout=45)
         web_ready = wait_for_http(web_port, "/", timeout=15)
         if not api_ready:
-            print(
-                "[AlphaScope] Warning: backend health check timed out; opening UI anyway."
-            )
+            print("[AlphaScope] Warning: backend health check timed out; opening UI anyway.")
         if not web_ready:
             raise RuntimeError("Frontend service did not become ready.")
 

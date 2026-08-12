@@ -3,7 +3,7 @@
 ## 前置条件
 
 - Python 3.11+
-- Node.js 18+
+- Node.js 20.19.x 或 22.12+
 - 至少一个 LLM API Key（推荐 DeepSeek）
 
 ## 一键启动（推荐）
@@ -56,7 +56,7 @@ cd apps/web && npm install && cd ../..
 
 ```bash
 # FastAPI 后端
-uvicorn backend.api.main:app --host 0.0.0.0 --port 8000
+uvicorn backend.api.main:app --host 127.0.0.1 --port 8000
 
 # Vite React 前端（新终端）
 cd apps/web && npm run dev
@@ -79,7 +79,7 @@ python scripts/check_env.py
 
 检查项：
 - Python 版本 >= 3.11
-- Node.js 版本 >= 18
+- Node.js 版本为 20.19.x 或 >= 22.12.0
 - npm 可用
 - Python 依赖已安装
 - .env 文件存在

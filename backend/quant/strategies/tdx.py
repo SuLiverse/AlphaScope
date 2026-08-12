@@ -23,16 +23,19 @@ class TdxStrategy(BaseStrategy):
     }
 
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
-        formula = str(self.params.get("formula") or "").strip()
-        if not formula or not bars:
+        if not bars:
             return []
+        formula = str(self.params.get("formula") or "").strip()
+        if not formula:
+            # 无公式:与 bars 等长的 hold(引擎侧等同无信号),不破坏长度契约。
+            return [Signal("hold", bar.get("symbol", ""), reason="无公式") for bar in bars]
 
         from ..tdx_compiler import evaluate_formula
 
         result = evaluate_formula(formula, bars)
         if not result.ok:
-            # 坏公式:不产生任何信号(失败安全,绝不伪造交易)。
-            return []
+            # 坏公式:全部 hold(失败安全,绝不伪造交易)。
+            return [Signal("hold", bar.get("symbol", ""), reason="公式无效") for bar in bars]
 
         buy, sell = result.buy, result.sell
         signals: list[Signal] = []
@@ -45,6 +48,7 @@ class TdxStrategy(BaseStrategy):
                 signals.append(Signal("sell", sym, reason="TDX 卖出信号"))
             else:
                 signals.append(Signal("hold", sym, reason="无信号"))
+        assert len(signals) == len(bars)
         return signals
 
 

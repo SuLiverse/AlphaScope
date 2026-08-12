@@ -137,7 +137,10 @@ class TestStrategy:
 
         strat = StrategyRegistry.create("tdx", {"formula": ""})
         bars = _bars_from_closes([10] * 30)
-        assert strat.generate_signals(bars, {"equity": 100000}) == []
+        sigs = strat.generate_signals(bars, {"equity": 100000})
+        # 契约:与 bars 等长, 空公式整段为 hold(引擎侧等同无信号)
+        assert len(sigs) == len(bars)
+        assert all(s.action == "hold" for s in sigs)
 
     def test_signals_align_to_bars(self):
         from backend.quant.strategies import StrategyRegistry

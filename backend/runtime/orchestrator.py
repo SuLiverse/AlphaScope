@@ -1020,6 +1020,7 @@ def _run_auto_mode(
         },
     ]
 
+    pre_screen_failed = False
     try:
         text = _call_with(
             pre_screen_route["provider"],
@@ -1034,12 +1035,13 @@ def _run_auto_mode(
         pre_confidence = int(pre_result.get("confidence", 50))
         pre_reason = pre_result.get("reason", "")
     except Exception as e:
+        pre_screen_failed = True
         pre_signal = "观望"
         pre_confidence = 50
         pre_reason = f"预筛失败: {e}"
 
-    # Check if escalation is needed
-    if pre_confidence < config.escalate_below or pre_confidence > config.escalate_above:
+    def _build_pre_screen_direct_result(mode_name: str) -> Dict[str, Any]:
+        """预筛直出响应构造 (正常直出与失败降级共用, 修改需同步两处调用)。"""
         pre_screen_agents = {
             "pre_screen": {
                 "key": "pre_screen",
@@ -1082,7 +1084,7 @@ def _run_auto_mode(
             "risk_gate": None,
             "data_verification": verification.to_dict(),
             "mode": "auto",
-            "mode_name": "自动模式 (预筛直接输出)",
+            "mode_name": mode_name,
             "auto_escalated": False,
             "pre_screen_result": {
                 "signal": pre_signal,
@@ -1090,6 +1092,14 @@ def _run_auto_mode(
                 "reason": pre_reason,
             },
         }
+
+    if pre_screen_failed:
+        # 预筛失败: 就地降级返回, 不再升级 DEEP (与下方正常直出共用同一构造)
+        return _build_pre_screen_direct_result("自动模式 (预筛失败, 已降级)")
+
+    # Check if escalation is needed
+    if pre_confidence < config.escalate_below or pre_confidence > config.escalate_above:
+        return _build_pre_screen_direct_result("自动模式 (预筛直接输出)")
 
     # Escalation needed: run full DEEP analysis
     deep_result = run_agents_with_mode(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import sqlite3
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -193,6 +195,33 @@ class TestDCASimulation:
         assert resp.json()["success"] is False
         assert resp.json()["error_code"] == "FUND_NO_DATA"
 
+    @pytest.mark.anyio
+    async def test_legacy_dca_simulate_formula(self, client):
+        # growth=1.1, periods=2, amount=1000: dca = 1000*1.1 + 1000 = 2100,
+        # lumpsum = 2000*1.1^2 = 2420, winner = "lumpsum"
+        resp = await client.post(
+            "/api/funds/dca/simulate",
+            json={"amount_per_period": 1000, "periods": 2, "annual_growth_pct": 10},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["dca"]["final_value"] == pytest.approx(2100.0)
+        assert data["lumpsum"]["final_value"] == pytest.approx(2420.0)
+        assert data["winner"] == "lumpsum"
+
+    @pytest.mark.anyio
+    async def test_legacy_dca_no_date_branch_formula(self, client):
+        # 无日期分支同样走 _legacy_dca_result，数值与手工抽查一致
+        resp = await client.post(
+            "/api/fund-dca/simulate",
+            json={"fund_code": "000001", "amount": 1000, "periods": 2, "annual_growth_pct": 10},
+        )
+        assert resp.status_code == 200
+        data = resp.json()["data"]
+        assert data["dca"]["final_value"] == pytest.approx(2100.0)
+        assert data["lumpsum"]["final_value"] == pytest.approx(2420.0)
+        assert data["winner"] == "lumpsum"
+
 
 # ========== 组合管理 ==========
 
@@ -222,6 +251,81 @@ class TestPortfolioCRUD:
             resp = await client.get("/api/fund-portfolio")
         assert resp.status_code == 200
         assert resp.json()["success"] is True
+
+    @pytest.mark.anyio
+    async def test_create_portfolio_db_failure_returns_success_false(self, client):
+        # 成功路径（不 fail）: 仍返回 success=True，防止过度 mock
+        ok_mgr = PortfolioManager(db=_FlakyDb())
+        with patch("backend.api.funds._get_portfolio_mgr", return_value=ok_mgr):
+            resp = await client.post(
+                "/api/fund-portfolio",
+                json={"name": "正常组合", "description": "desc"},
+            )
+        assert resp.json()["success"] is True
+
+        # DB 事务抛错: 显式失败而非假成功
+        db = _FlakyDb()
+        mgr = PortfolioManager(db=db)  # 构造消耗第 1 次事务（CREATE TABLE）
+        db.fail_from(2)  # create 的 INSERT 事务抛错
+        with patch("backend.api.funds._get_portfolio_mgr", return_value=mgr):
+            resp = await client.post(
+                "/api/fund-portfolio",
+                json={"name": "失败组合", "description": "desc"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert data["error"]
+        assert data["error_code"] == "PORTFOLIO_SAVE_FAILED"
+
+    @pytest.mark.anyio
+    async def test_update_portfolio_db_failure_returns_success_false(self, client):
+        # 成功路径（不 fail）: 仍返回 success=True，防止过度 mock
+        ok_db = _FlakyDb()
+        ok_mgr = PortfolioManager(db=ok_db)
+        ok_created = ok_mgr.create(name="正常组合")
+        with patch("backend.api.funds._get_portfolio_mgr", return_value=ok_mgr):
+            resp = await client.put(
+                f"/api/fund-portfolio/{ok_created['id']}",
+                json={"name": "新名字"},
+            )
+        assert resp.json()["success"] is True
+
+        # DB 事务抛错: 显式失败而非假成功
+        db = _FlakyDb()
+        mgr = PortfolioManager(db=db)  # 第 1 次事务: CREATE TABLE
+        created = mgr.create(name="原组合")  # 第 2 次事务: INSERT 成功
+        db.fail_from(4)  # 第 3 次事务（get）成功, 第 4 次（UPDATE）抛错
+        with patch("backend.api.funds._get_portfolio_mgr", return_value=mgr):
+            resp = await client.put(
+                f"/api/fund-portfolio/{created['id']}",
+                json={"name": "新名字"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert data["error"]
+        assert data["error_code"] == "PORTFOLIO_SAVE_FAILED"
+
+
+class _FlakyDb:
+    """共享内存 SQLite 库，达到 fail_from 次数后 transaction() 抛错。"""
+
+    def __init__(self):
+        self._conn = sqlite3.connect(":memory:")
+        self._conn.row_factory = sqlite3.Row
+        self._calls = 0
+        self._fail_from = 0
+
+    def fail_from(self, n: int):
+        self._fail_from = n
+
+    @contextmanager
+    def transaction(self):
+        self._calls += 1
+        if self._fail_from and self._calls >= self._fail_from:
+            raise RuntimeError("disk full")
+        yield self._conn
 
 
 # ========== 定投计划 ==========

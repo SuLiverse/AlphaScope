@@ -25,12 +25,14 @@ class BollingerBreakStrategy(BaseStrategy):
 
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
         period = self.params["period"]
-        if len(bars) < period:
-            return []
 
         closes = self._closes(bars)
         signals: list[Signal] = []
-        for i in range(period - 1, len(bars)):
+        for i in range(len(bars)):
+            if i < period - 1:
+                # warm-up: band needs `period` closes through bar i.
+                signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
+                continue
             window = closes[i - period + 1 : i + 1]
             mid = sum(window) / period
             var = sum((v - mid) ** 2 for v in window) / period
@@ -53,6 +55,7 @@ class BollingerBreakStrategy(BaseStrategy):
                 signals.append(Signal("sell", symbol, reason=f"跌破布林中轨 ({close:.2f}<{mid:.2f})"))
             else:
                 signals.append(Signal("hold", symbol, reason="轨道内运行"))
+        assert len(signals) == len(bars)
         return signals
 
 

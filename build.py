@@ -41,7 +41,7 @@ def npm_command() -> str:
     npm = shutil.which("npm.cmd") or shutil.which("npm")
     if not npm:
         raise RuntimeError(
-            "Node.js/npm not found. Install Node.js 20+ to build the web UI."
+            "Node.js/npm not found. Install Node.js 20.19.x or >=22.12.0 to build the web UI."
         )
     return npm
 

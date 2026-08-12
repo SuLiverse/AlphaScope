@@ -81,6 +81,9 @@ feedback/
 
 # Stray test artifacts
 analysis_out.json
+pytest_out*.txt
+output/
+.playwright-cli/
 
 # filter-branch/filter-repo 临时产物
 .git-rewrite/

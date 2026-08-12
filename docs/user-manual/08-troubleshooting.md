@@ -26,7 +26,7 @@ python --version
 # 检查 Node.js 版本
 node --version
 
-# 需要 18 或更高版本
+# 需要 20.19.x，或 22.12.0 及更高版本
 # 如果版本过低，请升级 Node.js
 ```
 

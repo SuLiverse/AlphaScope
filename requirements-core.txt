@@ -11,15 +11,14 @@ pandas==3.0.3
 numpy==2.4.5
 mcp>=1.0  # Model Context Protocol server (暴露研究工具给外部 LLM); 缺失时 MCP 能力降级, 不影响其余功能
 akshare==1.18.60
-requests==2.32.3
-curl_cffi==0.13.0
+requests==2.33.0
+curl_cffi==0.15.0
 openai==2.3.0
-python-dotenv==1.1.0
+python-dotenv==1.2.2
 pyyaml==6.0.2
 ruamel.yaml>=0.18,<0.19  # 保留注释的 YAML round-trip 编辑 (数据源权重配置); 不可用时回退 PyYAML
 pydantic==2.11.3
 tenacity==9.1.2
-aiohttp==3.12.4
 apscheduler==3.11.0
 cryptography>=43.0  # AES-GCM 加密 API 密钥 (key_vault.py); 缺失时降级为不安全的 XOR
 python-multipart>=0.0.20  # FastAPI 文件上传 (UploadFile) 必需

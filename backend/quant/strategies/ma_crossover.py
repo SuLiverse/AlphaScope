@@ -22,16 +22,15 @@ class MAStrategy(BaseStrategy):
     }
 
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
-        if len(bars) < self.params["long_period"]:
-            return []
-
         closes = self._closes(bars)
         short_ma = self._sma(closes, self.params["short_period"])
         long_ma = self._sma(closes, self.params["long_period"])
 
         signals = []
-        for i in range(1, len(bars)):
+        for i in range(len(bars)):
             if i < self.params["long_period"]:
+                # warm-up (i == 0 included): signals[i] must be produced by
+                # bar i (inclusive) so the engine's i -> i+1 fill is safe.
                 signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
                 continue
 
@@ -61,6 +60,7 @@ class MAStrategy(BaseStrategy):
             else:
                 signals.append(Signal("hold", bars[i].get("symbol", ""), reason="无信号"))
 
+        assert len(signals) == len(bars)
         return signals
 
 

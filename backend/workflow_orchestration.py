@@ -123,11 +123,14 @@ def init_tracing(service_name: str = "alphascope") -> dict[str, Any]:
     try:
         from opentelemetry.sdk.trace.export import (
             ConsoleSpanExporter,
-            BatchSpanProcessor,
+            SimpleSpanProcessor,
         )
 
         provider = _OtelProvider()  # type: ignore[misc]
-        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+        # Console tracing is primarily a local/dev fallback. A synchronous
+        # processor avoids a background exporter thread racing interpreter
+        # shutdown (and keeps short-lived CLI/test processes quiet).
+        provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
         _otel_trace.set_tracer_provider(provider)  # type: ignore[union-attr]
         _otel_initialized = True
         base["ok"] = True

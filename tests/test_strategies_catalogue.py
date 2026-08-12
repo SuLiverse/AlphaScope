@@ -253,7 +253,11 @@ class TestNewStrategiesGenerateSignals:
             assert len(result.equity_curve) > 0
 
     def test_strategies_handle_insufficient_bars(self):
-        """All strategies must return [] gracefully when bars are too few."""
+        """All strategies must degrade gracefully when bars are too few.
+
+        New contract (plan 003): signals stay aligned to len(bars), warm-up
+        positions are padded with hold — the engine treats them as no orders.
+        """
         from backend.quant.strategies import (
             BollingerBreakStrategy,
             DipReversalStrategy,
@@ -270,4 +274,6 @@ class TestNewStrategiesGenerateSignals:
             VolumeBreakStrategy,
             TurtleBreakoutStrategy,
         ):
-            assert cls().generate_signals(tiny) == []
+            sigs = cls().generate_signals(tiny)
+            assert len(sigs) == len(tiny)
+            assert all(s.action == "hold" for s in sigs)

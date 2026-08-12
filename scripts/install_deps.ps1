@@ -28,7 +28,22 @@ Write-Host "`n检查 Node.js..." -ForegroundColor Yellow
 $nodeVer = node --version 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[FAIL] Node.js 未安装" -ForegroundColor Red
-    Write-Host "请访问 https://nodejs.org/ 安装 Node.js 18+" -ForegroundColor Yellow
+    Write-Host "请访问 https://nodejs.org/ 安装 Node.js 20.19.x 或 22.12+" -ForegroundColor Yellow
+    exit 1
+}
+try {
+    $nodeVersion = [version]($nodeVer.ToString().Trim().TrimStart("v").Split("-")[0])
+} catch {
+    Write-Host "[FAIL] 无法识别 Node.js 版本: $nodeVer" -ForegroundColor Red
+    exit 1
+}
+$nodeSupported = (
+    ($nodeVersion.Major -eq 20 -and $nodeVersion -ge [version]"20.19.0") -or
+    $nodeVersion -ge [version]"22.12.0"
+)
+if (-not $nodeSupported) {
+    Write-Host "[FAIL] 当前 Node.js 版本不受支持: $nodeVer" -ForegroundColor Red
+    Write-Host "请安装 Node.js 20.19.x 或 22.12+" -ForegroundColor Yellow
     exit 1
 }
 Write-Host "[OK] Node.js $nodeVer" -ForegroundColor Green

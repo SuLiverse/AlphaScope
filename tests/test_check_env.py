@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 # 将 scripts/ 加入 sys.path 以便导入
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent / "scripts"
 if str(SCRIPTS_DIR) not in sys.path:
@@ -38,6 +40,23 @@ def test_check_python_rejects_unsupported_newer_runtime():
     mock_ver = SimpleNamespace(major=3, minor=13, micro=0)
     with patch.object(sys, "version_info", mock_ver):
         assert check_env.check_python() is False
+
+
+@pytest.mark.parametrize(
+    ("reported", "expected"),
+    [
+        ("v20.18.3", False),
+        ("v20.19.0", True),
+        ("v21.7.3", False),
+        ("v22.11.0", False),
+        ("v22.12.0", True),
+        ("v24.1.0", True),
+        ("not-a-version", False),
+    ],
+)
+def test_check_node_matches_package_engine(reported, expected):
+    with patch.object(check_env, "_cmd_version", return_value=reported):
+        assert check_env.check_node() is expected
 
 
 def test_check_env_file_missing(tmp_path):

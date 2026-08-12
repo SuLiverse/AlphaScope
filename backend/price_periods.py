@@ -97,14 +97,26 @@ def aggregate_price_bars(bars: list[dict[str, Any]], frequency: str) -> list[dic
     out: list[dict[str, Any]] = []
     previous_close = 0.0
     for group in groups:
-        first_dt, first_bar = group[0]
-        last_dt, last_bar = group[-1]
+        valid = [
+            bar
+            for _, bar in group
+            if _as_number(bar.get("open")) > 0
+            and _as_number(bar.get("high")) > 0
+            and _as_number(bar.get("low")) > 0
+            and _as_number(bar.get("close")) > 0
+        ]
+        if not valid:
+            continue
+        # 组内 bar 已按日期升序排序，valid 保持该顺序：用 valid[0]/valid[-1]
+        # 而非原 first_bar/last_bar，确保 open/close/日期都来自首个/末个合法 bar。
+        first_dt, first_bar = next(item for item in group if item[1] is valid[0])
+        last_dt, last_bar = next(item for item in group if item[1] is valid[-1])
         open_price = _as_number(first_bar.get("open"))
         close = _as_number(last_bar.get("close"))
-        high = max(_as_number(bar.get("high")) for _, bar in group)
-        low = min(_as_number(bar.get("low")) for _, bar in group)
-        volume = sum(_as_number(bar.get("volume")) for _, bar in group)
-        amount = sum(_as_number(bar.get("amount")) for _, bar in group)
+        high = max(_as_number(bar.get("high")) for bar in valid)
+        low = min(_as_number(bar.get("low")) for bar in valid)
+        volume = sum(_as_number(bar.get("volume")) for bar in valid)
+        amount = sum(_as_number(bar.get("amount")) for bar in valid)
         base = previous_close or open_price or close
         change_pct = ((close - base) / base * 100) if base else 0.0
         amplitude = ((high - low) / base * 100) if base else 0.0

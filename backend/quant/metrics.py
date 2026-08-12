@@ -44,18 +44,32 @@ def calc_max_drawdown(equity_curve: list[float]) -> float:
 
 
 def calc_annualized_return(total_return: float, days: int) -> float:
-    """Annualized return from total return and holding days."""
+    """Annualized return from total return and holding days.
+
+    ``days`` is the holding period in **natural (calendar) days**; the caller
+    must not feed a trading-day count (≈252/year) into a 365-day exponent.
+    """
     if days <= 0:
         return 0.0
     return (1 + total_return) ** (365.0 / days) - 1
 
 
 def calc_win_rate(trades: list[dict[str, Any]]) -> float:
-    """Win rate: fraction of profitable trades."""
+    """Win rate: fraction of profitable closed trades.
+
+    Engine trade lists contain both entries (``buy``, always ``pnl=0``) and
+    exits. Counting entries in the denominator halves the apparent win rate.
+    Generic callers without a ``side`` field retain the legacy PnL-list
+    behavior.
+    """
     if not trades:
         return 0.0
-    wins = sum(1 for t in trades if t.get("pnl", 0) > 0)
-    return wins / len(trades)
+    has_side = any("side" in trade for trade in trades)
+    closed = [trade for trade in trades if str(trade.get("side", "")).lower() == "sell"] if has_side else trades
+    if not closed:
+        return 0.0
+    wins = sum(1 for trade in closed if trade.get("pnl", 0) > 0)
+    return wins / len(closed)
 
 
 def calc_profit_factor(trades: list[dict[str, Any]]) -> float:
@@ -157,6 +171,12 @@ def calc_excess_return(strategy_curve: list[float], benchmark_curve: list[float]
     return strat_ret - bench_ret
 
 
+def _round_json_float(value: float, digits: int) -> float | None:
+    if not math.isfinite(value):
+        return None
+    return round(value, digits)
+
+
 def calc_information_ratio(
     strategy_returns: list[float],
     benchmark_returns: list[float],
@@ -185,9 +205,14 @@ def build_performance_summary(
     days: int,
     benchmark_curve: list[float] | None = None,
     benchmark_name: str = "",
+    calendar_days: int | None = None,
 ) -> dict[str, Any]:
     """Build a complete performance summary from equity curve and trades.
 
+    ``days`` is the trading-day (bar) count and feeds the ``trading_days``
+    field. ``calendar_days`` is the annualization basis (natural days between
+    first and last bar); when provided it drives ``annualized_return`` /
+    ``calmar_ratio`` instead of ``days``, so the two bases never mix.
     若提供 benchmark_curve(如沪深300净值), 额外计算超额收益/信息比率/alpha/beta;
     无基准时这些字段为 0/None, 不影响主指标(优雅降级)。
     """
@@ -195,21 +220,26 @@ def build_performance_summary(
     final_equity = equity_curve[-1] if equity_curve else initial_capital
     total_ret = calc_total_return(initial_capital, final_equity)
     max_dd = calc_max_drawdown(equity_curve)
+    ann_days = calendar_days if calendar_days is not None else days
 
     summary = {
-        "total_return": round(total_ret * 100, 2),
-        "annualized_return": round(calc_annualized_return(total_ret, days) * 100, 2),
-        "max_drawdown": round(max_dd * 100, 2),
-        "sharpe_ratio": round(calc_sharpe(returns), 2),
-        "sortino_ratio": round(calc_sortino(returns), 2),
-        "calmar_ratio": round(calc_calmar(total_ret, max_dd, days), 2),
-        "win_rate": round(calc_win_rate(trades) * 100, 2),
-        "profit_factor": round(calc_profit_factor(trades), 2),
+        "total_return": _round_json_float(total_ret * 100, 2),
+        "annualized_return": _round_json_float(calc_annualized_return(total_ret, ann_days) * 100, 2),
+        "max_drawdown": _round_json_float(max_dd * 100, 2),
+        "sharpe_ratio": _round_json_float(calc_sharpe(returns), 2),
+        "sortino_ratio": _round_json_float(calc_sortino(returns), 2),
+        "calmar_ratio": _round_json_float(calc_calmar(total_ret, max_dd, ann_days), 2),
+        "win_rate": _round_json_float(calc_win_rate(trades) * 100, 2),
+        "profit_factor": _round_json_float(calc_profit_factor(trades), 2),
         "total_trades": len(trades),
         "initial_capital": initial_capital,
-        "final_equity": round(final_equity, 2),
+        "final_equity": _round_json_float(final_equity, 2),
+        # trading_days keeps its meaning: trading-day (bar) count, never
+        # conflated with the calendar-days annualization basis.
         "trading_days": days,
     }
+    if calendar_days is not None:
+        summary["calendar_days"] = calendar_days
     # 选择偏差校正指标(默认 n_trials=1; 扫描/进化侧可再 attach)
     try:
         from backend.quant.metrics_advanced import attach_selection_bias_metrics
@@ -224,10 +254,10 @@ def build_performance_summary(
     summary["has_benchmark"] = has_benchmark
     summary["benchmark_name"] = benchmark_name if has_benchmark else ""
     if has_benchmark:
-        summary["excess_return"] = round(calc_excess_return(equity_curve, benchmark_curve) * 100, 2)
-        summary["information_ratio"] = round(calc_information_ratio(returns, bench_returns), 2)
-        summary["beta"] = round(calc_beta(returns, bench_returns), 3)
-        summary["alpha"] = round(calc_alpha(returns, bench_returns), 3)
+        summary["excess_return"] = _round_json_float(calc_excess_return(equity_curve, benchmark_curve) * 100, 2)
+        summary["information_ratio"] = _round_json_float(calc_information_ratio(returns, bench_returns), 2)
+        summary["beta"] = _round_json_float(calc_beta(returns, bench_returns), 3)
+        summary["alpha"] = _round_json_float(calc_alpha(returns, bench_returns), 3)
     else:
         summary["excess_return"] = 0.0
         summary["information_ratio"] = 0.0

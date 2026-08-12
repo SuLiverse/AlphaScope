@@ -48,7 +48,8 @@ services:
       dockerfile: Dockerfile
       target: api
     container_name: alphascope-api
-    command: ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    # access log 关闭:query-token 兼容期间防止 local_token 落入容器日志
+    command: ["python", "-m", "uvicorn", "backend.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
     ports:
       - "8000:8000"
     volumes:

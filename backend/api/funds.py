@@ -320,7 +320,7 @@ async def get_fund_metrics(code: str):
                 error_code="FUND_NO_DATA",
             )
         navs = [r["nav"] for r in records]
-        metrics = calc_fund_metrics(navs)
+        metrics = calc_fund_metrics(navs, dates=[r["date"] for r in records])
         metrics["code"] = code
         return ApiResponse(success=True, data=metrics)
     except Exception as e:
@@ -333,17 +333,20 @@ async def get_fund_metrics(code: str):
 
 
 def _legacy_dca_result(body: DCASimulateBody) -> dict[str, Any]:
+    # 简化确定性模型（固定增长率），仅用于无净值数据时的粗略对比
     periods = max(int(body.periods or 1), 1)
     amount = float(body.amount_per_period or body.amount or 1000)
     total_invested = amount * periods
     growth = 1 + float(body.annual_growth_pct or 0) / 100
-    final_value = total_invested * growth
+    # 第 i 期投入享受剩余 periods - i 期增长
+    final_value = sum(amount * growth ** (periods - i) for i in range(1, periods + 1))
     dca = {
         "total_invested": round(total_invested, 2),
         "final_value": round(final_value, 2),
         "total_return_pct": round((final_value - total_invested) / total_invested * 100, 2),
     }
-    lumpsum_value = total_invested * (growth * 0.98)
+    # 对照组：第 0 期全额投入，享受全部 periods 期增长
+    lumpsum_value = total_invested * growth**periods
     return {
         "dca": dca,
         "lumpsum": {
@@ -421,11 +424,18 @@ async def list_portfolios():
 async def create_portfolio(body: PortfolioCreateBody):
     """创建组合"""
     mgr = _get_portfolio_mgr()
-    portfolio = mgr.create(
-        name=body.name,
-        description=body.description,
-        holdings=body.holdings,
-    )
+    try:
+        portfolio = mgr.create(
+            name=body.name,
+            description=body.description,
+            holdings=body.holdings,
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            error=f"保存组合失败: {e}",
+            error_code="PORTFOLIO_SAVE_FAILED",
+        )
     return ApiResponse(success=True, data=portfolio)
 
 
@@ -447,12 +457,19 @@ async def get_portfolio(portfolio_id: str):
 async def update_portfolio(portfolio_id: str, body: PortfolioUpdateBody):
     """更新组合"""
     mgr = _get_portfolio_mgr()
-    portfolio = mgr.update(
-        portfolio_id=portfolio_id,
-        name=body.name,
-        description=body.description,
-        holdings=body.holdings,
-    )
+    try:
+        portfolio = mgr.update(
+            portfolio_id=portfolio_id,
+            name=body.name,
+            description=body.description,
+            holdings=body.holdings,
+        )
+    except Exception as e:
+        return ApiResponse(
+            success=False,
+            error=f"保存组合失败: {e}",
+            error_code="PORTFOLIO_SAVE_FAILED",
+        )
     if not portfolio:
         return ApiResponse(
             success=False,

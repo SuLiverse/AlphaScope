@@ -8,7 +8,43 @@ const runtimeConfig = typeof window !== 'undefined' ? window.__ALPHASCOPE_CONFIG
 // the development and Docker fallback.
 export const API_BASE_URL = runtimeConfig?.apiBaseUrl || import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 export const API_KEY = runtimeConfig?.apiKey || import.meta.env.VITE_API_KEY || '';
-export const LOCAL_API_TOKEN = runtimeConfig?.localApiToken || import.meta.env.VITE_LOCAL_API_TOKEN || '';
+
+/**
+ * Token 解析纯函数（node 环境可单测）。优先级：运行时配置 > sessionStorage > Vite env。
+ * docker 部署下共享卷副本不再携带 token，远程用户经引导页输入一次，
+ * storeLocalToken 写入 sessionStorage（关页即清）。
+ */
+export function resolveLocalToken(cfg?: string, stored?: string, env?: string): string {
+  return cfg || stored || env || '';
+}
+
+const storedLocalToken =
+  typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('alphascope.localToken') ?? undefined : undefined;
+
+// 模块加载期以 const 固化会锁死引导页输入后的新 token；用 export let 保持 ESM
+// live binding，storeLocalToken 刷新后所有引用点（含 query/header 发送方）同步生效。
+export let LOCAL_API_TOKEN = resolveLocalToken(
+  runtimeConfig?.localApiToken,
+  storedLocalToken,
+  import.meta.env.VITE_LOCAL_API_TOKEN,
+);
+
+export function storeLocalToken(token: string): void {
+  LOCAL_API_TOKEN = token;
+  if (typeof sessionStorage !== 'undefined') {
+    sessionStorage.setItem('alphascope.localToken', token);
+  }
+}
+
+export class ApiRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+  }
+}
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -37,7 +73,10 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API Request Failed: ${response.status} ${response.statusText} - ${errorText}`);
+    throw new ApiRequestError(
+      `API Request Failed: ${response.status} ${response.statusText} - ${errorText}`,
+      response.status,
+    );
   }
 
   const result: ApiResponse<T> = await response.json();

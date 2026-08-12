@@ -3,6 +3,7 @@
 import pytest
 import tempfile
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 
@@ -162,3 +163,17 @@ class TestConversationStore:
         tmp_store.add_message(conv_id, "assistant", "回复1")
         conv = tmp_store.get_conversation(conv_id)
         assert conv["message_count"] == 2
+
+    def test_shared_connection_serializes_concurrent_reads_and_writes(self, tmp_store):
+        conv_id = tmp_store.create_conversation(title="并发测试")
+
+        def append_and_read(index):
+            tmp_store.add_message(conv_id, "user", f"message-{index}")
+            return tmp_store.get_conversation(conv_id)
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            conversations = list(pool.map(append_and_read, range(40)))
+
+        assert all(item and item["id"] == conv_id for item in conversations)
+        assert tmp_store.get_message_count(conv_id) == 40
+        assert len(tmp_store.get_messages(conv_id)) == 40

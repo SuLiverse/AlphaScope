@@ -20,9 +20,6 @@ class MACDMomentumStrategy(BaseStrategy):
     }
 
     def generate_signals(self, bars: list[dict], portfolio_state: dict[str, Any] | None = None) -> list[Signal]:
-        if len(bars) < self.params["slow_period"] + self.params["signal_period"]:
-            return []
-
         closes = self._closes(bars)
         fast_ema = self._ema(closes, self.params["fast_period"])
         slow_ema = self._ema(closes, self.params["slow_period"])
@@ -31,7 +28,7 @@ class MACDMomentumStrategy(BaseStrategy):
         signal_line = self._ema(macd_line, self.params["signal_period"])
 
         signals = []
-        for i in range(1, len(bars)):
+        for i in range(len(bars)):
             if i < self.params["slow_period"] + self.params["signal_period"]:
                 signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
                 continue
@@ -58,6 +55,7 @@ class MACDMomentumStrategy(BaseStrategy):
             else:
                 signals.append(Signal("hold", bars[i].get("symbol", ""), reason="无信号"))
 
+        assert len(signals) == len(bars)
         return signals
 
 

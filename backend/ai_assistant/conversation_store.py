@@ -71,7 +71,8 @@ class ConversationStore:
             self._conn.row_factory = sqlite3.Row
             self._db_lock = __import__("threading").Lock()
             self._own_conn = True
-        _ensure_ai_tables(self._conn)
+        with self._db_lock:
+            _ensure_ai_tables(self._conn)
 
     def create_conversation(
         self,
@@ -160,35 +161,38 @@ class ConversationStore:
 
     def get_conversation(self, conversation_id: str) -> Optional[dict]:
         """加载对话头信息"""
-        row = self._conn.execute("SELECT * FROM ai_conversations WHERE id = ?", (conversation_id,)).fetchone()
+        with self._db_lock:
+            row = self._conn.execute("SELECT * FROM ai_conversations WHERE id = ?", (conversation_id,)).fetchone()
         if row is None:
             return None
         return self._row_to_dict(row)
 
     def get_messages(self, conversation_id: str, limit: int = 200) -> List[dict]:
         """加载对话消息，按时间排序"""
-        rows = self._conn.execute(
-            """SELECT * FROM ai_messages
-            WHERE conversation_id = ?
-            ORDER BY id ASC LIMIT ?""",
-            (conversation_id, limit),
-        ).fetchall()
+        with self._db_lock:
+            rows = self._conn.execute(
+                """SELECT * FROM ai_messages
+                WHERE conversation_id = ?
+                ORDER BY id ASC LIMIT ?""",
+                (conversation_id, limit),
+            ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
     def list_conversations(self, stock_symbol: Optional[str] = None, limit: int = 50) -> List[dict]:
         """列出最近对话"""
-        if stock_symbol:
-            rows = self._conn.execute(
-                """SELECT * FROM ai_conversations
-                WHERE stock_symbol = ?
-                ORDER BY updated_at DESC LIMIT ?""",
-                (stock_symbol, limit),
-            ).fetchall()
-        else:
-            rows = self._conn.execute(
-                "SELECT * FROM ai_conversations ORDER BY updated_at DESC LIMIT ?",
-                (limit,),
-            ).fetchall()
+        with self._db_lock:
+            if stock_symbol:
+                rows = self._conn.execute(
+                    """SELECT * FROM ai_conversations
+                    WHERE stock_symbol = ?
+                    ORDER BY updated_at DESC LIMIT ?""",
+                    (stock_symbol, limit),
+                ).fetchall()
+            else:
+                rows = self._conn.execute(
+                    "SELECT * FROM ai_conversations ORDER BY updated_at DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
     def update_title(self, conversation_id: str, title: str) -> None:
@@ -217,22 +221,24 @@ class ConversationStore:
     def search_messages(self, query: str, limit: int = 20) -> List[dict]:
         """全文搜索消息内容"""
         escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        rows = self._conn.execute(
-            """SELECT m.*, c.title as conversation_title
-            FROM ai_messages m
-            JOIN ai_conversations c ON m.conversation_id = c.id
-            WHERE m.content LIKE ? ESCAPE '\\'
-            ORDER BY m.timestamp DESC LIMIT ?""",
-            (f"%{escaped}%", limit),
-        ).fetchall()
+        with self._db_lock:
+            rows = self._conn.execute(
+                """SELECT m.*, c.title as conversation_title
+                FROM ai_messages m
+                JOIN ai_conversations c ON m.conversation_id = c.id
+                WHERE m.content LIKE ? ESCAPE '\\'
+                ORDER BY m.timestamp DESC LIMIT ?""",
+                (f"%{escaped}%", limit),
+            ).fetchall()
         return [self._row_to_dict(r) for r in rows]
 
     def get_message_count(self, conversation_id: str) -> int:
         """获取对话消息数"""
-        row = self._conn.execute(
-            "SELECT COUNT(*) as cnt FROM ai_messages WHERE conversation_id = ?",
-            (conversation_id,),
-        ).fetchone()
+        with self._db_lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) as cnt FROM ai_messages WHERE conversation_id = ?",
+                (conversation_id,),
+            ).fetchone()
         return row["cnt"] if row else 0
 
     @staticmethod

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import yaml
@@ -128,3 +129,102 @@ def test_v1_persona_system_prompts_nonempty_not_stub():
             short.append((key, len(prompt)))
     assert not empty, f"persona system_prompt 为空: {empty}"
     assert not short, f"persona system_prompt 过短(疑似 stub): {short}"
+
+
+_MINIMAL_V2_YAML = """teams:
+  - id: test-team
+    displayName:
+      zh: 测试团队
+      en: Test Team
+    members:
+      - id: test-member
+        displayName:
+          zh: 测试成员
+          en: Test Member
+"""
+
+
+def _bump_mtime(path: Path) -> None:
+    """显式递增 mtime，规避 FAT/低粒度文件系统下 mtime 不变的问题。"""
+    st = path.stat()
+    os.utime(path, (st.st_atime + 2.0, st.st_mtime + 2.0))
+
+
+class TestExpertsConfigMemoization:
+    """Plan 012: experts.yaml 与 prompt 文件按 (path, mtime) 记忆化。"""
+
+    @staticmethod
+    def _spy_read_text(monkeypatch):
+        orig = Path.read_text
+        reads: list = []
+
+        def spy(self, *args, **kwargs):
+            reads.append(str(self))
+            return orig(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "read_text", spy)
+        return reads
+
+    def test_a_config_memoized_single_disk_read(self, tmp_path, monkeypatch):
+        from backend import expert_panel as ep
+
+        yaml_path = tmp_path / "experts.yaml"
+        yaml_path.write_text(_MINIMAL_V2_YAML, encoding="utf-8")
+        reads = self._spy_read_text(monkeypatch)
+        ep.reload_experts_config()
+        try:
+            ep.load_experts_config_v2(yaml_path)
+            ep.load_experts_config_v2(yaml_path)
+        finally:
+            ep.reload_experts_config()
+        assert reads.count(str(yaml_path)) == 1
+
+    def test_b_change_invalidates_cache(self, tmp_path, monkeypatch):
+        from backend import expert_panel as ep
+
+        yaml_path = tmp_path / "experts.yaml"
+        yaml_path.write_text(_MINIMAL_V2_YAML, encoding="utf-8")
+        reads = self._spy_read_text(monkeypatch)
+        ep.reload_experts_config()
+        try:
+            teams1 = ep.load_experts_config_v2(yaml_path)
+            assert teams1[0].id == "test-team"
+            yaml_path.write_text(
+                _MINIMAL_V2_YAML.replace("test-team\n", "test-team-v2\n"),
+                encoding="utf-8",
+            )
+            _bump_mtime(yaml_path)
+            teams2 = ep.load_experts_config_v2(yaml_path)
+        finally:
+            ep.reload_experts_config()
+        assert teams2[0].id == "test-team-v2"
+        assert reads.count(str(yaml_path)) == 2
+
+    def test_c_prompt_file_independent_invalidation(self, tmp_path, monkeypatch):
+        from backend import expert_panel as ep
+
+        prompt_path = tmp_path / "member.md"
+        prompt_path.write_text("v1 角色设定", encoding="utf-8")
+        ep.reload_experts_config()
+        try:
+            assert ep.load_prompt_file(str(prompt_path)) == "v1 角色设定"
+            prompt_path.write_text("v2 角色设定(已更新)", encoding="utf-8")
+            _bump_mtime(prompt_path)
+            assert ep.load_prompt_file(str(prompt_path)) == "v2 角色设定(已更新)"
+        finally:
+            ep.reload_experts_config()
+
+    def test_d_reload_experts_config_forces_reread(self, tmp_path, monkeypatch):
+        from backend import expert_panel as ep
+
+        yaml_path = tmp_path / "experts.yaml"
+        yaml_path.write_text(_MINIMAL_V2_YAML, encoding="utf-8")
+        reads = self._spy_read_text(monkeypatch)
+        ep.reload_experts_config()
+        try:
+            ep.load_experts_config_v2(yaml_path)
+            ep.reload_experts_config()
+            ep.load_experts_config_v2(yaml_path)
+        finally:
+            ep.reload_experts_config()
+        assert reads.count(str(yaml_path)) == 2

@@ -155,7 +155,8 @@ async def get_prices(
     aggregated_frequencies = {"1w", "1mo", "1y"}
     store_frequency = "1d" if normalized_frequency in aggregated_frequencies else normalized_frequency
     fetch_days = default_daily_window_days(max(1, min(limit, 500)), normalized_frequency)
-    raw_bars = _get(
+    raw_bars = await asyncio.to_thread(
+        _get,
         symbol=symbol,
         frequency=store_frequency,
         start_date=start,
@@ -182,7 +183,8 @@ async def get_prices(
                 source_status = "timeout"
             else:
                 source_status = "unavailable"
-        raw_bars = _get(
+        raw_bars = await asyncio.to_thread(
+            _get,
             symbol=symbol,
             frequency=store_frequency,
             start_date=start,

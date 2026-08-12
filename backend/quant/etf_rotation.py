@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 import statistics
 from dataclasses import dataclass
+from datetime import date as _calendar_date
 from typing import Any, Iterable
 
 from .metrics import build_performance_summary
@@ -536,7 +537,24 @@ def run_etf_rotation_backtest(
         equity_curve.append(round(equity, 8))
 
     closed_trades = [trade for trade in trades if trade.get("side") == "sell"]
-    performance = build_performance_summary(equity_curve, closed_trades, initial_capital, len(dates))
+    # Annualization basis: natural days between the first and last aligned date
+    # (dates are "YYYY-MM-DD" strings, truncated by _coerce_bar). trading_days
+    # inside the summary still means the aligned bar count.
+    calendar_days = len(dates)
+    try:
+        calendar_days = max(
+            (_calendar_date.fromisoformat(dates[-1]) - _calendar_date.fromisoformat(dates[0])).days,
+            1,
+        )
+    except ValueError:
+        pass
+    performance = build_performance_summary(
+        equity_curve,
+        closed_trades,
+        initial_capital,
+        len(dates),
+        calendar_days=calendar_days,
+    )
     performance["total_orders"] = len(trades)
     performance["total_round_trips"] = len(closed_trades)
     return {

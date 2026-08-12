@@ -18,6 +18,7 @@ shape is unchanged so existing API consumers and tests keep working.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date as _calendar_date
 from typing import Any
 
 from .constraints import PriceLimitFilter, T1Constraint, TradingCostModel
@@ -160,10 +161,18 @@ class BacktestEngine:
         )
         risk_controller = RiskController(self.risk_config)
 
-        # Generate all signals up front (strategy contract is unchanged). The
-        # engine guarantees look-ahead safety by *deferring* execution: a signal
-        # at index i is filled at index i+1, never at i.
+        # Generate all signals up front. The engine guarantees look-ahead safety
+        # by *deferring* execution: a signal at index i is filled at index i+1,
+        # never at i. For that promise to hold, signals[i] must be produced from
+        # bar i (inclusive) and earlier data only - the strategy contract is
+        # "one signal per bar, warm-up positions padded with hold".
         signals = strategy.generate_signals(bars, {"equity": portfolio.get_equity()})
+
+        if len(signals) != len(bars):
+            raise ValueError(
+                f"策略 {strategy.name} 返回 {len(signals)} 条信号, 与 {len(bars)} 根 bar 不对齐; "
+                "策略契约要求 signals[i] 由第 i 根 bar(含)之前的数据产生, 暖机位用 hold 补齐。"
+            )
 
         # pending_orders holds (signal, generated_at_index) waiting to be filled
         # on the *next* bar. This is the mechanism that kills look-ahead bias.
@@ -187,9 +196,11 @@ class BacktestEngine:
                 continue
 
             # Fill orders that were generated on a *previous* bar (look-ahead-safe).
-            still_pending: list[tuple[Signal, int]] = []
+            # An order gets exactly one fill attempt - on the next bar's open -
+            # and is dropped if it does not fill (e.g. limit-locked), never
+            # stale-retried on a later bar (prevents stale fills days later).
             for signal, gen_idx in pending_orders:
-                filled = self._fill_order(
+                self._fill_order(
                     signal=signal,
                     generated_at=gen_idx,
                     bar_index=i,
@@ -199,14 +210,7 @@ class BacktestEngine:
                     risk_controller=risk_controller,
                     date=date,
                 )
-                if not filled and gen_idx == i - 1:
-                    # An order from the immediately preceding bar that did not
-                    # fill (e.g. limit-locked) is dropped to avoid stale fills.
-                    still_pending.append((signal, gen_idx))
-                elif not filled:
-                    # Older unfilled orders are dropped rather than retried.
-                    pass
-            pending_orders = still_pending
+            pending_orders = []
 
             # Generate a new order for this bar (to be filled next bar).
             if i < len(signals):
@@ -217,8 +221,18 @@ class BacktestEngine:
             portfolio.record_equity(date)
             prev_close = price
 
-        # Build performance summary
-        days = len(bars)
+        # Build performance summary. Annualization basis: natural (calendar)
+        # days between the first and last bar, so a 252-trading-day backtest
+        # spanning ~365 calendar days annualizes to ~= total return.
+        # trading_days keeps its meaning (bar count) via the separate `days`
+        # argument and is not conflated with the annualization basis.
+        calendar_days = len(bars)
+        try:
+            first_date = _calendar_date.fromisoformat(str(bars[0].get("date", ""))[:10])
+            last_date = _calendar_date.fromisoformat(str(bars[-1].get("date", ""))[:10])
+            calendar_days = max((last_date - first_date).days, 1)
+        except ValueError:
+            pass  # non-ISO dates: fall back to bar count
         # 基准净值曲线: 用基准收盘价按首日归一到 initial_capital, 便于与策略净值同图对比。
         benchmark_curve: list[float] = []
         if benchmark_bars:
@@ -237,7 +251,8 @@ class BacktestEngine:
             equity_curve=portfolio.equity_history,
             trades=[self._trade_to_dict(t) for t in portfolio.trades],
             initial_capital=self.initial_capital,
-            days=days,
+            days=len(bars),
+            calendar_days=calendar_days,
             benchmark_curve=benchmark_curve or None,
             benchmark_name=benchmark_name,
         )

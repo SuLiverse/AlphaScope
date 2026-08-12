@@ -61,6 +61,7 @@ class PortfolioManager:
                     conn.commit()
             except Exception as e:
                 logger.error(f"保存组合失败: {e}")
+                raise
 
         return {
             "id": portfolio_id,
@@ -150,6 +151,7 @@ class PortfolioManager:
                     conn.commit()
             except Exception as e:
                 logger.error(f"更新组合失败: {e}")
+                raise
 
         return {
             "id": portfolio_id,

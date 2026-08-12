@@ -12,11 +12,11 @@ install-all: ## Install all dependencies including RAG
 dev: ## Install dev dependencies
 	pip install -r requirements-dev.txt
 
-test: ## Run all tests
-	python -m pytest tests/ -v
+test: ## Run offline tests
+	python -m pytest tests/ -v -m "not network" --ignore=tests/probes
 
-test-cov: ## Run tests with coverage
-	python -m pytest tests/ -v --cov=backend --cov-report=term-missing
+test-cov: ## Run offline tests with coverage
+	python -m pytest tests/ -v -m "not network" --ignore=tests/probes --cov=backend --cov-report=term-missing
 
 lint: ## Run linter
 	ruff check backend/ frontend/ tests/

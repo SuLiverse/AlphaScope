@@ -24,6 +24,7 @@ import { getErrorMessage } from '../lib/dataFetch';
 import { lookbackRange } from '../lib/quantDates';
 import { useQuantPreviewOptIn } from '../lib/quantPreview';
 import { getPersistedStock } from '../lib/workspaceEvents';
+import { formatPercent } from './quant/backtestFormat';
 import { QuantPreviewCheckbox } from './quant/QuantPreviewCheckbox';
 import { ThemedSelect } from './ThemedSelect';
 
@@ -143,11 +144,6 @@ function persistSaved(list: SavedStrategy[]) {
   } catch {
     /* localStorage 不可用时静默(隐私模式) */
   }
-}
-
-function pct(v?: number): string {
-  if (v == null || Number.isNaN(v)) return '—';
-  return `${(v * 100).toFixed(2)}%`;
 }
 
 const TAG_STYLE: Record<Tag, string> = {
@@ -271,7 +267,7 @@ export function StrategyLab() {
       setMessage(
         trades === 0
           ? `回测完成但 0 笔交易:规则未触发,或本金按 A 股 100 股整手买不进。${res.summary?.data_source_label ? ' 数据来源:' + res.summary.data_source_label : ''}`
-          : `回测完成:${trades} 笔交易,累计 ${pct(m.total_return)},最大回撤 ${pct(m.max_drawdown)}。${res.summary?.data_source_label ? ' 数据来源:' + res.summary.data_source_label : ''}`,
+          : `回测完成:${trades} 笔交易,累计 ${formatPercent(m.total_return)},最大回撤 ${formatPercent(m.max_drawdown)}。${res.summary?.data_source_label ? ' 数据来源:' + res.summary.data_source_label : ''}`,
       );
     } catch (err) {
       setMessage(`回测失败:${getErrorMessage(err)}`);
@@ -517,11 +513,11 @@ export function StrategyLab() {
               <div className="mb-3 text-sm font-semibold text-neutral-200">回测结果</div>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { label: '累计收益', value: pct(result.metrics.total_return), good: (result.metrics.total_return ?? 0) >= 0 },
-                  { label: '年化收益', value: pct(result.metrics.annual_return), good: (result.metrics.annual_return ?? 0) >= 0 },
-                  { label: '最大回撤', value: pct(result.metrics.max_drawdown), good: false },
+                  { label: '累计收益', value: formatPercent(result.metrics.total_return), good: (result.metrics.total_return ?? 0) >= 0 },
+                  { label: '年化收益', value: formatPercent(result.metrics.annual_return), good: (result.metrics.annual_return ?? 0) >= 0 },
+                  { label: '最大回撤', value: formatPercent(result.metrics.max_drawdown), good: false },
                   { label: '夏普', value: (result.metrics.sharpe_ratio ?? 0).toFixed(2), good: (result.metrics.sharpe_ratio ?? 0) >= 1 },
-                  { label: '胜率', value: pct(result.metrics.win_rate), good: (result.metrics.win_rate ?? 0) >= 0.5 },
+                  { label: '胜率', value: formatPercent(result.metrics.win_rate), good: (result.metrics.win_rate ?? 0) >= 50 },
                   { label: '交易笔数', value: String(result.metrics.trade_count ?? 0), good: true },
                 ].map((s, idx) => (
                   <motion.div

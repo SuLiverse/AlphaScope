@@ -22,6 +22,7 @@ import json
 import logging
 import os
 import re
+import threading
 import tomllib
 from importlib.metadata import PackageNotFoundError, version as distribution_version
 from pathlib import Path
@@ -469,6 +470,20 @@ if HAS_FASTAPI:
 
     # ============== 对话 API ==============
 
+    _shared_conversation_store = None
+    _shared_store_lock = threading.Lock()
+
+    def _get_conversation_store():
+        global _shared_conversation_store
+        if _shared_conversation_store is None:
+            with _shared_store_lock:
+                if _shared_conversation_store is None:
+                    from backend.ai_assistant.conversation_store import ConversationStore
+                    from backend.storage.db import Database
+
+                    _shared_conversation_store = ConversationStore(db=Database())
+        return _shared_conversation_store
+
     @app.post("/api/conversations", response_model=ApiResponse[ConversationData])
     def create_conversation(req: ConversationCreate):
         """创建新对话"""
@@ -573,7 +588,7 @@ if HAS_FASTAPI:
             ChatOrchestrator,
         )
 
-        orch = ChatOrchestrator()
+        orch = ChatOrchestrator(store=_get_conversation_store())
         mode_was_explicit = "mode" in req.model_fields_set
         try:
             requested_mode = ChatAnalysisMode(req.mode)
@@ -625,7 +640,7 @@ if HAS_FASTAPI:
             ChatOrchestrator,
         )
 
-        orch = ChatOrchestrator()
+        orch = ChatOrchestrator(store=_get_conversation_store())
         try:
             requested_mode = ChatAnalysisMode(req.mode)
         except ValueError:

@@ -1,4 +1,4 @@
-# 研策中枢 AlphaScope Dependencies (v0.40)
+# 研策中枢 AlphaScope Dependencies（依赖钉版与 pyproject.toml 保持一致）
 # Full install:  pip install -r requirements.txt
 # Core only:     pip install -r requirements-core.txt
 # API server:    pip install -r requirements-api.txt

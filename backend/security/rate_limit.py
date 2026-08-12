@@ -217,6 +217,7 @@ EXPENSIVE_PREFIXES = (
     "/api/quant/portfolio/",
     "/api/quant/experiments",
     "/api/quant/compare-strategies",
+    "/api/datalake/",
     "/api/integrations/",
     "/api/settings/local-llm-presets/probe",
     "/api/vision",

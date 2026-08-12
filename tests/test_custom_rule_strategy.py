@@ -98,7 +98,9 @@ def test_eval_rules_logic():
 def test_empty_rules_no_signals():
     bars = _bars([10, 11, 12, 13])
     sig = CustomRuleStrategy({}).generate_signals(bars)
-    assert sig == []
+    # 契约:与 bars 等长, 空规则整段为 hold(引擎侧等同无信号)
+    assert len(sig) == len(bars)
+    assert all(s.action == "hold" for s in sig)
 
 
 def test_buy_rule_triggers():

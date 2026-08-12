@@ -59,12 +59,78 @@ _FORBIDDEN_KW_RE = re.compile(r"\b(set)\b", re.IGNORECASE)
 # (代码内部受控的 read_parquet 调用在 query() 建视图, 不经过 is_select_only, 不受影响)。
 _FORBIDDEN_FUNC_RE = re.compile(
     r"\b(read_csv_auto|read_csv|read_json_auto|read_json|read_parquet"
-    r"|read_blob_auto|read_blob|read_text_auto|read_text)\s*\(",
+    r"|read_blob_auto|read_blob|read_text_auto|read_text"
+    r"|parquet_scan|csv_scan|json_scan|sqlite_scan|glob|parquet_metadata"
+    r"|parquet_schema|parquet_file_metadata)\s*\(",
     re.IGNORECASE,
 )
 
+# 字符串字面量表名(替换扫描):FROM '<path>' / JOIN '<path>' 可让 duckdb 直接按文件路径读表,
+# 绕过函数黑名单 → 任意文件读。必须拦截。
+_STRING_TABLE_RE = re.compile(r"\b(from|join)\s*['\"]", re.IGNORECASE)
+
 
 # ----------------------------- 纯函数(无需 duckdb, 可单测) -----------------------------
+
+
+def _without_sql_comments(sql: str) -> str | None:
+    """Remove SQL comments outside quoted literals.
+
+    DuckDB accepts comments between a table-function name and ``(``, and
+    between ``FROM`` and a string-literal table path. Regex checks must run on
+    the comment-free token stream or both forms bypass the file-read guard.
+    """
+    result: list[str] = []
+    i = 0
+    quote = ""
+    block_depth = 0
+    while i < len(sql):
+        char = sql[i]
+        following = sql[i + 1] if i + 1 < len(sql) else ""
+
+        if block_depth:
+            if char == "/" and following == "*":
+                block_depth += 1
+                i += 2
+            elif char == "*" and following == "/":
+                block_depth -= 1
+                i += 2
+                if block_depth == 0:
+                    result.append(" ")
+            else:
+                i += 1
+            continue
+
+        if quote:
+            result.append(char)
+            if char == quote:
+                if following == quote:
+                    result.append(following)
+                    i += 2
+                    continue
+                quote = ""
+            i += 1
+            continue
+
+        if char in {"'", '"'}:
+            quote = char
+            result.append(char)
+            i += 1
+        elif char == "-" and following == "-":
+            i += 2
+            while i < len(sql) and sql[i] not in "\r\n":
+                i += 1
+            result.append(" ")
+        elif char == "/" and following == "*":
+            block_depth = 1
+            i += 2
+        else:
+            result.append(char)
+            i += 1
+
+    if block_depth or quote:
+        return None
+    return "".join(result)
 
 
 def _to_float(value: Any) -> float:
@@ -139,7 +205,10 @@ def is_select_only(sql: str) -> bool:
     额外拦截 DuckDB 文件读取表函数(read_csv_auto/read_parquet 等), 防止用户 SQL 读取服务器任意文件。
     纯函数。
     """
-    s = str(sql or "").strip().rstrip(";").strip()
+    s = _without_sql_comments(str(sql or ""))
+    if s is None:
+        return False
+    s = s.strip().rstrip(";").strip()
     if not s:
         return False
     low = s.lower()
@@ -152,6 +221,8 @@ def is_select_only(sql: str) -> bool:
     if _FORBIDDEN_KW_RE.search(s):
         return False
     if _FORBIDDEN_FUNC_RE.search(s):
+        return False
+    if _STRING_TABLE_RE.search(s):
         return False
     return True
 
@@ -285,7 +356,13 @@ def query(sql: str, limit: int = 500) -> Dict[str, Any]:
 
         con = duckdb.connect()
         try:
-            con.execute(f"CREATE VIEW prices AS SELECT * FROM read_parquet('{_glob_str()}')")
+            # Materialize the trusted Parquet input before disabling all external
+            # access. A view would read lazily and stop working after lockdown.
+            con.execute("SET autoinstall_known_extensions=false")
+            con.execute("SET autoload_known_extensions=false")
+            con.execute("CREATE TEMP TABLE prices AS SELECT * FROM read_parquet(?)", [_glob_str()])
+            con.execute("SET enable_external_access=false")
+            con.execute("SET lock_configuration=true")
             lim = max(1, min(5000, int(limit) if limit else 500))
             cur = con.execute(f"SELECT * FROM ({sql.rstrip(';')}) AS _q LIMIT {lim}")
             cols = [d[0] for d in cur.description]
@@ -294,7 +371,8 @@ def query(sql: str, limit: int = 500) -> Dict[str, Any]:
             con.close()
         return {"ok": True, "columns": cols, "rows": rows, "row_count": len(rows)}
     except Exception as e:  # noqa: BLE001
-        return {"ok": False, "reason": str(e)}
+        logger.warning("[datalake] 查询执行失败: %s", e)
+        return {"ok": False, "reason": "查询执行失败（已拒绝或语法/数据错误）"}
 
 
 def _latest_cte() -> str:

@@ -35,12 +35,12 @@ python --version
 
 ### 2. 安装 Node.js
 
-访问 [nodejs.org](https://nodejs.org/) 下载 LTS 版本（18+）。
+访问 [nodejs.org](https://nodejs.org/) 下载 Node.js 20.19.x 或 22.12+ LTS 版本。
 
 验证安装：
 ```bash
 node --version
-# 应显示 v18.x.x 或更高
+# 应显示 v20.19.x，或 v22.12.0 及更高版本
 
 npm --version
 # 应显示 9.x.x 或更高
@@ -157,7 +157,7 @@ python scripts/init_local.py
 
 ```bash
 # 启动后端
-uvicorn backend.api.main:app --host 0.0.0.0 --port 8000 &
+uvicorn backend.api.main:app --host 127.0.0.1 --port 8000 &
 
 # 启动前端
 cd apps/web && npm run dev &

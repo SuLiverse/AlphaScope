@@ -142,6 +142,29 @@ class TeamRunMode(enum.Enum):
     HUMAN_INTERVENTION = "human_intervention"  # 5. 人工介入：用户可指定特定专家回答
 
 
+# ============== mtime 键控缓存 ==============
+_CONFIG_CACHE: dict[str, tuple[float, object]] = {}  # path_str -> (mtime, value)
+
+
+def _cached_load(path: Path, loader):
+    key = str(path)
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        mtime = -1.0
+    hit = _CONFIG_CACHE.get(key)
+    if hit and hit[0] == mtime:
+        return hit[1]
+    value = loader(path)
+    _CONFIG_CACHE[key] = (mtime, value)
+    return value
+
+
+def reload_experts_config() -> None:
+    """清空 experts 配置缓存（设置写路径/测试用）。"""
+    _CONFIG_CACHE.clear()
+
+
 # ============== Prompt 文件加载 ==============
 def load_prompt_file(prompt_path: str) -> str:
     """加载 Markdown 角色设定文件"""
@@ -152,7 +175,7 @@ def load_prompt_file(prompt_path: str) -> str:
         # 尝试直接路径
         p = Path(prompt_path)
     if p.exists():
-        return p.read_text(encoding="utf-8").strip()
+        return _cached_load(p, lambda p: p.read_text(encoding="utf-8").strip())
     return ""
 
 
@@ -165,7 +188,7 @@ def load_experts_config_v2(yaml_path: Optional[Path] = None) -> List[ExpertTeamC
     p = yaml_path or EXPERTS_YAML_PATH
     if not p.exists():
         raise FileNotFoundError(f"experts.yaml 不存在: {p}")
-    raw = yaml.safe_load(p.read_text(encoding="utf-8"))
+    raw = _cached_load(p, lambda p: yaml.safe_load(p.read_text(encoding="utf-8")))
 
     teams = []
     for team_raw in raw.get("teams", []):
@@ -227,7 +250,7 @@ def load_experts_config(yaml_path: Optional[Path] = None) -> List[ExpertConfig]:
     p = yaml_path or EXPERTS_YAML_PATH
     if not p.exists():
         raise FileNotFoundError(f"experts.yaml 不存在: {p}")
-    raw = yaml.safe_load(p.read_text(encoding="utf-8"))
+    raw = _cached_load(p, lambda p: yaml.safe_load(p.read_text(encoding="utf-8")))
     out = []
     for item in raw.get("experts", []):
         out.append(
