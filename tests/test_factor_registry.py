@@ -93,6 +93,26 @@ class TestTechnicalFactors:
         f = fr.compute_technical_factors([{"close": "x"}, {}, None])
         assert all(v is None for v in f.values())
 
+    def test_atr_20_and_donchian_width_registered(self):
+        ids = {c["id"] for c in fr.list_factors(source="price")}
+        assert "atr_20" in ids
+        assert "donchian_width_20" in ids
+        assert fr.get_factor("atr_20").direction == 0
+        assert fr.get_factor("donchian_width_20").direction == 0
+
+    def test_atr_20_insufficient_is_none(self):
+        f = fr.compute_technical_factors(_bars([10.0] * 10))
+        assert f["atr_20"] is None
+
+    def test_donchian_width_excludes_today(self):
+        closes = [10.0] * 25
+        highs = [10.5] * 24 + [50.0]
+        lows = [9.5] * 25
+        f = fr.compute_technical_factors(_bars(closes, highs=highs, lows=lows))
+        assert f["donchian_width_20"] is not None
+        # Channel is prior 20 highs/lows (all 10.5 / 9.5), width/close = 1/10.
+        assert f["donchian_width_20"] == pytest.approx(0.1, abs=0.001)
+
 
 # ----------------------------- 缓存 + 流水线 -----------------------------
 

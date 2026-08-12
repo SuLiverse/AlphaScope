@@ -241,6 +241,69 @@ class TestSupportResistance:
         assert result["pivot"] == 0
 
 
+# ============== ATR / 唐奇安 ==============
+
+
+class TestCalcATR:
+    def test_atr_output_length(self):
+        from backend.indicators import calc_atr
+
+        result = calc_atr(SAMPLE_BARS, period=5)
+        assert len(result) == len(SAMPLE_BARS)
+
+    def test_atr_insufficient_is_zero(self):
+        from backend.indicators import calc_atr
+
+        result = calc_atr(SAMPLE_BARS, period=20)
+        assert result[0]["atr"] == 0.0
+        assert result[18]["atr"] == 0.0
+        assert result[19]["atr"] > 0.0
+
+
+class TestCalcDonchian:
+    def test_donchian_insufficient_is_zero(self):
+        from backend.indicators import calc_donchian
+
+        result = calc_donchian(SAMPLE_BARS, period=20)
+        assert result[0]["donchian_high"] == 0.0
+        assert result[19]["donchian_high"] == 0.0
+        assert result[-1]["donchian_width"] == 0.0  # only 20 bars → last index 19 < 20
+
+    def test_today_high_does_not_leak_into_channel(self):
+        from backend.indicators import calc_donchian
+
+        bars = [
+            {
+                "symbol": "T",
+                "date": f"2025-01-{i + 1:02d}",
+                "open": 10.0,
+                "high": 10.5,
+                "low": 9.5,
+                "close": 10.0,
+                "volume": 1000,
+            }
+            for i in range(20)
+        ]
+        # Bar 20 prints an extreme high that must not enter today's channel.
+        bars.append(
+            {
+                "symbol": "T",
+                "date": "2025-01-21",
+                "open": 10.0,
+                "high": 50.0,
+                "low": 9.5,
+                "close": 10.2,
+                "volume": 1000,
+            }
+        )
+        result = calc_donchian(bars, period=20)
+        last = result[-1]
+        assert last["donchian_high"] == 10.5
+        assert last["donchian_low"] == 9.5
+        assert last["donchian_width"] == 1.0
+        assert last["donchian_high"] != 50.0
+
+
 # ============== calc_all 测试 ==============
 
 

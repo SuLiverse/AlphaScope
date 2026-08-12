@@ -104,6 +104,24 @@ for _d in [
         "price",
         "",
     ),
+    FactorDef(
+        "atr_20",
+        "20日ATR占比",
+        "technical",
+        0,
+        "20 日 ATR / 收盘(波动尺度, 中性)",
+        "price",
+        "%",
+    ),
+    FactorDef(
+        "donchian_width_20",
+        "20日唐奇安宽度",
+        "technical",
+        0,
+        "(上轨-下轨)/收盘, 通道不含当日",
+        "price",
+        "",
+    ),
     # 已有软因子(登记入统一目录;具体数值由 FactorGenerator 计算)。
     FactorDef("news_sentiment", "新闻情绪", "sentiment", 1, "新闻舆情情绪得分", "soft", ""),
     FactorDef("event_signal", "事件信号", "event", 1, "公告/事件方向性得分", "soft", ""),
@@ -289,6 +307,43 @@ def _range_pos(bars: List[Dict[str, Any]], closes: List[float], window: int = 60
     return round((closes[-1] - lo) / (hi - lo), 3)
 
 
+def _atr_pct(bars: List[Dict[str, Any]], closes: List[float], window: int = 20) -> Optional[float]:
+    """20-day ATR / close, in percent. Needs window TRs (bar 0 uses H-L)."""
+    if len(bars) < window or not closes or closes[-1] <= 0:
+        return None
+    highs = _series(bars, "high")
+    lows = _series(bars, "low")
+    if len(highs) < window or len(lows) < window or len(closes) < window:
+        return None
+    trs: List[float] = []
+    start = len(closes) - window
+    for i in range(start, len(closes)):
+        hl = highs[i] - lows[i]
+        if i == 0:
+            trs.append(max(hl, 0.0))
+            continue
+        pdc = closes[i - 1]
+        trs.append(max(hl, abs(highs[i] - pdc), abs(lows[i] - pdc)))
+    if len(trs) < window:
+        return None
+    atr = sum(trs[-window:]) / window
+    return round(atr / closes[-1] * 100.0, 3)
+
+
+def _donchian_width_pct(bars: List[Dict[str, Any]], closes: List[float], window: int = 20) -> Optional[float]:
+    """(upper-lower)/close. Channel excludes the current bar."""
+    if len(bars) <= window or not closes or closes[-1] <= 0:
+        return None
+    highs = _series(bars, "high")
+    lows = _series(bars, "low")
+    prior_h = [h for h in highs[-window - 1 : -1] if h == h]
+    prior_l = [lo for lo in lows[-window - 1 : -1] if lo == lo]
+    if len(prior_h) < window or len(prior_l) < window:
+        return None
+    width = max(prior_h) - min(prior_l)
+    return round(width / closes[-1], 3)
+
+
 def compute_technical_factors(bars: List[Dict[str, Any]]) -> Dict[str, Optional[float]]:
     """从 OHLCV(按日期升序)计算全部确定性技术因子(纯函数, 失败安全, 数据不足→None)。"""
     closes = _closes(bars)
@@ -304,6 +359,8 @@ def compute_technical_factors(bars: List[Dict[str, Any]]) -> Dict[str, Optional[
         "vol_ratio": _vol_ratio(volumes, 5, 20),
         "dist_high_60": _dist_high(bars, closes, 60),
         "range_pos_60": _range_pos(bars, closes, 60),
+        "atr_20": _atr_pct(bars, closes, 20),
+        "donchian_width_20": _donchian_width_pct(bars, closes, 20),
     }
 
 
