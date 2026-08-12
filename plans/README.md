@@ -47,7 +47,7 @@ honor its STOP conditions, and update your row when done.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 027 | 汲取买卖点工具的结构算法（海龟 N/2N、缠论几何、收紧大形态）；不搬综合打分 | P2 | L | — | TODO |
+| 027 | 汲取买卖点工具的结构算法（海龟 N/2N、缠论几何、收紧大形态）；不搬综合打分 | P2 | L | — | DONE（分支 `advisor/027-absorb-trend-tool-structure`，全量 not network 2147 过 / 5 skip；`chanlun_structure` 走查脆弱未作 UI 默认） |
 
 Status values: TODO | IN PROGRESS | DONE | BLOCKED (with one-line reason) | REJECTED (with one-line rationale — finding fixed independently or approach abandoned)
 
