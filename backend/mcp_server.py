@@ -139,7 +139,9 @@ def create_server() -> "FastMCP | None":
                 {
                     "content": str(h.get("text", "") if isinstance(h, dict) else getattr(h, "text", ""))[:300],
                     "source": str(h.get("source", "") if isinstance(h, dict) else getattr(h, "source", ""))[:80],
-                    "score": float(h.get("combined_score", 0.0) if isinstance(h, dict) else getattr(h, "combined_score", 0.0)),
+                    "score": float(
+                        h.get("combined_score", 0.0) if isinstance(h, dict) else getattr(h, "combined_score", 0.0)
+                    ),
                 }
                 for h in hits
             ]
