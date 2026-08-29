@@ -538,14 +538,18 @@ def _distinct_touches(indices: list[int], min_gap: int) -> list[int]:
 
 
 def _box_pattern(bars: list[dict]) -> list[Pattern]:
-    """箱体: 窗口内上沿、下沿各至少被触及 2 次, 振幅有界。
+    """箱体: 检测 bar 之前的 _BOX_WINDOW 根内, 上沿、下沿各至少被触及 2 次, 振幅有界。
 
     「接近上沿」只用收盘距上沿的比例; 禁止把近 20 日最高×0.98 当成看涨突破。
+    Plan 032: 轨道窗口排除检测 bar——旧实现把检测 bar 算进窗口, 导致
+    ``close > upper`` / ``close < lower`` 对合法 OHLC 永不成立(突破分支死代码)。
     """
     n = len(bars)
-    if n < _BOX_WINDOW:
+    if n < _BOX_WINDOW + 1:
         return []
-    window = bars[-_BOX_WINDOW:]
+    # Plan 032: 窗口 = 检测 bar 之前的 _BOX_WINDOW 根; 轨道/触及计数全部基于该窗口
+    # (触及索引用于 _distinct_touches 的间隔去重, 只在窗口内比较, 不进 detail/投影)。
+    window = bars[-_BOX_WINDOW - 1 : -1]
     highs = [_h(b) for b in window]
     lows = [_l(b) for b in window]
     upper, lower = max(highs), min(lows)
@@ -561,7 +565,7 @@ def _box_pattern(bars: list[dict]) -> list[Pattern]:
     if len(upper_hits) < _BOX_MIN_TOUCHES or len(lower_hits) < _BOX_MIN_TOUCHES:
         return []
 
-    last = window[-1]
+    last = bars[-1]
     close = _c(last)
     idx = n - 1
     # Actual close beyond the rail is a break; merely being near the rail is neutral.
@@ -711,9 +715,12 @@ def _cup_handle(bars: list[dict]) -> list[Pattern]:
     handle_start = cup_low_idx + right_rim_rel + 1
     if handle_start >= w - 2:
         return []
-    # Handle low = min of the *handle sub-interval only*, never a global 20-day low.
-    handle_lows = lows[handle_start:]
-    handle_highs = highs[handle_start:]
+    # Handle low/high = min/max of the *handle sub-interval only*, never a global
+    # 20-day low. Plan 032: 切片排除检测 bar([handle_start : w-1])——旧实现把
+    # 检测 bar 计入柄高, ``close > handle_high`` 对合法 OHLC 永不成立(死代码)。
+    # handle_start <= w-3 由上方守卫保证, 新切片至少含 2 根, min/max 不会空。
+    handle_lows = lows[handle_start : w - 1]
+    handle_highs = highs[handle_start : w - 1]
     handle_low = min(handle_lows)
     handle_high = max(handle_highs)
     if handle_high <= handle_low or handle_high <= 0:

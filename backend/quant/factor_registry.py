@@ -308,13 +308,38 @@ def _range_pos(bars: List[Dict[str, Any]], closes: List[float], window: int = 60
 
 
 def _atr_pct(bars: List[Dict[str, Any]], closes: List[float], window: int = 20) -> Optional[float]:
-    """20-day ATR / close, in percent. Needs window TRs (bar 0 uses H-L)."""
-    if len(bars) < window or not closes or closes[-1] <= 0:
+    """20-day ATR / close, in percent. Needs window TRs (bar 0 uses H-L).
+
+    Plan 032: 三序列必须同源——先按 close 有效性过滤出 valid bars,
+    closes/highs/lows 全部取自同一批 valid bars 再按下标配对。
+    旧实现用「过滤后的 closes」配「未过滤的 highs/lows」: 历史中只要有一根
+    close 缺失, 其后所有 TR 的前收盘(PDC)错位一根, ATR 大幅失真。
+    """
+    if not bars or len(bars) < window:
         return None
-    highs = _series(bars, "high")
-    lows = _series(bars, "low")
-    if len(highs) < window or len(lows) < window or len(closes) < window:
+    valid: List[Dict[str, Any]] = []
+    for b in bars:
+        if not isinstance(b, dict):
+            continue
+        try:
+            c = float(b.get("close"))
+        except (TypeError, ValueError):
+            continue
+        if c > 0 and c == c:
+            valid.append(b)
+    if len(valid) < window:
         return None
+
+    def _side(b: Dict[str, Any], key: str) -> float:
+        try:
+            v = float(b.get(key))
+            return v if v == v else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    closes = [float(b["close"]) for b in valid]
+    highs = [_side(b, "high") for b in valid]
+    lows = [_side(b, "low") for b in valid]
     trs: List[float] = []
     start = len(closes) - window
     for i in range(start, len(closes)):

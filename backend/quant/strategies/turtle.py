@@ -73,6 +73,24 @@ class TurtleBreakoutStrategy(BaseStrategy):
         # forbids short-open and forbids mapping a short cover to buy.
         _allow_short = bool(self.params.get("allow_short", False))  # noqa: F841
 
+        # Plan 032: 参数合法性校验。遗传优化器按独立区间采样, 可能采到
+        # exit>entry / 非正周期; 旧代码在此产生空切片 ValueError 或负起点回卷。
+        if entry < 1:
+            raise ValueError(f"参数不合法: entry_period={entry} 必须 >= 1")
+        if exit_p < 1:
+            raise ValueError(f"参数不合法: exit_period={exit_p} 必须 >= 1")
+        if system2 < 0:
+            raise ValueError(f"参数不合法: system2_period={system2} 必须 >= 0")
+        if atr_period < 1:
+            raise ValueError(f"参数不合法: atr_period={atr_period} 必须 >= 1")
+
+        # Plan 032: 两条信号循环路径统一加「所需窗口下界」保护——i < warmup 时
+        # ``[i - window : i]`` 负起点回卷成错误通道甚至空切片。
+        # 注意: system2 通道自带 ``i >= system2`` 守卫, 不计入 warmup; 否则默认
+        # system2=55 会把默认路径 20..54 根的行为改变, 违反 027「默认路径数字
+        # 保持不变」的承诺(由 TestWarmupSemanticsPlan032 钉死)。
+        warmup = max(entry, exit_p, atr_period if use_atr_stop else 0)
+
         highs = [b.get("high", b["close"]) for b in bars]
         lows = [b.get("low", b["close"]) for b in bars]
         closes = self._closes(bars)
@@ -84,7 +102,7 @@ class TurtleBreakoutStrategy(BaseStrategy):
         # predicate; with entry=20 and system2=55 it cannot fire without System-1.
         if not use_atr_stop and not pyramid:
             for i in range(len(bars)):
-                if i < entry:
+                if i < warmup:
                     signals.append(Signal("hold", bars[i].get("symbol", ""), reason="数据不足"))
                     continue
                 prev_high = max(highs[i - entry : i])
@@ -116,7 +134,7 @@ class TurtleBreakoutStrategy(BaseStrategy):
         for i in range(len(bars)):
             symbol = bars[i].get("symbol", "")
             close = closes[i]
-            if i < entry:
+            if i < warmup:
                 signals.append(Signal("hold", symbol, reason="数据不足"))
                 continue
             prev_high = max(highs[i - entry : i])
