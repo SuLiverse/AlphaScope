@@ -126,7 +126,9 @@ class TestStructure:
 
 class TestTightStructures:
     def test_box_requires_repeated_rail_touches_and_does_not_treat_098_as_breakout(self):
-        # 40-bar box 10–12, rails touched ≥2 times. Last close is 11.76 = 0.98*12.
+        # 40-bar box 10–12, rails touched ≥2 times, +1 detection bar.
+        # Plan 032: 轨道窗口排除检测 bar → 夹具需 40+1 根;
+        # 检测 bar 收盘 11.76 = 0.98*12, 只「接近」上轨而非突破。
         bars = []
         for i in range(40):
             phase = i % 10
@@ -136,8 +138,9 @@ class TestTightStructures:
                 bars.append(_bar(i, 10.2, 10.5, 10.0, 10.1))  # tag lower
             else:
                 bars.append(_bar(i, 11.0, 11.3, 10.8, 11.1))
-        # Last bar sits just under the upper rail (the loose 0.98 rule would call this 看涨突破).
-        bars[-1] = _bar(39, 11.6, 11.85, 11.5, 11.76)
+        # Detection bar sits just under the prior-window upper rail (the loose 0.98
+        # rule would call this 看涨突破). Plan 032: rails come from bars[:-1] now.
+        bars.append(_bar(40, 11.6, 11.85, 11.5, 11.76))
         r = detect_patterns(bars, "T")
         boxes = [p for p in r.patterns if p.name == "箱体"]
         assert boxes, _names(r)
@@ -196,6 +199,80 @@ class TestTightStructures:
         assert "8.00" not in cups[0].detail  # must not use cup/global low as handle
         assert cups[0].projection is not None
         assert "几何投影不是预测" in cups[0].detail
+
+
+class TestBreakoutReachabilityPlan032:
+    """Plan 032: 上/下轨与柄高必须排除检测 bar。
+
+    旧实现把检测 bar 自身算进窗口: ``close > upper`` / ``close < lower`` /
+    ``close > handle_high`` 对合法 OHLC 永不成立——箱体/杯柄的看涨/看跌
+    突破输出是死代码, 从未触发过。
+    """
+
+    def _box_bars(self) -> list[dict]:
+        """40 根 10–12 箱体, 上/下沿各被触及 4 次(与既有箱体测试同一生成器)。"""
+        bars = []
+        for i in range(40):
+            phase = i % 10
+            if phase < 3:
+                bars.append(_bar(i, 11.8, 12.0, 11.5, 11.9))  # tag upper
+            elif phase < 6:
+                bars.append(_bar(i, 10.2, 10.5, 10.0, 10.1))  # tag lower
+            else:
+                bars.append(_bar(i, 11.0, 11.3, 10.8, 11.1))
+        return bars
+
+    def _cup_bars(self) -> list[dict]:
+        """杯(左沿 ~12.1 → 杯底 ~8 → 右沿)+ 柄回落(与既有杯柄测试同一生成器)。"""
+        bars = []
+        for i in range(10):
+            bars.append(_bar(i, 11.8, 12.1, 11.5, 11.9))
+        for i in range(10, 25):
+            c = 12.0 - (i - 10) * 0.27
+            bars.append(_bar(i, c + 0.1, c + 0.2, c - 0.15, c))
+        for i in range(25, 40):
+            c = 8.0 + (i - 25) * (4.1 / 14)
+            bars.append(_bar(i, c - 0.1, c + 0.15, c - 0.15, c))
+        for i in range(40, 50):
+            c = 12.0 - (i - 40) * 0.10
+            bars.append(_bar(i, c + 0.05, c + 0.08, c - 0.12, c))
+        return bars
+
+    def test_box_close_above_prior_window_upper_is_bullish(self):
+        # 检测 bar 收盘 12.5 越过前窗上轨 12.0 → 看涨(旧代码上轨含检测 bar 高点, 永不可达)。
+        bars = self._box_bars() + [_bar(40, 12.1, 12.6, 11.9, 12.5)]
+        r = detect_patterns(bars, "T")
+        boxes = [p for p in r.patterns if p.name == "箱体"]
+        assert boxes, _names(r)
+        assert boxes[0].direction == "bullish"
+        assert boxes[0].projection is not None
+
+    def test_box_close_below_prior_window_lower_is_bearish(self):
+        # 检测 bar 收盘 9.5 跌破前窗下轨 10.0 → 看跌。
+        bars = self._box_bars() + [_bar(40, 9.9, 10.1, 9.3, 9.5)]
+        r = detect_patterns(bars, "T")
+        boxes = [p for p in r.patterns if p.name == "箱体"]
+        assert boxes, _names(r)
+        assert boxes[0].direction == "bearish"
+        assert boxes[0].projection is not None
+
+    def test_box_close_inside_window_stays_neutral(self):
+        # 防误报: 检测 bar 在箱体内正常震荡 → 仍为中性, 不得给出突破。
+        bars = self._box_bars() + [_bar(40, 11.2, 11.4, 11.0, 11.2)]
+        r = detect_patterns(bars, "T")
+        boxes = [p for p in r.patterns if p.name == "箱体"]
+        assert boxes, _names(r)
+        assert boxes[0].direction == "neutral"
+        assert boxes[0].projection is None
+
+    def test_cup_handle_close_above_prior_handle_highs_is_bullish(self):
+        # 检测 bar 收盘 12.6 高于柄区间(检测 bar 之前)全部高点 → 看涨
+        # (旧代码柄高含检测 bar 自身高点 12.7, 分支永不可达)。
+        bars = self._cup_bars() + [_bar(50, 12.5, 12.7, 12.3, 12.6)]
+        r = detect_patterns(bars, "T")
+        cups = [p for p in r.patterns if p.name == "杯柄"]
+        assert cups, _names(r)
+        assert cups[0].direction == "bullish"
 
 
 class TestReportShape:
