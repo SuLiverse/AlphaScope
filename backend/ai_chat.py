@@ -30,6 +30,13 @@ try:
 except ImportError:
     from project_paths import ENV_FILE  # noqa: E402
 
+# pinned-DNS http_client 工厂：与 provider_gateway.create_client 参照用法保持一致（模块级导入，
+# 便于测试对 backend.ai_chat.create_ssrf_safe_http_client 打桩）。
+try:
+    from backend.models.provider_gateway import create_ssrf_safe_http_client  # noqa: E402
+except ImportError:  # pragma: no cover - 仅在以顶层模块方式导入时触发
+    from models.provider_gateway import create_ssrf_safe_http_client  # noqa: E402
+
 # Streamlit 热重载时 sys.modules 里可能残留旧版 llm_agents（无 call_llm 别名）。
 # 这里做运行时兜底，避免整个前端组件因导入别名失败而不加载。
 call_llm = getattr(_llm_agents, "call_llm", _llm_agents._call_with)
@@ -201,15 +208,26 @@ def _create_custom_client(base_url: str, api_key: str) -> OpenAI:
         raise RuntimeError("请先填写自定义 API Base URL")
     if not (api_key or "").strip():
         raise RuntimeError("请先填写自定义 API Key")
-    return OpenAI(api_key=api_key.strip(), base_url=base_url, timeout=60.0)
+    # 注入 pinned-DNS transport：连接时重新解析并校验目标 IP，防 DNS rebinding TOCTOU
+    # （否则构造时校验过的公网主机名可能在每次请求时被重解析到内网，用户 Key 随之外泄）。
+    http_client = create_ssrf_safe_http_client(base_url, timeout=60.0)
+    try:
+        return OpenAI(api_key=api_key.strip(), base_url=base_url, timeout=60.0, http_client=http_client)
+    except Exception:
+        http_client.close()
+        raise
 
 
 def fetch_model_list(base_url: str, api_key: str) -> List[str]:
     """从 OpenAI-compatible /models 接口拉取模型 ID 列表。"""
     client = _create_custom_client(base_url, api_key)
-    models = client.models.list()
-    ids = sorted({getattr(m, "id", "") for m in getattr(models, "data", []) if getattr(m, "id", "")})
-    return ids
+    try:
+        models = client.models.list()
+        ids = sorted({getattr(m, "id", "") for m in getattr(models, "data", []) if getattr(m, "id", "")})
+        return ids
+    finally:
+        # openai 2.44.0 的 client.close() 会连带关闭注入的 http_client（其 self._client 即传入实例，已核对源码）。
+        client.close()
 
 
 def call_llm_custom(
@@ -224,13 +242,16 @@ def call_llm_custom(
     if not (model or "").strip():
         raise RuntimeError("请先选择或填写自定义模型名称")
     client = _create_custom_client(base_url, api_key)
-    resp = client.chat.completions.create(
-        model=model.strip(),
-        messages=messages,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    return resp.choices[0].message.content or ""
+    try:
+        resp = client.chat.completions.create(
+            model=model.strip(),
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return resp.choices[0].message.content or ""
+    finally:
+        client.close()
 
 
 def send_message(session: ChatSession, user_msg: str) -> ChatSession:
