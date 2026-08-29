@@ -21,6 +21,7 @@ class _OpenAIEmbeddingFunction:
         self.model = model
         self.base_url = base_url
         self.api_key = api_key
+        # 新实例, 无旧连接需关闭; 重建/释放路径见 close()。
         self._client = None  # OpenAI client 懒建 + 复用(避免每次检索新建泄漏 fd)
 
     def _get_client(self):
@@ -28,8 +29,41 @@ class _OpenAIEmbeddingFunction:
         if self._client is None:
             from openai import OpenAI
 
-            self._client = OpenAI(api_key=self.api_key, base_url=self.base_url, timeout=30.0)
+            # 函数内导入: provider_gateway 顶层依赖 openai, 提前到模块级会破坏 openai 可选依赖语义。
+            from backend.models.provider_gateway import create_ssrf_safe_http_client
+
+            # 注入 pinned-DNS transport 防 DNS rebinding（存储的供应商 base_url 若每次请求重解析,
+            # 可被指向内网导致 Key 外泄）。local_only=False 走 validate_custom_base_url:
+            # 公网可连; ALLOW_LOCAL_LLM_BASE_URL=1 时保留本地回环 LLM 的显式开关语义
+            # （与 provider_gateway.create_client 参照用法一致）。
+            http_client = create_ssrf_safe_http_client(self.base_url, timeout=30.0)
+            try:
+                self._client = OpenAI(
+                    api_key=self.api_key,
+                    base_url=self.base_url,
+                    timeout=30.0,
+                    http_client=http_client,
+                )
+            except Exception:
+                http_client.close()
+                raise
         return self._client
+
+    def close(self) -> None:
+        """先关闭旧 OpenAI client（连带注入的 pinned http_client）再置空, 重建时避免连接泄漏。
+
+        openai 2.44.0 的 client.close() 会直接 close 其 self._client（即传入的 http_client 实例）。
+        """
+        client, self._client = self._client, None
+        if client is not None:
+            client.close()
+
+    def __del__(self) -> None:
+        # 兜底: 实例被丢弃（如配置签名变化导致 collection 重建、旧 adapter 被 GC）时关闭连接, 防 fd 泄漏。
+        try:
+            self.close()
+        except Exception:  # noqa: BLE001 - 解释器关闭期属性可能已被清理
+            pass
 
     def __call__(self, input):  # Chroma validates this exact parameter name.
         response = self._get_client().embeddings.create(model=self.model, input=list(input))
@@ -94,6 +128,8 @@ class VectorStore:
             return
         self._initialized = True
         CHROMA_DIR.mkdir(parents=True, exist_ok=True)
+        # 此处置空的是 chroma PersistentClient（非 OpenAI client），无 pinned http_client 需关闭;
+        # _OpenAIEmbeddingFunction 的释放路径见其 close()/__del__。
         self._client = None
         self._collections: dict = {}
         self._collection_signatures: dict[str, str] = {}
