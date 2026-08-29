@@ -292,7 +292,7 @@ class ToolRouter:
             from backend.rag.retriever import Retriever
 
             retriever = Retriever()
-            results = retriever.search(query, symbol=symbol, n_results=5)
+            results = retriever.search(query, symbol=symbol or None, n_results=5)
             return {"query": query, "results": results}
         except Exception as e:
             return {"query": query, "error": str(e)}
