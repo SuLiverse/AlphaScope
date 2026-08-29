@@ -283,8 +283,9 @@ def fetch_json(
 
     优先用 requests, 缺失回退 stdlib urllib。仅本函数触网, 供 refresh_source 调用、可注入替身。
 
-    SSRF 防护: 入口与重定向后均用 ``url_guard.validate_public_http_url`` 校验目标主机非内网
-    (防 127.0.0.1/10.x/169.254.169.254 等)。本机调试可设 ``ALPHASCOPE_ALLOW_LOCAL_FETCH=1``。
+    SSRF 防护: 入口 + 重定向每一跳均用 ``url_guard.validate_public_http_url`` 校验目标主机
+    非内网(防 127.0.0.1/10.x/169.254.169.254 等, requests 路径经 ``fetch_public_url`` 逐跳
+    校验, urllib 回退挂校验型重定向 handler)。本机调试可设 ``ALPHASCOPE_ALLOW_LOCAL_FETCH=1``。
     """
     from backend.security.url_guard import validate_public_http_url
 
@@ -299,14 +300,18 @@ def fetch_json(
         try:
             import requests  # 优先复用项目已有依赖
 
-            resp = requests.request(
-                method,
+            from backend.security.url_guard import fetch_public_url
+
+            # 重定向逐跳校验: 每一跳(含首跳)先 validate_public_http_url 再请求,
+            # 防「首跳公网、中间 30x 跳进内网」的盲 SSRF(抓取后复检最终 URL 只是兜底)。
+            resp = fetch_public_url(
                 safe_url,
+                method=method,
                 headers=headers,
-                json=body if (body is not None and method == "POST") else None,
                 timeout=timeout,
+                body=body if (body is not None and method == "POST") else None,
             )
-            # 重定向后复校验最终 URL(防 302→内网绕过)
+            # 重定向后复校验最终 URL(兜底, 防校验遗漏绕过)
             try:
                 validate_public_http_url(str(resp.url or safe_url))
             except ValueError as e:
@@ -328,7 +333,18 @@ def fetch_json(
         except ImportError:
             pass
 
+        # requests 缺失时的 stdlib 回退(requests 是硬依赖, 实际几乎不可达; 保留以不改变
+        # 降级语义, 并挂校验型重定向 handler 保证回退路径同样逐跳 SSRF 安全)。
         import urllib.request
+
+        class _GuardedRedirectHandler(urllib.request.HTTPRedirectHandler):
+            """逐跳 SSRF 校验: urllib 在发起新跳前调用 redirect_request, 在此先校验新 URL。"""
+
+            def redirect_request(self, req, fp, code, msg, headers, newurl):
+                # newurl 已是绝对 URL(urljoin 后); 不合法(内网/非 http(s))抛 ValueError,
+                # 由 fetch_json 外层失败安全捕获 → {ok: False}
+                validate_public_http_url(newurl)
+                return super().redirect_request(req, fp, code, msg, headers, newurl)
 
         data = None
         req_headers = dict(headers)
@@ -336,7 +352,8 @@ def fetch_json(
             data = json.dumps(body).encode("utf-8")
             req_headers.setdefault("Content-Type", "application/json")
         req = urllib.request.Request(safe_url, data=data, headers=req_headers, method=method)
-        with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - 入口已 SSRF 校验
+        opener = urllib.request.build_opener(_GuardedRedirectHandler)
+        with opener.open(req, timeout=timeout) as r:  # noqa: S310 - 首跳+每跳重定向均已 SSRF 校验
             # 重定向后复校验最终 URL
             try:
                 validate_public_http_url(r.geturl())
