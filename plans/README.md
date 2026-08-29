@@ -54,9 +54,9 @@ honor its STOP conditions, and update your row when done.
 
 | Plan | Title | Priority | Effort | Depends on | Status |
 |------|-------|----------|--------|------------|--------|
-| 028 | RAG 检索链路修复：agent 证据工具 TypeError + symbol/symbols 键错位 + 上传双重索引 + chunker 丢尾/破坏小数点 | P1 | M | — | IN PROGRESS（原执行者中断于 Step 2；已重派接管同一 worktree，先核验既有改动再完成 Step 3-6） |
+| 028 | RAG 检索链路修复：agent 证据工具 TypeError + symbol/symbols 键错位 + 上传双重索引 + chunker 丢尾/破坏小数点 | P1 | M | — | DONE（接管中断执行者后完成，分支 `advisor/028-rag-retrieval-chain-fixes` @0574ca9，13 新测试；有据偏离：`_item_symbol` 对 reports 也做 symbols 列表回退（超集、更正确）、顺带移除零调用方 `process_text` 的死索引调用；全量 2160 绿；已并入 main @4492ce7） |
 | 029 | MCP get_market_data 导入不存在的 fetch_prices（旗舰工具开箱即坏）+ 五工具错误脱敏 + 调用级测试 | P1 | S | — | DONE（分支 `advisor/029-mcp-market-data-fix` @79eb641，评审通过：5 工具全部脱敏 + 11 个新调用级用例（参数/截窗/空路径/泄漏注入 fixture），23 测试全绿；已并入 main @8edae9c） |
-| 030 | 新闻抓取/provider HTTP 重定向逐跳 SSRF 校验（上轮遗留专项） | P1 | S | — | IN PROGRESS（首派执行者已进入既有 worktree） |
+| 030 | 新闻抓取/provider HTTP 重定向逐跳 SSRF 校验（上轮遗留专项） | P1 | S | — | DONE（分支 `advisor/030-ssrf-per-hop-validation` @f5c5c36，9 个离线用例含「第二跳从未发出」断言；有据偏离：`json=` 语义保持、urllib 走校验型 RedirectHandler、`tests/test_news_parse_url.py` 桩机械适配（缺 status_code 字段，意图不变）；全量 2156 绿；已并入 main @56484f3） |
 | 031 | ai_chat 与 vector_store 两条 OpenAI 客户端路径接入 pinned-DNS transport（上轮遗留专项） | P1 | S | — | DONE（分支 `advisor/031-openai-pinned-transport` @aae7ae2，评审通过：7 新测试含语句级哨兵与 loopback 开关回归，全量 2154 绿；已并入 main @ed87771） |
 | 032 | advisor/027 新代码正确性：_atr_pct 序列错位、箱体/杯柄突破分支死代码、海龟参数窗口无保护 | P2 | M | 已满足（027 已入 main） | DONE（分支 `advisor/032-quant-027-correctness` @1f77c66，评审通过：12 新测试先红后绿，全量 2159 绿零 golden 破坏；有据偏离：system2 不计入 warmup 以守住 027 默认路径承诺，已加测试钉死；已并入 main @5fb342b） |
 
