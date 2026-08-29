@@ -10,6 +10,20 @@ from .vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
 
+# 无 collection 指定时遍历的默认集合 (与 pipeline.search_evidence 一致)
+DEFAULT_COLLECTIONS = ["news_chunks", "report_chunks", "announcement_chunks", "user_documents"]
+
+
+def _item_symbol(item: dict) -> str:
+    """统一单 symbol 语义: 优先单值字段, 否则取 symbols 列表第一个非空值。"""
+    symbol = str(item.get("symbol", "") or "").strip()
+    if symbol:
+        return symbol
+    for s in item.get("symbols", []) or []:
+        if str(s).strip():
+            return str(s).strip()
+    return ""
+
 
 class Retriever:
     """统一 RAG 检索器
@@ -46,16 +60,36 @@ class Retriever:
 
     def search(
         self,
-        collection: str,
         query: str,
         n_results: int = 5,
         symbol: Optional[str] = None,
+        collection: Optional[str] = None,
     ) -> list[dict]:
-        """检索相似文档"""
+        """检索相似文档
+
+        Args:
+            query: 查询文本
+            n_results: 返回条数
+            symbol: 可选的 symbol 过滤 (匹配 metadata 中的 "symbol" 键)
+            collection: 指定单一集合; 为 None 时遍历 DEFAULT_COLLECTIONS 并按 distance 合并
+        """
         where = None
         if symbol:
             where = {"symbol": symbol}
-        return self.store.query(collection, query, n_results, where)
+
+        if collection is not None:
+            return self.store.query(collection, query, n_results, where)
+
+        all_results: list[dict] = []
+        for col in DEFAULT_COLLECTIONS:
+            try:
+                all_results.extend(self.store.query(col, query, n_results, where))
+            except Exception as e:
+                logger.debug("RAG 检索 %s 失败: %s", col, e)
+
+        # 按 distance 升序排序, 取 top N
+        all_results.sort(key=lambda x: x.get("distance", 1.0))
+        return all_results[:n_results]
 
     def index_news(self, items: list[dict]) -> int:
         """批量索引新闻"""
@@ -68,6 +102,7 @@ class Retriever:
                 "source": item.get("source", ""),
                 "doc_type": "news",
                 "published_at": str(item.get("datetime", "")),
+                "symbol": _item_symbol(item),
                 "symbols": ",".join(item.get("symbols", [])),
             }
             count += self.index_document("news_chunks", text, metadata)
@@ -84,6 +119,7 @@ class Retriever:
                 "source": item.get("source", ""),
                 "doc_type": "report",
                 "institution": item.get("institution", ""),
+                "symbol": _item_symbol(item),
                 "symbols": ",".join(item.get("symbols", [])),
                 "published_at": str(item.get("datetime", "")),
             }

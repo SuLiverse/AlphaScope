@@ -39,7 +39,7 @@ class DocumentPipeline:
         self._processed: Dict[str, ProcessedDocument] = {}
 
     def process_file(self, file_path: str, metadata: Optional[Dict] = None) -> Optional[ProcessedDocument]:
-        """处理文件：解析 → 清洗 → 分块 → 索引"""
+        """处理文件：解析 → 清洗 → 分块（索引只在 process_and_persist 进行一次）"""
         t0 = time.time()
         p = Path(file_path)
 
@@ -79,8 +79,8 @@ class DocumentPipeline:
 
         self._processed[doc_id] = doc
 
-        # 索引到 RAG
-        self._index_document(doc)
+        # 注意: 此处不索引到 RAG — 索引只在 process_and_persist 发生一次,
+        # 否则同一文档会以两个不同 doc_id 双重写入 ChromaDB。
 
         return doc
 
@@ -104,7 +104,6 @@ class DocumentPipeline:
         )
 
         self._processed[doc_id] = doc
-        self._index_document(doc)
         return doc
 
     def _parse_file(self, path: Path, suffix: str) -> str:
@@ -285,6 +284,9 @@ class DocumentPipeline:
             metadata=metadata or {},
         )
         doc.doc_id = saved["id"]
+        # doc_id 已改写为持久化 ID, 同步更新 _processed 映射键,
+        # 否则 get_document(saved_id) 因旧 md5 键而 miss。
+        self._processed[doc.doc_id] = doc
 
         # 保存 chunks 到 SQLite
         save_chunks(doc.doc_id, doc.chunks)
