@@ -416,10 +416,12 @@ def _extract_title(content: str) -> str:
 
 
 def _fetch_html(url: str) -> tuple[str, str]:
-    import requests
+    from backend.security.url_guard import fetch_public_url
 
     safe_url = _validate_public_http_url(url)
-    response = requests.get(
+    # 逐跳 SSRF 校验: 自动跟随重定向会让中间 30x 跳绕过 url_guard(盲 SSRF),
+    # 改用 fetch_public_url 手动逐跳(每跳先 validate_public_http_url 再请求)。
+    response = fetch_public_url(
         safe_url,
         headers={
             "User-Agent": (
@@ -427,7 +429,6 @@ def _fetch_html(url: str) -> tuple[str, str]:
             )
         },
         timeout=(3.0, 5.0),
-        allow_redirects=True,
         stream=True,
     )
     try:

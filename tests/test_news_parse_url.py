@@ -14,6 +14,7 @@ from backend.api.main import app
 
 
 class FakeNewsResponse:
+    status_code = 200
     url = "https://example.com/story"
     headers = {"content-type": "text/html; charset=utf-8"}
     encoding = "utf-8"
@@ -55,7 +56,8 @@ async def test_parse_news_url_extracts_article_fields(client, monkeypatch):
         "backend.security.url_guard.socket.getaddrinfo",
         lambda host, port, type: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))],
     )
-    monkeypatch.setattr("requests.get", lambda *args, **kwargs: FakeNewsResponse())
+    # _fetch_html 经 url_guard.fetch_public_url 逐跳抓取, 底层调用 requests.request
+    monkeypatch.setattr("requests.request", lambda *args, **kwargs: FakeNewsResponse())
 
     async with client:
         resp = await client.post(
