@@ -14,6 +14,17 @@ logger = logging.getLogger(__name__)
 DEFAULT_COLLECTIONS = ["news_chunks", "report_chunks", "announcement_chunks", "user_documents"]
 
 
+def _item_symbol(item: dict) -> str:
+    """统一单 symbol 语义: 优先单值字段, 否则取 symbols 列表第一个非空值。"""
+    symbol = str(item.get("symbol", "") or "").strip()
+    if symbol:
+        return symbol
+    for s in item.get("symbols", []) or []:
+        if str(s).strip():
+            return str(s).strip()
+    return ""
+
+
 class Retriever:
     """统一 RAG 检索器
 
@@ -91,6 +102,7 @@ class Retriever:
                 "source": item.get("source", ""),
                 "doc_type": "news",
                 "published_at": str(item.get("datetime", "")),
+                "symbol": _item_symbol(item),
                 "symbols": ",".join(item.get("symbols", [])),
             }
             count += self.index_document("news_chunks", text, metadata)
@@ -107,6 +119,7 @@ class Retriever:
                 "source": item.get("source", ""),
                 "doc_type": "report",
                 "institution": item.get("institution", ""),
+                "symbol": _item_symbol(item),
                 "symbols": ",".join(item.get("symbols", [])),
                 "published_at": str(item.get("datetime", "")),
             }
