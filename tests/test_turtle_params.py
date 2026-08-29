@@ -2,9 +2,15 @@
 
 Locks default Donchian behaviour and the optional ATR-stop / dual-channel /
 no-short extras. Offline and deterministic.
+
+Plan 032 additions: parameter validation (entry/exit/atr/system2 bounds) and
+a warm-up lower bound so ``exit_period > entry_period`` no longer produces
+negative-start slices (empty-slice ``ValueError`` or a wrongly wrapped channel).
 """
 
 from __future__ import annotations
+
+import pytest
 
 from backend.quant.strategies.turtle import TurtleBreakoutStrategy
 
@@ -142,3 +148,70 @@ class TestAllowShort:
         assert "做空" not in blob
         assert "sell-to-open" not in blob.lower()
         assert "空头平仓" not in blob
+
+
+class TestParamGuardsPlan032:
+    """Plan 032: 参数校验 + warmup 下界保护。
+
+    旧代码只有 ``i < entry`` 守卫: exit_period > entry_period 时
+    ``lows[i - exit_p : i]`` 负起点回卷 → 空切片 ``min() ValueError``
+    (遗传优化器按独立区间采样 routinely 采到该区域后被 _safe_eval 静默记 _WORST)。
+    """
+
+    def test_exit_greater_than_entry_no_crash_and_first_25_bars_hold(self):
+        # 旧代码: i=20 时 lows[20-25:20] 负起点回卷 → min() iterable is empty。
+        bars = [_flat(i, 20.0) for i in range(40)]
+        sigs = TurtleBreakoutStrategy(
+            {"entry_period": 20, "exit_period": 25, "system2_period": 0}
+        ).generate_signals(bars)
+        assert len(sigs) == len(bars)
+        assert all(s.action == "hold" for s in sigs[:25])
+        assert all("数据不足" in s.reason for s in sigs[:25])
+        # warmup 恰为 max(entry, exit)=25: 第 25 根起已按通道评估(横盘 → 通道内)。
+        assert sigs[25].reason == "通道内"
+
+    def test_entry_period_zero_raises_value_error(self):
+        bars = [_flat(i, 20.0) for i in range(30)]
+        with pytest.raises(ValueError, match="entry"):
+            TurtleBreakoutStrategy({"entry_period": 0}).generate_signals(bars)
+
+    def test_exit_period_zero_raises_value_error(self):
+        bars = [_flat(i, 20.0) for i in range(30)]
+        with pytest.raises(ValueError, match="exit"):
+            TurtleBreakoutStrategy({"exit_period": 0}).generate_signals(bars)
+
+    def test_atr_path_exit_greater_than_entry_no_crash(self):
+        bars = [_flat(i, 20.0, width=0.3) for i in range(40)]
+        sigs = TurtleBreakoutStrategy(
+            {
+                "use_atr_stop": True,
+                "entry_period": 20,
+                "exit_period": 25,
+                "atr_period": 20,
+                "system2_period": 0,
+            }
+        ).generate_signals(bars)
+        assert len(sigs) == len(bars)
+        assert all(s.action == "hold" for s in sigs[:25])
+        assert all("数据不足" in s.reason for s in sigs[:25])
+        assert sigs[25].reason == "通道内"
+
+    def test_atr_path_entry_period_zero_raises_value_error(self):
+        bars = [_flat(i, 20.0, width=0.3) for i in range(30)]
+        with pytest.raises(ValueError, match="entry"):
+            TurtleBreakoutStrategy({"use_atr_stop": True, "entry_period": 0}).generate_signals(bars)
+
+
+class TestWarmupSemanticsPlan032:
+    def test_default_warmup_equals_entry_system2_must_not_inflate_it(self):
+        """Plan 032: 默认参数下 warmup 必须等于旧 entry(=20)。
+
+        027 承诺「默认路径数字保持不变」: system2 通道自带 ``i >= system2``
+        守卫, 不得计入 warmup——否则默认 system2=55 会把 20..54 根变成
+        「数据不足」, 改变默认回测数字。第 entry 根就应按通道评估(此处卖出)。
+        """
+        bars = [_flat(i, 20.0) for i in range(21)]
+        bars[20] = _bar(20, 20.0, 20.1, 10.0, 10.5)  # 第 entry 根大跌破下轨
+        sigs = TurtleBreakoutStrategy().generate_signals(bars)  # system2 默认 55
+        assert sigs[20].action == "sell"
+        assert "数据不足" not in sigs[20].reason
