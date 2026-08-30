@@ -149,13 +149,6 @@ if HAS_FASTAPI:
         lifespan=_app_lifespan,
     )
 
-    app.add_middleware(
-        CORSMiddleware,
-        **_cors_middleware_options(),
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
-
     LOCAL_TOKEN_HEADER = "X-AlphaScope-Local-Token"
     # 浏览器导航/SSE 无法加自定义 header, 兼容用 query param 传 token(报告下载、任务事件流)。
     LOCAL_TOKEN_QUERY = "local_token"
@@ -251,6 +244,16 @@ if HAS_FASTAPI:
                 ).model_dump(),
             )
         return await call_next(request)
+
+    # CORS 必须是最外层（Starlette 后注册者在外侧）：预检 OPTIONS 在鉴权前被直接应答，
+    # 且鉴权 401 等响应会带回 Access-Control-Allow-* 头——否则跨域开发/部署下浏览器
+    # 只能看到不透明的 "Failed to fetch"，令牌引导页（依赖可读的 401 状态码）永远不触发。
+    app.add_middleware(
+        CORSMiddleware,
+        **_cors_middleware_options(),
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     # 武装全局 Token 预算(首次调用 registry 时也会自动装)
     try:

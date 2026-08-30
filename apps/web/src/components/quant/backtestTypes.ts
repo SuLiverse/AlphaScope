@@ -21,11 +21,11 @@ export const TABS: Array<{ id: TabID; label: string; icon: ComponentType<{ class
   { id: 'overview', label: '回测大厅', icon: History },
   { id: 'workshop', label: '策略工坊', icon: Code2 },
   { id: 'leaderboard', label: '策略榜', icon: Trophy },
-  { id: 'walkforward', label: '样本外走查', icon: GitBranch },
+  { id: 'walkforward', label: '样本外', icon: GitBranch },
   { id: 'evolution', label: '策略进化', icon: Dna },
   { id: 'chips', label: '筹码分布', icon: Coins },
   { id: 'experiments', label: '实验记录', icon: Database },
-  { id: 'pool', label: '股票池解析', icon: Layers },
+  { id: 'pool', label: '股票池', icon: Layers },
   { id: 'compare', label: '后验比对', icon: Activity },
 ];
 
