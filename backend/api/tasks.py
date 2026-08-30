@@ -88,6 +88,14 @@ def _estimate_task_progress(task: dict[str, Any]) -> int:
     if status == "pending":
         return 8
 
+    # 编排器真实上报的阶段进度优先; 未上报(旧任务/其它类型)才用时间估算兜底
+    try:
+        reported = int(task.get("progress") or 0)
+    except (TypeError, ValueError):
+        reported = 0
+    if reported > 0:
+        return min(97, reported)
+
     started_at = task.get("started_at") or task.get("created_at") or time.time()
     try:
         elapsed = max(0.0, time.time() - float(started_at))
@@ -111,6 +119,10 @@ def _task_to_event(task: dict[str, Any]) -> dict[str, Any]:
         "failed": "报告生成失败",
         "cancelled": "任务已取消",
     }.get(status, "任务状态已更新")
+    # 编排器的阶段文案(Critic 复核中 / 主席综合中…)比固定话术信息量大, 优先展示
+    stage = str(task.get("stage") or "").strip()
+    if status == "running" and stage:
+        message = stage
 
     return {
         "type": event_type,
@@ -268,9 +280,14 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
     """异步运行分析（返回 task_id）"""
     from backend.task_queue import TaskQueue
 
-    def _run():
+    def _run(task_id: str = ""):
         from backend.runtime.orchestrator import run_agents_with_mode
         from backend.agent_modes import AnalysisMode
+        from backend.task_queue import TaskQueue as _TQ
+
+        def _progress_cb(pct: int, stage: str) -> None:
+            if task_id:
+                _TQ().report_progress(task_id, pct, stage)
 
         mode_map = {
             "standard": AnalysisMode.STANDARD,
@@ -289,6 +306,7 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
             mode=mode,
             agent_configs=req.agent_configs,
             global_ai_settings=req.global_ai_settings,
+            progress_cb=_progress_cb,
         )
         # 回显用户选择的研报范式, 供前端导出/排版使用(不改变分析本身)
         if isinstance(result, dict):
@@ -298,6 +316,7 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
     task_id = TaskQueue().submit(
         task_type="analysis",
         func=_run,
+        pass_task_id=True,
         conversation_id=req.conversation_id,
         input_data={
             "stock_symbol": req.stock_symbol,
