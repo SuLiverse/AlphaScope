@@ -1244,9 +1244,9 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                   <FileCheck className="w-8 h-8 text-neutral-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-neutral-300">本投研报告书处于未配置草稿状态</h3>
+                  <h3 className="text-lg font-semibold text-neutral-300">报告草稿尚未配置</h3>
                   <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                    请在左侧配置面板中指定您欲展开多因子分析与公司基本面测绘的股票，然后点击“启动智能整合排版”。AI Agent 助理网络将全面对标的资产进行结构化信源编纂，提供可出版级的专业投资评估。
+                    在左侧选择研究标的与大纲模板，点击「启动智能整合排版」即可生成带证据链的深度报告。
                   </p>
                 </div>
               </motion.div>

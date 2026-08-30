@@ -465,19 +465,35 @@ export function formatNewsTime(value?: string) {
   return `${month}-${day} ${hour}:${minute}`;
 }
 
-export function emptyCards(reason: string): MetricCard[] {
-  return [
-    { label: '数据状态', value: '暂无', detail: reason, tone: 'amber' },
-    { label: '来源', value: '--', detail: reason, tone: 'neutral' },
-    { label: '日期', value: '--', detail: reason, tone: 'neutral' },
-    { label: '建议', value: '刷新', detail: '点击行情刷新按钮后会重新拉取信息源', tone: 'indigo' },
-  ];
+/** 把底层报错翻译成用户能读懂的一句话；原始报错保留在卡片 title tooltip 里。 */
+export function humanizeDataError(reason: string): string {
+  const text = (reason || '').trim();
+  if (!text) return '数据源暂不可用';
+  if (/failed to fetch|networkerror|load failed/i.test(text)) return '数据服务连接失败，请检查后端后点击刷新重试';
+  if (/aborted|timeout|timed?\s*out/i.test(text)) return '数据源响应超时，请稍后点击刷新重试';
+  if (/401|403|token/i.test(text)) return '本地访问令牌未配置，请完成令牌引导后重试';
+  return text.length > 40 ? `${text.slice(0, 40)}…` : text;
+}
+
+/**
+ * 数据不可用时的占位卡片：保留各区块真实指标名，值安静地显示「——」，
+ * 原因放 detail（卡片 title tooltip 展示）。不再把「数据状态/来源/日期/建议」
+ * 这类状态话术当成四个指标占满 KPI 行。
+ */
+export function emptyCards(labels: string[], reason: string): MetricCard[] {
+  const humanized = humanizeDataError(reason);
+  return labels.map((label) => ({
+    label,
+    value: '——',
+    detail: humanized,
+    tone: 'neutral' as MetricTone,
+  }));
 }
 
 export function buildFinanceCards(payload?: FundamentalsResponse): MetricCard[] {
   const latest = payload?.financial_periods?.[0];
   if (!latest) {
-    return emptyCards(payload?.error || '基本面接口没有返回当前标的财务摘要');
+    return emptyCards(['营业收入', '归母净利', '毛利率', 'ROE'], payload?.error || '基本面接口没有返回当前标的财务摘要');
   }
   const period = latest.period || '最新报告期';
   const score = Number(payload?.fundamental_score?.total_score ?? payload?.fundamental_score?.score ?? NaN);
@@ -512,7 +528,7 @@ export function buildFinanceCards(payload?: FundamentalsResponse): MetricCard[] 
 export function buildFundFlowCards(payload?: FundFlowResponse): MetricCard[] {
   const summary = payload?.summary;
   if (!summary) {
-    return emptyCards(payload?.error || '资金流接口没有返回当前标的资金数据');
+    return emptyCards(['主力净流入', '当日主力', '超大单', '大单'], payload?.error || '资金流接口没有返回当前标的资金数据');
   }
   const recentDays = summary.recent_days || 5;
   const trend = `${summary.inflow_days || 0} 日流入 / ${summary.outflow_days || 0} 日流出`;
@@ -548,7 +564,7 @@ export function buildFundFlowCards(payload?: FundFlowResponse): MetricCard[] {
 export function buildQuantCards(payload?: FactorResponse): MetricCard[] {
   const factors = payload?.factors || {};
   if (!payload || !Object.keys(factors).length) {
-    return emptyCards('量化因子接口没有返回可用结果');
+    return emptyCards(['动量因子', '情绪因子', '质量因子', '综合评分'], '量化因子接口没有返回可用结果');
   }
   const counts = payload.sample_counts || {};
   const missing = payload.missing_dimensions || [];

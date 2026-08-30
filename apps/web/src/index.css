@@ -20,6 +20,36 @@
   --color-border-strong: rgb(255 255 255 / 0.1);   /* = border-white/10 强调描边 */
   --color-brand: #6366f1;                          /* = indigo-500 品牌主色 */
   --color-brand-light: #818cf8;                    /* = indigo-400 品牌亮色 */
+
+  /* ===== 状态语义色（A股惯例：涨红跌绿） =====
+     涨跌语义统一走 tint-up/tint-down，界面不再散落 hardcode 的 red-400/green-400 组合；
+     text 色阶与其 /N 透明度修饰同 token 派生，保证深底上的可读性一致。 */
+  --color-tint-up: #f0524f;                        /* 上涨/风险触发（红） */
+  --color-tint-down: #34d399;                      /* 下跌/安全（绿） */
+  --color-tint-warn: #f5b544;                      /* 提示/降级（琥珀） */
+  --color-tint-info: #818cf8;                      /* 中性提示（品牌亮色） */
+
+  /* ===== 文字层级 =====
+     页面文案只用三档：主文字 text-neutral-200、次级 text-neutral-400、弱化 text-neutral-600。
+     说明性长文案一律弱化档，避免和主数据争夺注意力。 */
+}
+
+/* 全局数字排版：金融界面所有数字使用等宽数字位，跳动不抖栅格。 */
+html {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 统一交互过渡：颜色/描边/阴影 150ms ease-out；位移类动效交给 motion 组件并受 reducedMotion 约束。 */
+button, a, [role="button"], input, select {
+  transition-property: color, background-color, border-color, box-shadow, opacity;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.165, 0.84, 0.44, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button, a, [role="button"], input, select {
+    transition-duration: 0ms;
+  }
 }
 
 html,

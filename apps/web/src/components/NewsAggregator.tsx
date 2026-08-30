@@ -732,6 +732,36 @@ function NewsLinkParserBox({ onParse }: NewsLinkParserBoxProps) {
   );
 }
 
+
+/** 后端信源状态枚举 → 用户可读标签（idle/loading/ok/failed/其他 source_status）。 */
+function backendStateLabel(status: string): string {
+  switch (status) {
+    case 'ok':
+      return '正常';
+    case 'failed':
+      return '未连接';
+    case 'loading':
+      return '连接中';
+    case 'idle':
+      return '待连接';
+    case 'empty':
+      return '无数据';
+    case 'cache':
+      return '缓存数据';
+    case 'timeout':
+      return '响应超时';
+    default:
+      return status;
+  }
+}
+
+/** 状态 → 颜色点：正常绿、进行中琥珀呼吸、异常中性灰（错误细节不在概览层裸奔）。 */
+function backendStateDotClass(status: string): string {
+  if (status === 'ok') return 'bg-emerald-400';
+  if (status === 'loading') return 'bg-amber-400 animate-pulse';
+  return 'bg-neutral-500';
+}
+
 export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
   const [currentStock, setCurrentStock] = useState<StockTarget>(() => getPersistedStock() ?? STOCK_UNIVERSE[0]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -1218,13 +1248,21 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
               <div className="flex items-center gap-2 text-xs font-medium text-neutral-200">
                 <Globe className="h-4 w-4 text-indigo-400" />
                 信源概览
-                <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-neutral-400">
-                  后端: {backendSourceState.newsStatus} / 公告: {backendSourceState.announcementStatus}
+                <span className="flex items-center gap-2 text-[10px] text-neutral-500">
+                  <span className="inline-flex items-center gap-1">
+                    <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', backendStateDotClass(backendSourceState.newsStatus))} />
+                    资讯源 {backendStateLabel(backendSourceState.newsStatus)}
+                  </span>
+                  <span className="text-neutral-700">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', backendStateDotClass(backendSourceState.announcementStatus))} />
+                    公告源 {backendStateLabel(backendSourceState.announcementStatus)}
+                  </span>
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <p className="hidden text-[10px] text-neutral-500 sm:block">
-                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '本地多源兜底'} · 官方 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条
+                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '内置多源聚合'} · 官方 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条
                 </p>
                 <button
                   type="button"
@@ -1246,7 +1284,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
                 className="mt-2 flex w-full items-center justify-between rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-left transition-colors hover:border-indigo-400/30 hover:bg-indigo-500/[0.04]"
               >
                 <span className="truncate text-[11px] text-neutral-300">
-                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '本地多源兜底'} · 官方披露 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条 · {backendSourceState.degraded ? '部分源降级，保留兜底' : '后端源正常'}
+                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '内置多源聚合'} · 官方披露 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条 · {backendSourceState.degraded ? '部分数据源暂不可用，已自动切换备用源' : '数据源正常'}
                 </span>
                 <ChevronDown className="ml-2 h-3.5 w-3.5 flex-shrink-0 text-neutral-500" />
               </button>
@@ -1256,10 +1294,10 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
                   {[
-                    ['源状态', sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '本地多源兜底'],
+                    ['源状态', sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '内置多源聚合'],
                     ['官方披露', `${sourceSummary.officialCount} 条`],
                     ['主流/终端', `${sourceSummary.mediaCount} / ${sourceSummary.terminalCount} 条`],
-                    ['风险提示', backendSourceState.degraded ? '部分源降级，保留兜底' : '后端源正常'],
+                    ['数据源', backendSourceState.degraded ? '部分源暂不可用，已切换备用源' : '全部正常'],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
                       <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">{label}</p>
@@ -1273,7 +1311,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
                     <span className="text-[11px] font-medium text-neutral-300">新闻来源矩阵</span>
                     <div className="flex items-center gap-2">
                       <p className="text-[10px] text-neutral-500">
-                        真实入库源 {backendSourceState.sources.length || 0} 个，兜底源 {backendSourceState.fallbackSources.length || SOURCE_MATRIX.length} 组
+                        后端接入 {backendSourceState.sources.length || 0} 个源 · 内置备用 {backendSourceState.fallbackSources.length || SOURCE_MATRIX.length} 组
                       </p>
                       <button
                         type="button"

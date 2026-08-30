@@ -10,7 +10,7 @@ export function MetricCard({
 }: {
   label: string;
   value: string;
-  hint: string;
+  hint?: string;
   icon: ComponentType<{ className?: string }>;
   tone?: 'rose' | 'emerald' | 'indigo' | 'neutral' | 'amber';
 }) {
@@ -28,8 +28,8 @@ export function MetricCard({
         <p className="text-[10px] font-mono uppercase tracking-widest text-neutral-500">{label}</p>
         <Icon className={cn('h-4 w-4', color)} />
       </div>
-      <h3 className="text-3xl font-mono font-medium text-white">{value}</h3>
-      <p className={cn('mt-2 text-[11px] font-mono', color)}>{hint}</p>
+      <h3 className={cn('text-3xl font-mono font-medium', value === '--' ? 'text-neutral-600' : 'text-white')}>{value}</h3>
+      {hint && <p className={cn('mt-2 text-[11px] font-mono', color)}>{hint}</p>}
     </div>
   );
 }
