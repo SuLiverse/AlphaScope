@@ -94,6 +94,25 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
     void refreshRunningCount();
   }, [refreshRunningCount]);
 
+  // 运行期间持续轮询运行态计数: 任务从 pending→running 有延迟,
+  // 只在翻转瞬间查一次会永远停在 0, 与进度条自相矛盾。
+  useEffect(() => {
+    if (!task.isRunning) return undefined;
+    const id = window.setInterval(() => void refreshRunningCount(), 4000);
+    return () => window.clearInterval(id);
+  }, [task.isRunning, refreshRunningCount]);
+
+  // 已运行时长(1s 心跳, 仅运行中计时)
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    if (!task.isRunning) {
+      setElapsedSec(0);
+      return undefined;
+    }
+    const id = window.setInterval(() => setElapsedSec((prev) => prev + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [task.isRunning]);
+
   const handleRun = () => {
     if (!stock || task.isRunning) return;
     void task.run(stripSymbolSuffix(stock.symbol), stock.name, analysisMode);
@@ -229,14 +248,23 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
           >
             {task.isRunning && (
               <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-black/40">
-                <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${task.progress}%` }} />
+                <div className="h-full rounded-full bg-indigo-500 transition-all duration-500" style={{ width: `${task.progress}%` }} />
               </div>
             )}
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {task.isRunning && <RefreshCw className="h-3.5 w-3.5 animate-spin text-indigo-400" />}
               <span className={cn('font-medium', task.error ? 'text-rose-300' : task.result ? 'text-emerald-300' : 'text-indigo-200')}>
                 {task.error ? `分析失败：${task.error}` : task.result ? '圆桌分析完成，可在「研究报告」查看结果。' : task.message || '任务调度中...'}
               </span>
+              {task.isRunning && (
+                <>
+                  <span className="font-mono text-indigo-300/90">{task.progress}%</span>
+                  <span className="font-mono text-neutral-500">
+                    已运行 {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
+                  </span>
+                  <span className="text-neutral-600">深度模式需多轮 LLM 调用，属正常耗时</span>
+                </>
+              )}
             </div>
             {task.status === 'pending' && task.taskId && (
               <p className="mt-1 font-mono text-[10px] text-neutral-500">任务 ID：{task.taskId}</p>

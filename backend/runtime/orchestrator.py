@@ -15,7 +15,7 @@ import os
 import re
 from dataclasses import asdict
 from datetime import date
-from typing import Dict, Any, Optional, List
+from typing import Callable, Dict, Any, Optional, List
 
 from backend.models.provider_gateway import VENDORS, _call_with, _extract_json
 from backend.agents.base import (
@@ -500,6 +500,7 @@ def run_agents_with_mode(
     agent_configs: Optional[List[dict]] = None,
     global_ai_settings: Optional[dict] = None,
     api_keys: Optional[Dict[str, str]] = None,
+    progress_cb: Optional[Callable[[int, str], None]] = None,
 ) -> Dict[str, Any]:
     """
     Run agent analysis with mode-based configuration.
@@ -510,6 +511,7 @@ def run_agents_with_mode(
         agent_configs: Optional custom agent configs (overrides mode defaults)
         global_ai_settings: Optional global AI settings from dashboard
         api_keys: Optional per-agent API keys
+        progress_cb: Optional (pct, stage) callback for long-task progress reporting
 
     Returns:
         Same shape as run_custom_agents() with additional mode metadata
@@ -554,6 +556,17 @@ def run_agents_with_mode(
     from backend.agents.data_verifier import verify_data
 
     verification = verify_data(stock_data)
+
+    def _report(pct: int, stage: str) -> None:
+        """阶段进度上报; 回调异常绝不影响分析主流程。"""
+        if progress_cb is None:
+            return
+        try:
+            progress_cb(max(1, min(97, int(pct))), stage)
+        except Exception:  # noqa: BLE001
+            logger.debug("progress_cb 失败(忽略): %s", stage)
+
+    _report(12, "数据完整性核验完成")
 
     # Zero-key safety net: if no model provider is configured (first launch /
     # Demo mode), return a clearly-labelled demo skeleton instead of attempting
@@ -691,6 +704,7 @@ def run_agents_with_mode(
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
     if active:
+        _report(18, f"{len(active)} 个 Agent 并行研判中")
         with ThreadPoolExecutor(max_workers=len(active)) as ex:
             futures = {
                 ex.submit(
@@ -702,6 +716,7 @@ def run_agents_with_mode(
                 ): cfg.key
                 for cfg in active
             }
+            _agent_done = 0
             for fut in as_completed(futures):
                 # 单个 Agent 的配置 bug(asdict/resolve 抛错, 非 LLM 失败)不应让整批崩 —
                 # 失败的 future 记成错误项, 已成功的 Agent 结果保留。
@@ -720,6 +735,12 @@ def run_agents_with_mode(
                         "confidence": 0,
                         "signal": "观望",
                     }
+                finally:
+                    _agent_done += 1
+                    _report(
+                        18 + int(55 * _agent_done / max(1, len(active))),
+                        f"Agent 研判 {_agent_done}/{len(active)} 完成 · {futures[fut]}",
+                    )
 
     # 把每个 Agent 结论里的 [n] 证据引用解析成真实 evidence_id,
     # 实现"点开结论可反查来源"的可审计能力(evidence 招牌落地)。
@@ -744,9 +765,15 @@ def run_agents_with_mode(
     else:
         final = "建议观望"
 
-    # Critic review (only in DEEP mode)
+    # Critic 反证 + 主席综合 (DEEP mode): 二者都只消费 Agent 结果, 互不依赖,
+    # 并行执行省一次完整 LLM 往返(约省 1/3 尾段耗时); 失败安全语义原样保留。
     critic_block = None
-    if config.enable_critic and any(r.get("ok") for r in results.values()):
+    chairman_summary = None
+    _want_critic = config.enable_critic and any(r.get("ok") for r in results.values())
+    _want_chairman = config.enable_chairman
+
+    def _run_critic():
+        _report(78, "Critic 反证复核中")
         try:
             from backend.critic import run_batch_critic
             from backend.models.task_router import resolve_model_for_task
@@ -773,7 +800,7 @@ def run_agents_with_mode(
                 if use_global_critic_credentials
                 else critic_settings.get("base_url", "")
             )
-            critic_block = run_batch_critic(
+            block = run_batch_critic(
                 stock_name=stock_data.get("name", "未知标的"),
                 market_brief=brief,
                 agent_results={k: r for k, r in results.items() if r.get("ok")},
@@ -782,20 +809,20 @@ def run_agents_with_mode(
                 api_key=critic_api_key or None,
                 base_url=critic_base_url or None,
             )
-            for ag_key, review in (critic_block.get("agents") or {}).items():
+            for ag_key, review in (block.get("agents") or {}).items():
                 if ag_key in results:
                     results[ag_key]["review"] = review
+            return block
         except Exception as e:
-            critic_block = {
+            return {
                 "agents": {},
                 "divergence": {"level": "无", "main_axis": "", "summary": ""},
                 "ok": False,
                 "error": str(e)[:200],
             }
 
-    # Chairman synthesis (only in DEEP mode)
-    chairman_summary = None
-    if config.enable_chairman:
+    def _run_chairman():
+        _report(86, "投委会主席综合研判中")
         try:
             from backend.models.task_router import resolve_model_for_task
 
@@ -817,7 +844,7 @@ def run_agents_with_mode(
                 if inherit_chairman_key and same_global_provider
                 else chairman_settings.get("api_key", "")
             )
-            chairman_summary = summarize_with_chairman(
+            return summarize_with_chairman(
                 {
                     "agents": results,
                     "summary": {"buy": buy, "sell": sell, "hold": hold},
@@ -828,7 +855,19 @@ def run_agents_with_mode(
                 model=chairman_route["model"],
             )
         except Exception as e:
-            chairman_summary = f"主席总结生成失败: {_sanitize_model_error(e)}"
+            return f"主席总结生成失败: {_sanitize_model_error(e)}"
+
+    if _want_critic and _want_chairman:
+        _report(74, "Critic 反证与主席综合并行执行中")
+        with ThreadPoolExecutor(max_workers=2) as _tail_ex:
+            _fc = _tail_ex.submit(_run_critic)
+            _fm = _tail_ex.submit(_run_chairman)
+            critic_block = _fc.result()
+            chairman_summary = _fm.result()
+    elif _want_critic:
+        critic_block = _run_critic()
+    elif _want_chairman:
+        chairman_summary = _run_chairman()
 
     rating = compute_rating(list(results.values()), risk_vetoed=False)
     summary = {
@@ -848,6 +887,7 @@ def run_agents_with_mode(
         now=as_of_timestamp(as_of),
     )
     model_status = _build_model_status(results, critic_block, chairman_summary)
+    _report(93, "研报排版生成中")
     research_report = _build_research_report_body(
         stock_data,
         results,
