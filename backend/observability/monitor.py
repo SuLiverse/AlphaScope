@@ -129,6 +129,7 @@ def _collect_data_sources(now: float) -> dict[str, Any]:
     registry = get_registry()
     total = healthy = degraded = unhealthy = 0
     good = warn = poor = 0
+    sampled = 0
     quals: list[float] = []
     for _name, provider in registry._providers.items():
         h = provider.health
@@ -146,6 +147,17 @@ def _collect_data_sources(now: float) -> dict[str, Any]:
             "avg_latency_ms": getattr(h, "avg_latency_ms", 0),
             "last_success": getattr(h, "last_success", 0),
         }
+        # 「未采样」≠「异常」: 进程刚启动时所有源都还没被调用过, last_success=0
+        # 会把新鲜度打到 0 → 质量分 0 → 全部误判 poor。未采样(健康且零失败且
+        # 从未成功)的源不参与均分, 只计数; 全部未采样时组件记 unknown。
+        unsampled = (
+            status == "healthy"
+            and not getattr(h, "consecutive_failures", 0)
+            and not getattr(h, "last_success", 0)
+        )
+        if unsampled:
+            continue
+        sampled += 1
         q = compute_quality_score(entry, now=now)
         quals.append(q["quality_score"])
         if q["grade"] == "good":
@@ -157,16 +169,27 @@ def _collect_data_sources(now: float) -> dict[str, Any]:
 
     if total == 0:
         return _component("data_sources", STATUS_UNKNOWN, "无已注册数据源", metrics={"total": 0})
+    if sampled == 0:
+        return _component(
+            "data_sources",
+            STATUS_UNKNOWN,
+            f"{healthy}/{total} 已注册 · 尚未采样(调用任一数据源后开始评分)",
+            metrics={"total": total, "healthy": healthy, "sampled": 0},
+        )
     avg_quality = round(sum(quals) / len(quals), 1)
+    summary = f"{healthy}/{total} 正常 · 已采样 {sampled} · 均分 {avg_quality}"
+    if sampled < total:
+        summary += f" · 未采样 {total - sampled}"
     return _component(
         "data_sources",
         grade_from_quality(avg_quality),
-        f"{healthy}/{total} 正常 · 均分 {avg_quality}",
+        summary,
         metrics={
             "total": total,
             "healthy": healthy,
             "degraded": degraded,
             "unhealthy": unhealthy,
+            "sampled": sampled,
             "avg_quality": avg_quality,
             "quality_good": good,
             "quality_warn": warn,
