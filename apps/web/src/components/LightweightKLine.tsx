@@ -176,10 +176,47 @@ export function LightweightKLine({ data, showMA = true, showMa5, showMa10, showM
     ma5Ref.current?.setData(ma5On ? m5 : []);
     ma10Ref.current?.setData(ma10On ? m10 : []);
     ma20Ref.current?.setData(ma20On ? m20 : []);
-    // 延迟到下一帧再 fitContent: 让浏览器完成布局、autoSize 的 ResizeObserver
-    // 回调把宽度修正到位, 避免在 0/错宽度下拟合导致首帧堆叠。
-    const raf = requestAnimationFrame(() => chart.timeScale().fitContent());
-    return () => cancelAnimationFrame(raf);
+
+    // —— 可见范围自愈 fit ——
+    // 背景: ① fitContent 只在 rAF 里调一次时, 后台标签页 rAF 被冻结, fit 永不执行,
+    //        图表停留在默认「右对齐 + barSpacing=6」态 → 蜡烛挤在右侧、左边大片空白;
+    //       ② 容器尺寸在布局稳定前变化时, 一次性 fit 的结果会被后续 resize 的
+    //        「右缘锚定」重置回挤压态。
+    // 对策: 同步先 fit 一次, 然后校验可见逻辑范围是否覆盖全部数据; 未覆盖则显式
+    //        setVisibleLogicalRange 强制展开; 再各留一帧/300ms 两次幂等兜底。
+    //        全部可取消, 卸载/数据变更时清理。
+    let disposed = false;
+    const timers: number[] = [];
+    const rafs: number[] = [];
+
+    const fitAll = () => {
+      if (disposed || !chartRef.current) return;
+      const ts = chartRef.current.timeScale();
+      const total = candles.length;
+      if (total === 0) return;
+      ts.fitContent();
+      // 校验: fit 后可见范围必须覆盖首尾各留 1 根边距; 不满足则强制展开。
+      const range = ts.getVisibleLogicalRange();
+      if (!range || range.from > 0.5 || range.to < total - 1.5) {
+        ts.setVisibleLogicalRange({ from: -1, to: total });
+      }
+    };
+
+    // ① 同步(数据就位即 fit, 不赌 rAF 是否被节流)
+    fitAll();
+    // ② 布局稳定后补一帧(宽度/缩放已定, 修正首帧宽度错误)
+    rafs.push(requestAnimationFrame(() => fitAll()));
+    // ③ 兜底: rAF 被冻结(后台标签页)或 autoSize 迟到时的最终兜底
+    timers.push(window.setTimeout(() => {
+      fitAll();
+      rafs.push(requestAnimationFrame(() => fitAll()));
+    }, 300));
+
+    return () => {
+      disposed = true;
+      timers.forEach((t) => window.clearTimeout(t));
+      rafs.forEach((r) => cancelAnimationFrame(r));
+    };
   }, [data, showMA, showMa5, showMa10, showMa20]);
 
   // 形态标记(可选):在对应 K 线上打箭头/圆点(时间须升序)。

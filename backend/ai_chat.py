@@ -237,6 +237,7 @@ def call_llm_custom(
     messages: list,
     max_tokens: int = 2048,
     temperature: float = 0.4,
+    conversation_id: str = "",
 ) -> str:
     """调用用户自定义 OpenAI-compatible 模型。"""
     if not (model or "").strip():
@@ -249,6 +250,21 @@ def call_llm_custom(
             max_tokens=max_tokens,
             temperature=temperature,
         )
+        # 自定义 Provider 路径此前不记成本 → 监控中心/顶栏「LLM 今日」恒为 0。
+        # 与 provider_gateway._call_with 的记录口径对齐(同一 _record_cost 提取 usage)。
+        try:
+            from backend.models.provider_gateway import _record_cost
+
+            _record_cost(
+                resp,
+                vendor="custom",
+                model=model.strip(),
+                agent_key="chat_custom",
+                mode="chat",
+                conversation_id=conversation_id,
+            )
+        except Exception:
+            pass  # 成本记录失败不阻断调用
         return resp.choices[0].message.content or ""
     finally:
         client.close()
@@ -272,6 +288,7 @@ def send_message(session: ChatSession, user_msg: str) -> ChatSession:
                 messages=_build_payload(session),
                 max_tokens=2048,
                 temperature=0.4,
+                conversation_id=getattr(session, "session_id", "") or getattr(session, "id", ""),
             )
         except Exception as e:
             reply = f"⚠️ 自定义模型调用失败: {str(e)[:200]}"
