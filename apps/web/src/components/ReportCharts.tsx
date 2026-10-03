@@ -54,16 +54,16 @@ const tooltipStyle = {
 
 function ChartCard({ title, subtitle, children, empty }: { title: string; subtitle?: string; children: React.ReactNode; empty?: boolean }) {
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-      <div className="mb-2 flex items-baseline justify-between">
+    <div className="min-w-0 rounded-lg border border-white/[0.06] bg-black/20 p-4">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-1">
         <h4 className="text-xs font-medium text-neutral-200">{title}</h4>
         {subtitle && <span className="text-[10px] text-neutral-600">{subtitle}</span>}
       </div>
-      <div className="h-44">
+      <div className="h-44 min-w-0">
         {empty ? (
           <div className="flex h-full items-center justify-center text-[11px] text-neutral-600">暂无数据</div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={{ width: 320, height: 176 }}>
             {children as any}
           </ResponsiveContainer>
         )}
@@ -76,9 +76,17 @@ export function ReportCharts({ result, symbol, stockName }: { result: AnalysisRe
   const [prices, setPrices] = useState<PriceBar[]>([]);
   const [factors, setFactors] = useState<FactorVector | null>(null);
   const [patterns, setPatterns] = useState<PatternCounts | null>(null);
+  const frozen = Boolean(result.research_version_id || result.research_snapshot?.cutoff_enforced || result.chart_snapshot);
+  const chartSnapshot = result.chart_snapshot;
 
   // 补充数据(各自失败安全:任一失败仅该图占位,不影响其余)。
   useEffect(() => {
+    if (frozen) {
+      setPrices(chartSnapshot?.prices || []);
+      setFactors(chartSnapshot ? { factors: chartSnapshot.factors } : null);
+      setPatterns(null);
+      return;
+    }
     if (!symbol) return;
     let cancelled = false;
     const clean = symbol.replace(/\.(SH|SZ|HK|SS)$/i, '');
@@ -105,7 +113,7 @@ export function ReportCharts({ result, symbol, stockName }: { result: AnalysisRe
     return () => {
       cancelled = true;
     };
-  }, [symbol]);
+  }, [symbol, frozen, chartSnapshot]);
 
   // 1. Agent 信号分布
   const signalDist = useMemo(() => {
@@ -122,7 +130,7 @@ export function ReportCharts({ result, symbol, stockName }: { result: AnalysisRe
     () =>
       Object.entries(result.agents || {}).map(([key, a]) => ({
         name: a.name || key,
-        confidence: Math.round(a.confidence || 0),
+        confidence: Math.round((a.confidence || 0) * 100),
         signal: (a.signal || 'HOLD').toUpperCase(),
       })),
     [result.agents],
@@ -192,7 +200,7 @@ export function ReportCharts({ result, symbol, stockName }: { result: AnalysisRe
     <div className="space-y-3">
       <div className="flex items-center gap-2 text-[11px] text-neutral-500">
         <BarChart3 className="h-3.5 w-3.5" />
-        <span>{stockName || symbol} · 多维图表分析(共 9 图,基于历史与本次研究数据,不预测、不构成建议)</span>
+        <span>{stockName || symbol} · {frozen ? '已保存的研究快照' : '多维图表分析'} · 不构成投资建议</span>
       </div>
 
       <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -256,7 +264,7 @@ export function ReportCharts({ result, symbol, stockName }: { result: AnalysisRe
         </ChartCard>
 
         {/* 9 形态信号 */}
-        <ChartCard title="K线形态信号" subtitle="近60日" empty={patternData.every((d) => d.value === 0)}>
+        <ChartCard title="K线形态信号" subtitle={frozen ? '未存档' : '近60日'} empty={patternData.every((d) => d.value === 0)}>
           <BarChart data={patternData} margin={{ top: 6, right: 8, bottom: 0, left: -22 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
             <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#737373' }} />

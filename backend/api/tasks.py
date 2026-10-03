@@ -8,11 +8,12 @@ import time
 from datetime import date, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 from backend.schemas.api import ApiResponse
+from backend.api.research_workspaces import ResearchMaterial, WorkspaceDraft
 
 router = APIRouter(tags=["tasks"])
 
@@ -190,6 +191,9 @@ class AsyncAnalysisRequest(BaseModel):
     global_ai_settings: Optional[dict[str, Any]] = Field(default=None, description="全局 AI 模型设置")
     as_of: Optional[date] = Field(default=None, description="研究数据截止日；为空表示使用当前可用数据")
     research_question: str = Field(default="", max_length=2_000, description="本次研究要回答的具体问题")
+    workspace_id: str = ""
+    retry_from: str = ""
+    materials: list[ResearchMaterial] = Field(default_factory=list, max_length=30)
     report_template: str = Field(
         default="standard",
         description="研报大纲范式: standard(个股深度) / macro(行业专题) / risk(黑天鹅预警)",
@@ -279,8 +283,40 @@ async def cancel_task(task_id: str):
 async def run_analysis_async(req: AsyncAnalysisRequest):
     """异步运行分析（返回 task_id）"""
     from backend.task_queue import TaskQueue
+    from backend.research_workspace import ResearchWorkspaceStore, public_config
 
-    def _run(task_id: str = ""):
+    queue = TaskQueue()
+    store = ResearchWorkspaceStore()
+    retry_stock = None
+    inputs = req.model_dump(mode="json", exclude={"workspace_id", "retry_from", "conversation_id"})
+    original_overrides = [inputs["agent_configs"], inputs["global_ai_settings"]]
+    inputs["agent_configs"] = public_config(inputs["agent_configs"])
+    inputs["global_ai_settings"] = public_config(inputs["global_ai_settings"])
+    inputs["transient_overrides_omitted"] = original_overrides != [
+        inputs["agent_configs"],
+        inputs["global_ai_settings"],
+    ]
+    try:
+        if req.retry_from:
+            previous = store.version(req.retry_from)
+            if previous["workspace_id"] != req.workspace_id or previous["status"] not in {"failed", "cancelled"}:
+                raise ValueError("Only failed or cancelled versions in this workspace can be retried")
+            # Retry the same inputs, not the currently edited draft. Credentials are resolved anew.
+            retry_inputs = previous["input"]
+            if retry_inputs.get("transient_overrides_omitted"):
+                raise ValueError("临时凭据或端点未存档，请选择当前模型后生成新版本，不能静默切换配置重试")
+            req = AsyncAnalysisRequest(**retry_inputs, workspace_id=req.workspace_id, retry_from=req.retry_from)
+            inputs = retry_inputs
+            retry_stock = previous["stock"]
+        draft = WorkspaceDraft.model_validate(inputs).model_dump(mode="json")
+        workspace = store.save_workspace(draft, req.workspace_id)
+        version_id = store.create_version(workspace["id"], inputs, req.retry_from, retry_stock)
+    except KeyError as exc:
+        raise HTTPException(404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(409, detail=str(exc)) from exc
+
+    def _analyze(task_id: str = ""):
         from backend.runtime.orchestrator import run_agents_with_mode
         from backend.agent_modes import AnalysisMode
         from backend.task_queue import TaskQueue as _TQ
@@ -295,12 +331,15 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
             "auto": AnalysisMode.AUTO,
         }
         mode = mode_map.get(req.mode, AnalysisMode.DEEP)
-        stock_data = _build_analysis_stock_data(
+        store.checkpoint(version_id, task_id=task_id, status="running")
+        stock_data = retry_stock or _build_analysis_stock_data(
             req.stock_symbol,
             req.stock_name,
             as_of=req.as_of,
             research_question=req.research_question,
         )
+        stock_data["research_materials"] = [m.model_dump(mode="json") for m in req.materials]
+        store.checkpoint(version_id, stock_json=json.dumps(stock_data, ensure_ascii=False), stage="analysis")
         result = run_agents_with_mode(
             stock_data=stock_data,
             mode=mode,
@@ -311,22 +350,51 @@ async def run_analysis_async(req: AsyncAnalysisRequest):
         # 回显用户选择的研报范式, 供前端导出/排版使用(不改变分析本身)
         if isinstance(result, dict):
             result["report_template"] = req.report_template
+            result["workspace_id"] = workspace["id"]
+            result["research_version_id"] = version_id
+            result["chart_snapshot"] = {
+                "prices": stock_data.get("price_bars") or [],
+                "factors": {
+                    key: stock_data[key]
+                    for key in ("ma5", "ma20", "ma60", "rsi", "vol_ratio")
+                    if isinstance(stock_data.get(key), (float, int))
+                },
+            }
+        store.checkpoint(version_id, result_json=json.dumps(result, ensure_ascii=False), stage="complete")
         return result
 
-    task_id = TaskQueue().submit(
-        task_type="analysis",
-        func=_run,
-        pass_task_id=True,
-        conversation_id=req.conversation_id,
-        input_data={
-            "stock_symbol": req.stock_symbol,
-            "stock_name": req.stock_name,
-            "mode": req.mode,
-            "report_template": req.report_template,
-            "agent_configs": req.agent_configs,
-            "global_ai_settings": req.global_ai_settings,
-            "as_of": req.as_of.isoformat() if req.as_of else "",
-            "research_question": req.research_question,
-        },
+    def _run(task_id: str = ""):
+        try:
+            return _analyze(task_id)
+        except Exception as exc:
+            store.checkpoint(version_id, error=str(exc))
+            raise
+
+    try:
+        task_id = queue.submit(
+            task_type="analysis",
+            func=_run,
+            pass_task_id=True,
+            conversation_id=req.conversation_id,
+            input_data={
+                "workspace_id": workspace["id"],
+                "research_version_id": version_id,
+                "stock_symbol": req.stock_symbol,
+                "stock_name": req.stock_name,
+                "mode": req.mode,
+                "report_template": req.report_template,
+                "agent_configs": inputs["agent_configs"],
+                "global_ai_settings": inputs["global_ai_settings"],
+                "as_of": req.as_of.isoformat() if req.as_of else "",
+                "research_question": req.research_question,
+            },
+        )
+    except Exception as exc:
+        store.checkpoint(version_id, status="failed", error=str(exc))
+        raise HTTPException(503, detail="任务提交失败，研究草稿已保存") from exc
+    store.checkpoint(version_id, task_id=task_id)
+    queue._sync_research_versions()
+    return ApiResponse(
+        success=True,
+        data={"task_id": task_id, "status": "pending", "workspace_id": workspace["id"], "version_id": version_id},
     )
-    return ApiResponse(success=True, data={"task_id": task_id, "status": "pending"})

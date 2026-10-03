@@ -1,8 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeAnalysisResult } from './analysisAdapter';
+import { deriveDataIntegritySeverity, normalizeAnalysisResult } from './analysisAdapter';
 
 describe('normalizeAnalysisResult research trust contract', () => {
+  it('does not infer healthy data from missing traces or contradictory trace errors', () => {
+    const result = normalizeAnalysisResult({ agents: {}, degraded: false, source_errors: [] });
+    expect(deriveDataIntegritySeverity(result)).toBe('unknown');
+    result.provider_traces = [{ data_type: 'quote', provider_trace_id: 'q', selected_provider: 'test', source_chain: [], fallback_attempts: [], field_fill_map: {}, errors: [], degraded: false, items_count: 1 }];
+    expect(deriveDataIntegritySeverity(result)).toBe('green');
+    result.provider_traces[0].errors = ['timeout'];
+    expect(deriveDataIntegritySeverity(result)).toBe('yellow');
+    result.degraded = true;
+    expect(deriveDataIntegritySeverity(result)).toBe('red');
+  });
   it('keeps trust metrics and evidence backlinks from nested API results', () => {
     const result = normalizeAnalysisResult({
       result: {

@@ -606,6 +606,10 @@ def run_agents_with_mode(
     if not agent_configs:
         agent_configs = _mode_config_to_agent_dicts(config)
 
+    from backend.research_workspace import public_config
+
+    model_config_snapshot = public_config({"agents": agent_configs, "global": global_ai_settings, "mode": mode.value})
+
     from backend.runtime.context_builder import (
         build_market_brief,
         fetch_evidence_pool,
@@ -629,6 +633,9 @@ def run_agents_with_mode(
             as_of=as_of,
             research_question=research_question,
         )
+        from backend.runtime.context_builder import append_research_materials
+
+        evidence_pool = append_research_materials(evidence_pool, stock_data.get("research_materials") or [], as_of)
         evidence_ctx = format_evidence_context(evidence_pool, as_of=as_of)
     if config.enable_factors and not as_of:
         factor_ctx = fetch_factor_context(symbol, stock_name)
@@ -1000,6 +1007,7 @@ def run_agents_with_mode(
         "summary": summary,
         "brief": brief,
         "agent_order": [cfg.key for cfg in active] + list(external_results),
+        "model_config_snapshot": model_config_snapshot,
         "critic": critic_block,
         "chairman_summary": chairman_summary,
         "research_report": research_report,

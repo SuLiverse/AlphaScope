@@ -34,13 +34,13 @@ export const DecisionSummary: React.FC<Props> = ({ stockSymbol, stockName, resul
 
   return (
     <div className="flex flex-col gap-4 mb-6">
-      <div className="flex items-center justify-between p-5 bg-white/5 border border-white/10 rounded-xl backdrop-blur-sm">
-        <div>
-          <h2 className="text-xl font-semibold text-white">
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 py-4">
+        <div className="min-w-0">
+          <h2 className="sr-only">
             {stockName || 'Unknown'} <span className="text-white/50 text-base font-normal ml-2">{stockSymbol}</span>
           </h2>
           <div className="text-xs text-neutral-400 mt-1 flex items-center gap-2">
-            <span>综合评级:</span>
+            <span>Agent 汇总观点:</span>
             <span className={`px-2 py-0.5 rounded border ${signalBg} ${signalColor} font-bold tracking-wide`}>
               {overallSignal}
             </span>
@@ -49,8 +49,8 @@ export const DecisionSummary: React.FC<Props> = ({ stockSymbol, stockName, resul
 
         <div className="flex items-center gap-4 text-right">
           <div>
-            <div className="text-xs text-neutral-400 mb-1">平均置信度</div>
-            <div className="text-xl font-mono text-indigo-400">
+            <div className="text-xs text-neutral-400 mb-1">Agent 平均置信度</div>
+            <div className="text-xl font-mono text-sky-400">
               {(avgConfidence * 100).toFixed(1)}%
             </div>
           </div>

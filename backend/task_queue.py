@@ -73,6 +73,33 @@ class TaskQueue:
         db = Database()
         with db.transaction() as conn:
             _ensure_table(conn)
+            conn.execute(
+                "UPDATE analysis_tasks SET status='failed', error='Process interrupted; retry the saved research', "
+                "completed_at=? WHERE status IN ('pending', 'running')",
+                (time.time(),),
+            )
+            conn.commit()
+        self._sync_research_versions()
+        with db.transaction() as conn:
+            conn.execute(
+                "UPDATE research_versions SET status='failed', error='Submission interrupted; retry the saved research' "
+                "WHERE status IN ('pending', 'running') AND task_id=''"
+            )
+            conn.commit()
+
+    def _sync_research_versions(self) -> None:
+        from backend.research_workspace import ResearchWorkspaceStore
+
+        store = ResearchWorkspaceStore()
+        with store.db.transaction() as conn:
+            conn.execute("""
+                UPDATE research_versions SET
+                    status=(SELECT status FROM analysis_tasks WHERE id=research_versions.task_id),
+                    error=COALESCE((SELECT error FROM analysis_tasks WHERE id=research_versions.task_id), '')
+                WHERE status IN ('pending', 'running') AND task_id IN
+                    (SELECT id FROM analysis_tasks WHERE status IN ('success', 'failed', 'cancelled'))
+            """)
+            conn.commit()
 
     def submit(
         self,
@@ -167,6 +194,7 @@ class TaskQueue:
                 )
                 conn.commit()
         finally:
+            self._sync_research_versions()
             with self._state_lock:
                 self._futures.pop(task_id, None)
                 self._cancelled.discard(task_id)
@@ -253,6 +281,7 @@ class TaskQueue:
                     (time.time(), task_id),
                 )
                 conn.commit()
+            self._sync_research_versions()
         # 如果正在运行，future 会在检查点取消
         return True
 

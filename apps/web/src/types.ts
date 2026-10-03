@@ -96,6 +96,7 @@ export interface AgentOpinion {
 
 /** 简报里 [n] 编号对应的证据池条目,供结论反查。 */
 export interface EvidencePoolItem {
+  excerpt?: string;
   number: number;
   evidence_id: string;
   doc_type?: string;
@@ -234,6 +235,12 @@ export interface ResearchSnapshot {
 }
 
 export interface AnalysisResult {
+  workspace_id?: string;
+  research_version_id?: string;
+  chart_snapshot?: {
+    prices: Array<{ date: string; close: number; volume?: number }>;
+    factors: Record<string, number | null>;
+  };
   summary?: string;
   brief?: string;
   research_report?: string;

@@ -16,6 +16,21 @@ from httpx import ASGITransport, AsyncClient
 from backend.api.main import app
 
 
+@pytest.fixture(autouse=True)
+def isolated_task_database(tmp_path, monkeypatch):
+    from backend.storage import db
+    from backend.task_queue import TaskQueue
+
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "tasks.db")
+    monkeypatch.setattr(db.Database, "_instance", None)
+    monkeypatch.setattr(TaskQueue, "_instance", None)
+    yield
+    if TaskQueue._instance:
+        TaskQueue._instance._executor.shutdown(wait=True)
+    if db.Database._instance:
+        db.Database._instance.close()
+
+
 @pytest.fixture
 def client():
     transport = ASGITransport(app=app)

@@ -311,6 +311,9 @@ if HAS_FASTAPI:
     app.include_router(settings_router)
     app.include_router(reports_router)
     app.include_router(tasks_router)
+    from backend.api.research_workspaces import router as research_workspaces_router
+
+    app.include_router(research_workspaces_router)
     app.include_router(agents_router)
     app.include_router(knowledge_router)
     app.include_router(evidence_router)

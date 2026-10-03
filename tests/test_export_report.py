@@ -9,10 +9,19 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def client():
+def client(tmp_path, monkeypatch):
     from backend.api.main import app
+    from backend.storage import db
+    from backend.task_queue import TaskQueue
 
-    return TestClient(app)
+    monkeypatch.setattr(db, "DB_PATH", tmp_path / "exports.db")
+    monkeypatch.setattr(db.Database, "_instance", None)
+    monkeypatch.setattr(TaskQueue, "_instance", None)
+    yield TestClient(app)
+    if TaskQueue._instance:
+        TaskQueue._instance._executor.shutdown(wait=True)
+    if db.Database._instance:
+        db.Database._instance.close()
 
 
 def _wait_done(task_id: str, timeout: float = 10.0) -> dict:
@@ -103,11 +112,12 @@ def test_export_report_missing_task_404(client):
     assert r.status_code == 404
 
 
-def test_async_analysis_accepts_report_template(client):
+def test_async_analysis_accepts_report_template(client, monkeypatch):
     """report_template 字段应被请求接受并存入 task input_data。"""
     from backend.task_queue import TaskQueue
 
-    # 用一个不会真正调 LLM 的 func (demo fallback 路径会被触发,但字段应已存)
+    monkeypatch.setattr("backend.api.tasks._build_analysis_stock_data", lambda *args, **kwargs: {"symbol": "600519"})
+    monkeypatch.setattr("backend.runtime.orchestrator.run_agents_with_mode", lambda **kwargs: {"agents": {}})
     r = client.post(
         "/api/analysis/async",
         json={
@@ -119,6 +129,7 @@ def test_async_analysis_accepts_report_template(client):
     )
     assert r.status_code == 200
     task_id = r.json()["data"]["task_id"]
+    assert _wait_done(task_id)["status"] == "success"
     task = TaskQueue().get_task(task_id)
     assert task is not None
     # get_task 返回 input_json(JSON 字符串)
