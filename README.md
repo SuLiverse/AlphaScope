@@ -627,6 +627,10 @@ data/                   # 本地运行数据，默认 gitignore
 - [Agent 设计](docs/agent-design.md)
 - [安全说明](docs/security.md)
 
+## 社区交流
+
+欢迎在 [LINUX DO 社区](https://linux.do/)交流开源开发与 AI 应用。
+
 ## License
 
 MIT
