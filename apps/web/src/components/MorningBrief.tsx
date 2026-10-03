@@ -273,7 +273,7 @@ export function MorningBrief() {
                     ))}
                   </ul>
                 ) : (
-                  <div className="mt-2 border-t border-white/5 pt-2 text-[11px] text-neutral-600">近期无本地新闻</div>
+                  <div className="mt-2 border-t border-white/5 pt-2 text-[11px] text-neutral-600">暂无新闻 · 点右上角「刷新」自动补抓(每次最多 3 只, 多刷几次逐步补齐)</div>
                 )}
                 <button
                   type="button"
@@ -325,7 +325,7 @@ export function MorningBrief() {
             );
           })}
           <p className="text-[10px] leading-relaxed text-neutral-600">
-            数据取自本地已缓存的行情与新闻(在对应模块查询过该股后会更全);不构成投资建议。
+            行情取自本地缓存;缺失的新闻会在刷新时自动补抓入库(每次最多 3 只)。不构成投资建议。
           </p>
         </div>
       )}

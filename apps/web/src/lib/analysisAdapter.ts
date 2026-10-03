@@ -265,6 +265,7 @@ function normalizeEvidencePool(value: unknown): EvidencePoolItem[] {
       source_url: formatInlineValue(record.source_url || record.url || ''),
       published_at: formatInlineValue(record.published_at || record.data_date || ''),
       preview: formatTextValue(record.preview || record.claim || record.title || ''),
+      excerpt: formatTextValue(record.excerpt || ''),
     };
   }).filter((item) => Boolean(item.evidence_id));
 }
@@ -495,6 +496,9 @@ export function normalizeAnalysisResult(raw: any): AnalysisResult {
 
   return {
     summary,
+    workspace_id: raw?.workspace_id || raw?.result?.workspace_id,
+    research_version_id: raw?.research_version_id || raw?.result?.research_version_id,
+    chart_snapshot: raw?.chart_snapshot || raw?.result?.chart_snapshot,
     brief,
     research_report,
     mode: formatInlineValue(raw?.mode || raw?.result?.mode || ''),
@@ -524,7 +528,7 @@ export function normalizeAnalysisResult(raw: any): AnalysisResult {
  * Evaluates the actual integrity severity based on traces and evidence,
  * rather than relying solely on the binary `degraded` flag.
  */
-export function deriveDataIntegritySeverity(result: AnalysisResult): 'green' | 'yellow' | 'red' {
+export function deriveDataIntegritySeverity(result: AnalysisResult): 'green' | 'yellow' | 'red' | 'unknown' {
   const textCorpus = [result.brief, result.summary, result.chairman_summary, result.critic]
     .filter(Boolean)
     .join('\n');
@@ -532,9 +536,9 @@ export function deriveDataIntegritySeverity(result: AnalysisResult): 'green' | '
     return result.evidence.length === 0 && result.provider_traces.length === 0 ? 'red' : 'yellow';
   }
 
-  // If explicitly healthy, it's green
   if (!result.degraded && result.source_errors.length === 0) {
-    return 'green';
+    if (!result.provider_traces.length) return 'unknown';
+    return result.provider_traces.some(t => t.degraded || t.errors.length > 0) ? 'yellow' : 'green';
   }
 
   // Check if critical data is entirely missing
@@ -609,6 +613,7 @@ export async function startAsyncAnalysis(
   reportTemplate?: string,
   researchQuestion: string = '',
   asOf: string = '',
+  workspace?: { workspace_id: string; materials: import('./researchWorkspace').ResearchMaterial[] },
 ): Promise<string> {
   if (useMockForcefully) {
     return 'mock-task-123';
@@ -627,6 +632,7 @@ export async function startAsyncAnalysis(
         report_template: reportTemplate || 'standard',
         research_question: researchQuestion,
         as_of: asOf || null,
+        ...workspace,
       })
     });
     return rawResult.task_id;

@@ -17,7 +17,7 @@ export function SyntheticDataBanner({
         className,
       )}
     >
-      <span className="rounded-md border border-amber-400/40 bg-amber-500/15 px-3 py-1.5 text-center font-mono text-[11px] font-medium tracking-wide text-amber-200 shadow-lg backdrop-blur-sm">
+      <span className="rounded border border-amber-400/20 bg-[#0b0c10]/80 px-2.5 py-1 text-center font-mono text-[10px] tracking-wide text-amber-200/75 backdrop-blur-sm">
         本地预览 / 合成 K 线 · 非真实行情 · 不可用于投资决策
       </span>
     </div>

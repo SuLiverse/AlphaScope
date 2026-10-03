@@ -40,7 +40,7 @@ class TextChunker:
         Returns:
             chunk 列表, 每个包含 text, chunk_id, metadata
         """
-        if not text or len(text.strip()) < self.min_chunk_size:
+        if not text or not text.strip():
             return []
 
         metadata = metadata or {}
@@ -63,8 +63,20 @@ class TextChunker:
                 else:
                     current_text = para + "\n"
 
-        if current_text.strip() and len(current_text.strip()) >= self.min_chunk_size:
-            chunks.append(self._make_chunk(current_text.strip(), len(chunks), metadata))
+        # 短尾处理: 末段非空即收, 不再因 < min_chunk_size 丢弃;
+        # 若尾段过短且已有 chunks, 并入最后一个 chunk, 避免信息割裂。
+        tail = current_text.strip()
+        if tail:
+            if len(tail) < self.min_chunk_size and chunks:
+                last = chunks[-1]
+                last["text"] = last["text"] + "\n" + tail
+                last["char_count"] = len(last["text"])
+            else:
+                chunks.append(self._make_chunk(tail, len(chunks), metadata))
+
+        # 非空文本若仍产出 0 chunks (如整篇短文档), 输出单条整文 chunk
+        if not chunks:
+            chunks.append(self._make_chunk(text.strip(), 0, metadata))
 
         return chunks
 
@@ -74,19 +86,33 @@ class TextChunker:
         return [p.strip() for p in paragraphs if p.strip()]
 
     def _split_long_text(self, text: str, metadata: dict, start_idx: int) -> list[dict]:
-        """切分超长段落"""
+        """切分超长段落
+
+        用捕获组切分并成对重接原句读, 保留原始分隔符 —
+        避免把 "12.50" 这类小数破坏成 "12。50"。
+        """
         chunks = []
-        sentences = re.split(r"[。！？.!?\n]", text)
+        # 捕获组使 re.split 保留分隔符, parts 形如 [句子, 分隔符, 句子, 分隔符, ...]
+        parts = re.split(r"([。！？.!?\n])", text)
+        sentences: list[str] = []
+        for i in range(0, len(parts), 2):
+            sent = parts[i]
+            sep = parts[i + 1] if i + 1 < len(parts) else ""
+            if not sent.strip():
+                # 连续句读产生的空句子段: 把分隔符并回前一句, 避免丢失
+                if sep and sentences:
+                    sentences[-1] += sep
+                continue
+            sentences.append(sent + sep)
+
         current = ""
         for sent in sentences:
-            if not sent.strip():
-                continue
             if len(current) + len(sent) <= self.chunk_size:
-                current += sent + "。"
+                current += sent
             else:
                 if current.strip():
                     chunks.append(self._make_chunk(current.strip(), start_idx + len(chunks), metadata))
-                current = sent + "。"
+                current = sent
         if current.strip():
             chunks.append(self._make_chunk(current.strip(), start_idx + len(chunks), metadata))
         return chunks

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { getCitationDisplayState, getQuantRefereeDisplayState } from '../lib/reviewStatus';
-import { startAsyncAnalysis, getTaskResult, getTaskEventsUrl, getTaskStatus, getReportExportUrl } from '../lib/analysisAdapter';
+import { startAsyncAnalysis, getTaskResult, getTaskEventsUrl, getTaskStatus, getReportExportUrl, normalizeAnalysisResult } from '../lib/analysisAdapter';
 import {
   AnalysisResult,
   CitationValidationResult,
@@ -56,6 +56,13 @@ import {
   routesToGlobalAiSettings,
 } from '../lib/aiModelRouting';
 import { ThemedSelect } from './ThemedSelect';
+import { ResearchWorkspacePanel } from './report/ResearchWorkspacePanel';
+import { ResearchReviewPanel } from './report/ResearchReviewPanel';
+import { ResearchStatusStrip, type ReviewProgress } from './report/ResearchStatusStrip';
+import { LAST_WORKSPACE_KEY, saveResearchDraft, type ResearchDraft, type ResearchMaterial, type Workspace, type ResearchVersion } from '../lib/researchWorkspace';
+
+const REPORT_VIEWS = [['overview', '概览'], ['full', '全文'], ['review', '复核'], ['compare', '差异'], ['sources', '资料']] as const;
+type ReportView = typeof REPORT_VIEWS[number][0];
 
 const REPORT_TEMPLATES = [
   { id: 'standard', name: '标准个股深度评级公司研报', desc: '包含宏观定位，深度报表分析以及三因素量化诊股。' },
@@ -98,7 +105,7 @@ function ReportTextBlock({ text }: { text?: string }) {
   if (!paragraphs.length) return null;
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 break-words">
       {paragraphs.map((paragraph, index) => {
         const cleaned = cleanReportText(paragraph);
         const lines = cleaned.split('\n').map((line) => line.trim()).filter(Boolean);
@@ -118,7 +125,7 @@ function ReportTextBlock({ text }: { text?: string }) {
                 {lines.slice(1).map((line, lineIndex) => (
                   <li key={lineIndex} className="flex gap-2">
                     <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-indigo-300/60" />
-                    <span>{line}</span>
+                    <span className="min-w-0">{line}</span>
                   </li>
                 ))}
               </ul>
@@ -139,7 +146,6 @@ function ReportTextBlock({ text }: { text?: string }) {
 function ReportSection({
   icon: Icon,
   title,
-  eyebrow,
   children,
 }: {
   icon: React.ComponentType<{ className?: string }>;
@@ -148,13 +154,12 @@ function ReportSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border-t border-white/5 py-7 first:border-t-0 first:pt-0">
+    <section className="border-t border-white/10 py-6 first:border-t-0 first:pt-0">
       <div className="mb-4 flex items-center gap-3">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-indigo-500/25 bg-indigo-500/10 text-indigo-300">
+        <div className="flex h-7 w-7 shrink-0 items-center justify-center text-sky-300">
           <Icon className="h-4 w-4" />
         </div>
         <div>
-          {eyebrow && <div className="mb-1 text-[10px] uppercase tracking-[0.18em] text-neutral-500">{eyebrow}</div>}
           <h3 className="text-base font-semibold text-white">{title}</h3>
         </div>
       </div>
@@ -519,11 +524,13 @@ function GeneratedResearchReport({
   symbol,
   stockName,
   onOpenModelSettings,
+  view,
 }: {
   result: AnalysisResult;
   symbol?: string;
   stockName?: string;
   onOpenModelSettings?: () => void;
+  view: 'overview' | 'full' | 'sources';
 }) {
   const hasBrief = Boolean(result.brief?.trim());
   const hasResearchReport = Boolean(result.research_report?.trim());
@@ -532,52 +539,52 @@ function GeneratedResearchReport({
 
   return (
     <div className="space-y-1">
-      <ModelStatusNotice result={result} onOpenModelSettings={onOpenModelSettings} />
+      {view === 'overview' && <ModelStatusNotice result={result} onOpenModelSettings={onOpenModelSettings} />}
 
-      {hasResearchReport && (
+      {view === 'full' && hasResearchReport && (
         <ReportSection icon={FileText} title="完整研报正文" eyebrow="Research Draft">
-          <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/[0.04] p-5">
+          <div className="py-2">
             <ReportTextBlock text={result.research_report} />
           </div>
         </ReportSection>
       )}
 
-      {hasChairmanSummary && (
+      {view === 'overview' && hasChairmanSummary && (
         <ReportSection icon={ClipboardCheck} title="投委会决策摘要" eyebrow={result.mode_name || 'AI Research Memo'}>
-          <div className="rounded-xl border border-white/8 bg-white/[0.035] p-5">
+          <div className="py-2">
             <ReportTextBlock text={result.chairman_summary} />
           </div>
         </ReportSection>
       )}
 
-      {result.debate && result.debate.status === 'ok' && (
+      {view === 'full' && result.debate && result.debate.status === 'ok' && (
         <ReportSection icon={Scale} title="多空辩论与裁决" eyebrow="Bull vs Bear">
           <DebatePanel debate={result.debate} />
         </ReportSection>
       )}
 
-      {result.quant_referee && (
+      {view === 'full' && result.quant_referee && (
         <ReportSection icon={Gauge} title="量化裁判 (规则信号)" eyebrow="Quant Referee">
           <QuantRefereePanel referee={result.quant_referee} />
         </ReportSection>
       )}
 
-      {result.citation_validation && (
+      {view === 'sources' && result.citation_validation && (
         <ReportSection icon={Link2} title="引用与数值核验" eyebrow="Citation Validator">
           <CitationValidationPanel citation={result.citation_validation} />
         </ReportSection>
       )}
 
-      {symbol && (
+      {view === 'full' && symbol && (
         <ReportSection icon={BarChart3} title="多维图表分析" eyebrow="Charts · 9 图">
           <ReportCharts result={result} symbol={symbol} stockName={stockName} />
         </ReportSection>
       )}
 
-      {hasBrief && (
+      {view === 'sources' && hasBrief && (
         <ReportSection icon={LineChart} title="市场与数据快照" eyebrow="Market Snapshot">
           <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-xl border border-white/8 bg-black/20 p-5">
+            <div className="py-2">
               <ReportTextBlock text={result.brief} />
             </div>
             <ModelQualityPanel result={result} />
@@ -585,7 +592,7 @@ function GeneratedResearchReport({
         </ReportSection>
       )}
 
-      {result.summary && (
+      {view === 'overview' && result.summary && (
         <ReportSection icon={FileText} title="综合评级与投票" eyebrow="Decision Matrix">
           <div className="space-y-4">
             <RatingBadge
@@ -593,16 +600,16 @@ function GeneratedResearchReport({
               rating={result.rating}
               breakdown={result.rating_breakdown}
             />
-            <div className="rounded-xl border border-white/8 bg-white/[0.035] p-5">
+            <div className="py-2">
               <ReportTextBlock text={result.summary} />
             </div>
           </div>
         </ReportSection>
       )}
 
-      {hasCritic && (
+      {view === 'overview' && hasCritic && (
         <ReportSection icon={ShieldCheck} title="风控复核意见" eyebrow="Risk Review">
-          <div className="rounded-xl border border-amber-500/15 bg-amber-500/[0.04] p-5">
+          <div className="border-l-2 border-amber-400/50 pl-4">
             <ReportTextBlock text={result.critic} />
           </div>
         </ReportSection>
@@ -617,7 +624,21 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   const [selectedTemplate, setSelectedTemplate] = useState('standard');
   const [researchQuestion, setResearchQuestion] = useState('');
   const [asOf, setAsOf] = useState('');
+  const [workspaceId, setWorkspaceId] = useState('');
+  const [versionId, setVersionId] = useState('');
+  const [materials, setMaterials] = useState<ResearchMaterial[]>([]);
+  const [workspaceRefresh, setWorkspaceRefresh] = useState(0);
+  const [reportView, setReportView] = useState<ReportView>('overview');
+  const [parametersOpen, setParametersOpen] = useState(true);
+  const [reportContext, setReportContext] = useState<(ResearchDraft & { number?: number }) | null>(null);
+  const [reviewProgress, setReviewProgress] = useState<ReviewProgress | null>(null);
+  const reviewDirty = useRef(false);
+  function confirmLeaveReview() {
+    return !reviewDirty.current || window.confirm('复核尚未保存，放弃修改并切换研究？');
+  }
   const [isGenerating, setIsGenerating] = useState(false);
+  const generatingRef = useRef(false);
+  generatingRef.current = isGenerating;
   const [generationStep, setGenerationStep] = useState(0);
   const [progressPercent, setProgressPercent] = useState(0);
   const [generationStatus, setGenerationStatus] = useState('');
@@ -642,6 +663,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   // 轮询活跃标志: stopTaskListeners 置 false 后, 进行中的 await 回调检查它即停,
   // 不对已卸载组件 setState、不递归重启已被清理的轮询链。
   const pollingActiveRef = useRef(false);
+  const activeTaskRef = useRef('');
   const selectedReportModel = modelOptions.find((option) => option.key === selectedReportModelKey) ?? modelOptions[0];
   const selectableStocks = [selectedTarget, ...STOCK_UNIVERSE].filter(
     (stock, index, list) => list.findIndex((item) => item.symbol === stock.symbol) === index,
@@ -673,6 +695,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
     setGenerationStatus('生成失败');
     setGenerationError(message);
     setIsGenerating(false);
+    setWorkspaceRefresh(value => value + 1);
   };
 
   const completeTask = async (taskId: string) => {
@@ -682,7 +705,12 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
       setProgressPercent(100);
       setGenerationStatus('报告生成完成，正在载入排版结果...');
       const result = await getTaskResult(taskId, false);
+      if (activeTaskRef.current !== taskId) return;
       setAnalysisResult(result);
+      setParametersOpen(false); setReportView('overview');
+      if (result.research_version_id) setVersionId(result.research_version_id);
+      if (result.workspace_id) rememberWorkspace(result.workspace_id);
+      setWorkspaceRefresh(value => value + 1);
       setIsGenerating(false);
     } catch (error) {
       finishWithError(error instanceof Error ? error.message : '报告结果载入失败');
@@ -696,6 +724,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         const snapshot = await getTaskStatus(taskId);
         // 卸载/停止后不再 setState、不再递归(避免对已卸载组件 setState + 重启已清理轮询)
         if (!pollingActiveRef.current) return;
+        if (activeTaskRef.current !== taskId) return;
         const p = Number(snapshot.progress) || 0;
         setProgressPercent((current) => Math.max(current, p));
         setGenerationStatus(snapshot.message || `任务状态：${snapshot.status}`);
@@ -719,11 +748,19 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   // Cleanup task listeners on unmount
   useEffect(() => {
     const unsubscribe = subscribeStockSelected(({ stock }) => {
+      if (generatingRef.current) return;
+      if (!confirmLeaveReview()) return;
+      activeTaskRef.current = '';
       setSelectedTarget(findStockTarget(stock.symbol) ?? stock);
+      setWorkspaceId(''); setVersionId(''); setAnalysisResult(null);
+      setResearchQuestion(''); setMaterials([]); setAsOf('');
+      setReportContext(null); setReviewProgress(null); setParametersOpen(true);
+      localStorage.removeItem(LAST_WORKSPACE_KEY);
     });
 
     return () => {
       unsubscribe();
+      activeTaskRef.current = '';
       stopTaskListeners();
     };
   }, []);
@@ -770,15 +807,90 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   const [loadError, setLoadError] = useState('');
   const [isLoadingTask, setIsLoadingTask] = useState(false);
 
+  function rememberWorkspace(id: string) {
+    setWorkspaceId(id);
+    localStorage.setItem(LAST_WORKSPACE_KEY, id);
+  }
+
+  function restoreWorkspace(saved: Workspace, version?: ResearchVersion) {
+    if (!confirmLeaveReview()) return;
+    stopTaskListeners();
+    activeTaskRef.current = '';
+    rememberWorkspace(saved.id);
+    // Draft edits remain separate from the frozen report's input parameters.
+    const draft = saved.draft;
+    const stock = findStockTarget(draft.stock_symbol);
+    setSelectedTarget(stock || { ...STOCK_UNIVERSE[0], symbol: draft.stock_symbol, name: draft.stock_name });
+    setResearchQuestion(draft.research_question);
+    setAsOf(draft.as_of || ''); setSelectedTemplate(draft.report_template);
+    setMaterials(draft.materials || []);
+    setVersionId(version?.id || ''); setCurrentTaskId(version?.task_id || '');
+    setGenerationError(''); setAnalysisResult(null); setIsGenerating(false);
+    setReportContext(version ? { ...version.input, number: version.number } : null);
+    setReviewProgress(null); setReportView('overview'); setParametersOpen(version?.status !== 'success');
+    if (version?.status === 'success') {
+      setAnalysisResult(normalizeAnalysisResult(version.result));
+    } else if (version && ['pending', 'running'].includes(version.status) && version.task_id) {
+      resumeTask(version.task_id, version.id);
+    } else if (version) {
+      setGenerationError(version.error || '任务未完成，可重试失败步骤');
+    }
+    setWorkspaceRefresh(value => value + 1);
+  }
+
+  function resumeTask(taskId: string, researchVersionId: string) {
+    stopTaskListeners(); activeTaskRef.current = taskId;
+    setCurrentTaskId(taskId); setVersionId(researchVersionId);
+    setAnalysisResult(null); setGenerationError(''); setIsGenerating(true);
+    setReviewProgress(null);
+    setProgressPercent(0); setGenerationStatus('正在继续研究任务...');
+    setWorkspaceRefresh(value => value + 1);
+    pollTaskStatus(taskId);
+  }
+
+  function newWorkspace() {
+    if (!confirmLeaveReview()) return;
+    stopTaskListeners(); activeTaskRef.current = '';
+    setWorkspaceId(''); setVersionId(''); setCurrentTaskId(''); setAnalysisResult(null);
+    setResearchQuestion(''); setAsOf(''); setMaterials([]); setGenerationError('');
+    setReportContext(null); setReviewProgress(null); setParametersOpen(true); setReportView('overview');
+    localStorage.removeItem(LAST_WORKSPACE_KEY);
+  }
+
+  const researchDraft = {
+    stock_symbol: selectedTarget.symbol, stock_name: selectedTarget.name,
+    research_question: researchQuestion.trim(), as_of: asOf || null,
+    report_template: selectedTemplate, materials,
+  };
+
   // 从历史任务载入结果(修复圆桌分析结果不可达: 报告页可按 task_id 加载已完成任务)
   const loadExistingTask = async () => {
     const tid = loadTaskId.trim();
     if (!tid) return;
+    if (!confirmLeaveReview()) return;
     setIsLoadingTask(true);
     setLoadError('');
     try {
+      const task = await fetchApi<{ status: string; input_json: string }>(`/api/tasks/${tid}`);
+      const input = JSON.parse(task.input_json || '{}');
+      if (input.workspace_id && input.research_version_id) {
+        const saved = await fetchApi<Workspace>(`/api/research-workspaces/${input.workspace_id}`);
+        const version = await fetchApi<ResearchVersion>(`/api/research-workspaces/versions/${input.research_version_id}`);
+        restoreWorkspace(saved, version);
+        setLoadTaskId('');
+        return;
+      }
+      if (task.status !== 'success') throw new Error('此历史任务尚未完成');
       const result = await getTaskResult(tid, false);
+      activeTaskRef.current = '';
+      setWorkspaceId(''); setVersionId('');
+      if (input.stock_symbol) {
+        setSelectedTarget(findStockTarget(input.stock_symbol) || { ...STOCK_UNIVERSE[0], symbol: input.stock_symbol, name: input.stock_name || input.stock_symbol });
+        setResearchQuestion(input.research_question || ''); setAsOf(input.as_of || '');
+      }
       setAnalysisResult(result);
+      setReportContext({ stock_symbol: input.stock_symbol || '', stock_name: input.stock_name || '', research_question: input.research_question || '', as_of: input.as_of || null, report_template: input.report_template || '', materials: input.materials || [] });
+      setReviewProgress(null); setReportView('overview'); setParametersOpen(false);
       setCurrentTaskId(tid);
       setGenerationStatus('已载入历史任务结果');
       setLoadTaskId('');
@@ -790,6 +902,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
   };
 
   const startGeneration = async () => {
+    if (!confirmLeaveReview()) return;
     stopTaskListeners();
     setIsGenerating(true);
     setGenerationStep(0);
@@ -798,6 +911,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
     setGenerationError('');
     setAnalysisResult(null);
     setCurrentTaskId('');
+    setReportContext({ ...researchDraft }); setReviewProgress(null); setReportView('overview');
 
     const symbol = selectedTarget.symbol;
     const name = selectedTarget.name;
@@ -815,6 +929,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
             setProgressPercent(100);
             setGenerationStatus('报告生成完成');
             setAnalysisResult(mockAnalysisResult);
+            setParametersOpen(false);
             setIsGenerating(false);
           } else {
             setGenerationStep(mockStep);
@@ -837,6 +952,9 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         ? routesToGlobalAiSettings(effectiveRoutes, providers, 'report')
         : undefined;
 
+      const saved = await saveResearchDraft(researchDraft, workspaceId);
+      rememberWorkspace(saved.id);
+
       // Real API Flow with SSE
       const taskId = await startAsyncAnalysis(
         symbol,
@@ -847,8 +965,13 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         selectedTemplate,
         researchQuestion.trim(),
         asOf,
+        { workspace_id: saved.id, materials },
       );
+      activeTaskRef.current = taskId;
       setCurrentTaskId(taskId);
+      const task = await fetchApi<{ input_json: string }>(`/api/tasks/${taskId}`);
+      setVersionId(JSON.parse(task.input_json || '{}').research_version_id || '');
+      setWorkspaceRefresh(value => value + 1);
       setProgressPercent(8);
       setGenerationStatus(`任务已启动：${taskId}`);
       pollTaskStatus(taskId);
@@ -861,7 +984,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
         if (e.data.trim() === ': heartbeat') return;
         try {
           const data = JSON.parse(e.data);
-          if (data.task_id === taskId) {
+          if (data.task_id === taskId && activeTaskRef.current === taskId) {
             
             if (data.type === 'task_progress') {
               const p = Number(data.progress) || 0;
@@ -904,29 +1027,30 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, y: -10 }}
       transition={{ duration: 0.3 }}
-      className="p-6 lg:p-8 max-w-[1600px] mx-auto text-neutral-300 flex flex-col h-full overflow-hidden"
+      className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto text-neutral-300 flex flex-col h-full overflow-y-auto lg:overflow-hidden tracking-normal"
     >
       
       {/* Title */}
-      <div className="mb-6 flex-shrink-0">
-        <h2 className="text-2xl font-display font-medium text-white flex items-center gap-3">
-          <FileText className="w-6 h-6 text-indigo-400" />
-          可核验证据链报告
+      <div className="mb-4 flex shrink-0 items-center justify-between gap-3">
+        <h2 className="text-xl font-medium text-white flex items-center gap-3">
+          <FileText className="w-5 h-5 shrink-0 text-sky-400" />
+          研究报告
         </h2>
-        <p className="text-xs text-neutral-500 mt-1.5 font-mono">
-          依托多源数据引擎和AI多Agent网络进行数据集成排版，协助分析师一键生成深度专业的信息披露与估值测绘草案。
-        </p>
+        <button type="button" title={parametersOpen ? '收起研究参数' : '编辑研究参数'} aria-label={parametersOpen ? '收起研究参数' : '编辑研究参数'} aria-expanded={parametersOpen} aria-controls="research-parameters" onClick={() => setParametersOpen(v => !v)} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-white/15 px-3 text-sm text-neutral-300 hover:bg-white/5"><Settings2 className="h-4 w-4" /><span>研究参数</span></button>
       </div>
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-8 min-h-0 overflow-hidden">
+      <ResearchWorkspacePanel draft={researchDraft} workspaceId={workspaceId} versionId={versionId} busy={isGenerating || isLoadingTask} refreshKey={workspaceRefresh}
+        onSaved={id => { rememberWorkspace(id); setWorkspaceRefresh(value => value + 1); }} onRestore={restoreWorkspace} onNew={newWorkspace} onMaterials={setMaterials} onStarted={resumeTask} beforeRetry={confirmLeaveReview} />
+      <div className={cn('mt-4 flex-none lg:flex-1 grid grid-cols-1 gap-5 lg:min-h-0 lg:overflow-hidden', parametersOpen && 'lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]')}>
         
         {/* Left configurations Column */}
-        <div className="flex min-h-0 flex-col gap-6 overflow-y-auto bg-white/[0.01] border border-white/5 rounded-2xl p-5 custom-scrollbar">
-          <span className="text-xs font-mono uppercase tracking-widest text-[#6366f1] font-bold block mb-1">投研参数定制</span>
+        <div id="research-parameters" className={cn('lg:min-h-0 min-w-0 flex-col gap-5 lg:overflow-y-auto lg:border-r border-white/10 lg:pr-4 custom-scrollbar', parametersOpen ? 'flex' : 'hidden')}>
+          <span className="text-sm text-neutral-200 font-semibold block mb-1">研究参数</span>
           
           <div className="space-y-2">
-            <label className="text-xs font-medium text-neutral-400 select-none">研究对象 (Target Stock)</label>
+            <label className="text-xs font-medium text-neutral-400 select-none">研究对象</label>
             <ThemedSelect
+              disabled={isGenerating || !!workspaceId}
               value={selectedStock}
               onChange={(value) => {
                 const stock = selectableStocks.find((item) => formatStockLabel(item) === value);
@@ -974,6 +1098,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
               {REPORT_TEMPLATES.map(tmp => (
                 <button
                   key={tmp.id}
+                  disabled={isGenerating}
                   onClick={() => setSelectedTemplate(tmp.id)}
                   className={cn(
                     "w-full p-3 rounded-xl border text-left cursor-pointer transition-all flex flex-col gap-1",
@@ -1036,12 +1161,12 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                     if (e.key === 'Enter') void loadExistingTask();
                   }}
                   placeholder="粘贴任务 ID"
-                  className="h-8 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 text-[11px] text-neutral-300 outline-none focus:border-indigo-500/50 placeholder:text-neutral-600"
+                  className="h-8 min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 text-[11px] text-neutral-300 outline-none focus:border-indigo-500/50 placeholder:text-neutral-600"
                 />
                 <button
                   type="button"
                   onClick={loadExistingTask}
-                  disabled={!loadTaskId.trim() || isLoadingTask}
+                  disabled={!loadTaskId.trim() || isLoadingTask || isGenerating}
                   className="h-8 shrink-0 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-[11px] text-neutral-300 hover:border-indigo-400/40 hover:text-indigo-200 disabled:opacity-40"
                 >
                   {isLoadingTask ? '载入中' : '载入'}
@@ -1064,13 +1189,13 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
               )}
             >
               <Sparkles className="w-4 h-4 text-indigo-200 animate-pulse" />
-              {isGenerating ? 'AI 正在生成报告...' : '启动智能整合排版'}
+              {isGenerating ? 'AI 正在生成报告...' : analysisResult ? '更新研究' : '开始研究'}
             </button>
           </div>
         </div>
 
         {/* Right Preview Panel - Takes 2 Columns */}
-        <div className="lg:col-span-2 flex flex-col min-h-0 bg-white/[0.01] border border-white/5 rounded-2xl overflow-hidden relative">
+        <div className="flex flex-col min-h-[320px] min-w-0 lg:min-h-0 relative">
           
           <AnimatePresence mode="wait">
             
@@ -1145,45 +1270,60 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
               <motion.div
                 key="generated"
                 initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                className="flex-1 flex flex-col min-h-0 bg-[#0c0c0c] overflow-y-auto custom-scrollbar p-6 lg:p-8"
+                className="lg:flex-1 flex flex-col lg:min-h-0 bg-[#0c0c0c] lg:overflow-y-auto custom-scrollbar p-2 sm:p-4 lg:p-5"
               >
                 <div className="mx-auto w-full max-w-5xl">
 
                   {/* 导出操作栏 */}
-                  <div className="mb-5 flex items-center justify-between gap-3">
-                    <p className="text-xs text-neutral-500">
-                      研报已生成 · {selectedStock}
-                      {currentTaskId && (
-                        <span className="ml-2 font-mono text-neutral-600">任务 {currentTaskId.slice(0, 8)}</span>
-                      )}
-                    </p>
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <h3 className="break-words text-lg font-semibold text-neutral-100">{reportContext?.stock_name || reportContext?.stock_symbol || '研究报告'}<span className="ml-2 text-sm font-normal text-neutral-400">{reportContext?.stock_symbol}</span></h3>
+                      <p className="mt-2 break-words text-sm leading-relaxed text-neutral-300">{reportContext?.research_question || analysisResult.research_snapshot?.research_question || '研究问题未记录'}</p>
+                      <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-neutral-500"><span>{reportContext?.number ? `V${reportContext.number}` : versionId ? `版本 ${versionId.slice(0, 8)}` : '历史任务'}</span><span>截止日 {analysisResult.research_snapshot?.effective_as_of || reportContext?.as_of || '未记录'}</span></p>
+                    </div>
                     {currentTaskId && (
                       <a
                         href={getReportExportUrl(currentTaskId)}
                         target="_blank"
                         rel="noreferrer"
                         download
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-neutral-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-200"
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 text-neutral-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-200"
                         title="下载 Markdown 研报"
+                        aria-label="下载 Markdown 研报"
                       >
                         <Download className="h-3.5 w-3.5" />
-                        导出 Markdown
                       </a>
                     )}
                   </div>
 
-                  {/* P0: Decision Summary */}
+                  <ResearchStatusStrip result={analysisResult} progress={reviewProgress} />
+                  <div role="tablist" aria-label="报告视图" className="sticky top-0 z-10 mb-5 flex border-b border-white/15 bg-[#0c0c0c]">
+                    {REPORT_VIEWS.map(([key, label], index) => <button type="button" key={key} id={`report-tab-${key}`} role="tab" aria-selected={reportView === key} aria-controls={`report-panel-${key === 'compare' ? 'review' : key}`} tabIndex={reportView === key ? 0 : -1} onClick={() => setReportView(key)} onKeyDown={event => {
+                      const next = event.key === 'ArrowRight' ? (index + 1) % REPORT_VIEWS.length : event.key === 'ArrowLeft' ? (index + REPORT_VIEWS.length - 1) % REPORT_VIEWS.length : event.key === 'Home' ? 0 : event.key === 'End' ? REPORT_VIEWS.length - 1 : -1;
+                      if (next >= 0) { event.preventDefault(); setReportView(REPORT_VIEWS[next][0]); document.getElementById(`report-tab-${REPORT_VIEWS[next][0]}`)?.focus(); }
+                    }} className={cn('min-h-12 flex-1 border-b-2 px-1 text-sm transition-colors', reportView === key ? 'border-sky-400 text-sky-300' : 'border-transparent text-neutral-400 hover:text-neutral-100')}>{label}</button>)}
+                  </div>
+                  <div role="tabpanel" id="report-panel-overview" aria-labelledby="report-tab-overview" hidden={reportView !== 'overview'}>
                   <DecisionSummary
-                    stockSymbol={selectedTarget.symbol}
-                    stockName={selectedTarget.name}
+                    stockSymbol={reportContext?.stock_symbol || ''}
+                    stockName={reportContext?.stock_name || ''}
                     result={analysisResult}
                   />
-
+                  <GeneratedResearchReport view="overview" result={analysisResult} onOpenModelSettings={onOpenModelSettings} />
+                  </div>
+                  <div role="tabpanel" id="report-panel-sources" aria-labelledby="report-tab-sources" hidden={reportView !== 'sources'}>
                   <ResearchSnapshotBar snapshot={analysisResult.research_snapshot} />
                   <ResearchTrustPanel trust={analysisResult.research_trust} />
-
-                  <GeneratedResearchReport result={analysisResult} symbol={selectedTarget.symbol} stockName={selectedTarget.name} onOpenModelSettings={onOpenModelSettings} />
-
+                  <GeneratedResearchReport view="sources" result={analysisResult} />
+                  <FieldSourceTable result={analysisResult} />
+                  <SourceTracePanel traces={analysisResult.provider_traces} />
+                  <EvidenceAppendix result={analysisResult} />
+                  </div>
+                  <div role="tabpanel" id="report-panel-review" aria-labelledby={`report-tab-${reportView === 'compare' ? 'compare' : 'review'}`} hidden={reportView !== 'review' && reportView !== 'compare'}>
+                    {versionId ? <ResearchReviewPanel key={versionId} versionId={versionId} view={reportView === 'compare' ? 'compare' : 'review'} visible={reportView === 'review' || reportView === 'compare'} onDirtyChange={value => { reviewDirty.current = value; }} onProgress={setReviewProgress} onVersion={version => setReportContext({ ...version.input, number: version.number })} /> : <p className="py-5 text-sm text-neutral-400">此历史任务没有研究版本，无法进行逐条复核或版本对比。</p>}
+                  </div>
+                  <div role="tabpanel" id="report-panel-full" aria-labelledby="report-tab-full" hidden={reportView !== 'full'}>
+                  {reportView === 'full' && <GeneratedResearchReport view="full" result={analysisResult} symbol={reportContext?.stock_symbol} stockName={reportContext?.stock_name} onOpenModelSettings={onOpenModelSettings} />}
                   {/* P0: Agent Opinions */}
                   <div className="my-7 border-t border-white/5 pt-7">
                     <h3 className="text-sm font-semibold text-white/80 mb-4 uppercase tracking-wider flex items-center gap-2">
@@ -1193,19 +1333,6 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                     <AgentOpinionCards agents={analysisResult.agents} evidencePool={analysisResult.evidence_pool} />
                   </div>
 
-                  {/* P1: Field Source Table */}
-                  <div className="mb-6">
-                    <FieldSourceTable result={analysisResult} />
-                  </div>
-
-                  {/* P0: Source Trace Panel */}
-                  <div className="mb-6">
-                    <SourceTracePanel traces={analysisResult.provider_traces} />
-                  </div>
-
-                  {/* P1: Evidence Appendix */}
-                  <div className="mb-6">
-                    <EvidenceAppendix result={analysisResult} />
                   </div>
                 </div>
               </motion.div>
@@ -1230,7 +1357,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                   onClick={startGeneration}
                   className="mt-2 rounded-xl border border-indigo-500/40 bg-indigo-500/10 px-4 py-2 text-xs font-semibold text-indigo-200 transition-colors hover:border-indigo-400 hover:bg-indigo-500/20"
                 >
-                  重新启动智能整合排版
+                  重新开始研究
                 </button>
               </motion.div>
             ) : !isGenerating ? (
@@ -1244,10 +1371,7 @@ export function ReportGenerator({ onOpenModelSettings }: ReportGeneratorProps) {
                   <FileCheck className="w-8 h-8 text-neutral-600" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-neutral-300">本投研报告书处于未配置草稿状态</h3>
-                  <p className="text-xs text-neutral-500 mt-1 max-w-sm mx-auto leading-relaxed">
-                    请在左侧配置面板中指定您欲展开多因子分析与公司基本面测绘的股票，然后点击“启动智能整合排版”。AI Agent 助理网络将全面对标的资产进行结构化信源编纂，提供可出版级的专业投资评估。
-                  </p>
+                  <h3 className="text-lg font-semibold text-neutral-300">尚无研究报告</h3>
                 </div>
               </motion.div>
             ) : null}

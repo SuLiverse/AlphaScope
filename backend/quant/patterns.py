@@ -43,9 +43,10 @@ class Pattern:
     date: str
     index: int
     detail: str
+    projection: float | None = None  # 几何投影, 不是预测
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        out = {
             "name": self.name,
             "category": self.category,
             "direction": self.direction,
@@ -53,6 +54,9 @@ class Pattern:
             "index": self.index,
             "detail": self.detail,
         }
+        if self.projection is not None:
+            out["projection"] = self.projection
+        return out
 
 
 @dataclass
@@ -506,6 +510,242 @@ def _double_top_bottom(bars: list[dict], closes: list[float]) -> list[Pattern]:
     return out
 
 
+# ============== 收紧后的大结构: 箱体 / 头肩 / 杯柄 ==============
+
+_BOX_WINDOW = 40
+_BOX_AMP_MIN = 0.05
+_BOX_AMP_MAX = 0.30
+_BOX_TOUCH_FRAC = 0.08  # 触及: 距沿不超过箱体高度的 8%
+_BOX_MIN_TOUCHES = 2
+_BOX_MIN_TOUCH_GAP = 3
+_HS_SHOULDER_MAX_REL = 0.08  # 左右肩价差 / 较低肩
+_HS_MIN_GAP = 3
+_CUP_MIN_BARS = 40
+_CUP_DEPTH_MIN = 0.05
+_CUP_DEPTH_MAX = 0.40
+_CUP_RIM_REL = 0.06
+_HANDLE_MAX_FRAC = 0.50  # 柄深不超过杯深的一半
+
+
+def _distinct_touches(indices: list[int], min_gap: int) -> list[int]:
+    if not indices:
+        return []
+    kept = [indices[0]]
+    for i in indices[1:]:
+        if i - kept[-1] >= min_gap:
+            kept.append(i)
+    return kept
+
+
+def _box_pattern(bars: list[dict]) -> list[Pattern]:
+    """箱体: 检测 bar 之前的 _BOX_WINDOW 根内, 上沿、下沿各至少被触及 2 次, 振幅有界。
+
+    「接近上沿」只用收盘距上沿的比例; 禁止把近 20 日最高×0.98 当成看涨突破。
+    Plan 032: 轨道窗口排除检测 bar——旧实现把检测 bar 算进窗口, 导致
+    ``close > upper`` / ``close < lower`` 对合法 OHLC 永不成立(突破分支死代码)。
+    """
+    n = len(bars)
+    if n < _BOX_WINDOW + 1:
+        return []
+    # Plan 032: 窗口 = 检测 bar 之前的 _BOX_WINDOW 根; 轨道/触及计数全部基于该窗口
+    # (触及索引用于 _distinct_touches 的间隔去重, 只在窗口内比较, 不进 detail/投影)。
+    window = bars[-_BOX_WINDOW - 1 : -1]
+    highs = [_h(b) for b in window]
+    lows = [_l(b) for b in window]
+    upper, lower = max(highs), min(lows)
+    if upper <= lower or lower <= 0:
+        return []
+    height = upper - lower
+    amp = height / lower
+    if not (_BOX_AMP_MIN <= amp <= _BOX_AMP_MAX):
+        return []
+    tol = height * _BOX_TOUCH_FRAC
+    upper_hits = _distinct_touches([i for i, h in enumerate(highs) if h >= upper - tol], _BOX_MIN_TOUCH_GAP)
+    lower_hits = _distinct_touches([i for i, lo in enumerate(lows) if lo <= lower + tol], _BOX_MIN_TOUCH_GAP)
+    if len(upper_hits) < _BOX_MIN_TOUCHES or len(lower_hits) < _BOX_MIN_TOUCHES:
+        return []
+
+    last = bars[-1]
+    close = _c(last)
+    idx = n - 1
+    # Actual close beyond the rail is a break; merely being near the rail is neutral.
+    if close > upper:
+        direction = BULLISH
+        detail = f"箱体上沿 {upper:.2f} 被收盘越过; 几何投影不是预测"
+        projection = round(upper + height, 4)
+    elif close < lower:
+        direction = BEARISH
+        detail = f"箱体下沿 {lower:.2f} 被收盘跌破; 几何投影不是预测"
+        projection = round(lower - height, 4)
+    else:
+        near = abs(upper - close) / height if height else 1.0
+        direction = NEUTRAL
+        detail = f"箱体内震荡, 上沿 {upper:.2f} 下沿 {lower:.2f}, 收盘距上沿比例 {near:.2f}; 接近上沿不是突破"
+        projection = None
+    return [
+        Pattern(
+            "箱体",
+            STRUCTURE,
+            direction,
+            _date(last),
+            idx,
+            detail,
+            projection=projection,
+        )
+    ]
+
+
+def _local_extrema(values: list[float], kind: str, radius: int = 2) -> list[int]:
+    n = len(values)
+    out: list[int] = []
+    for i in range(radius, n - radius):
+        window = values[i - radius : i + radius + 1]
+        if kind == "peak" and values[i] >= max(window):
+            out.append(i)
+        elif kind == "trough" and values[i] <= min(window):
+            out.append(i)
+    return out
+
+
+def _head_shoulders(bars: list[dict]) -> list[Pattern]:
+    """头肩: 左右肩对称(价差阈值写死)、头比两肩更极端、颈线定义写死。"""
+    n = len(bars)
+    if n < 20:
+        return []
+    highs = [_h(b) for b in bars]
+    lows = [_l(b) for b in bars]
+    peaks = _local_extrema(highs, "peak", 2)
+    troughs = _local_extrema(lows, "trough", 2)
+    out: list[Pattern] = []
+
+    # 头肩顶: 三个峰, 中间最高, 左右肩相对价差 ≤ 8%
+    if len(peaks) >= 3:
+        l_i, h_i, r_i = peaks[-3], peaks[-2], peaks[-1]
+        if h_i - l_i >= _HS_MIN_GAP and r_i - h_i >= _HS_MIN_GAP:
+            ls, hd, rs = highs[l_i], highs[h_i], highs[r_i]
+            if hd > ls and hd > rs and min(ls, rs) > 0:
+                if abs(ls - rs) / min(ls, rs) <= _HS_SHOULDER_MAX_REL:
+                    left_troughs = [t for t in troughs if l_i < t < h_i]
+                    right_troughs = [t for t in troughs if h_i < t < r_i]
+                    if left_troughs and right_troughs:
+                        neck = min(lows[left_troughs[-1]], lows[right_troughs[0]])
+                        if neck < hd:
+                            height = hd - neck
+                            proj = round(neck - height, 4)
+                            out.append(
+                                Pattern(
+                                    "头肩顶",
+                                    STRUCTURE,
+                                    BEARISH,
+                                    _date(bars[r_i]),
+                                    r_i,
+                                    f"颈线 {neck:.2f}, 头 {hd:.2f}; 几何投影不是预测",
+                                    projection=proj,
+                                )
+                            )
+
+    # 头肩底: 三个谷, 中间最低, 左右肩相对价差 ≤ 8%
+    if len(troughs) >= 3:
+        l_i, h_i, r_i = troughs[-3], troughs[-2], troughs[-1]
+        if h_i - l_i >= _HS_MIN_GAP and r_i - h_i >= _HS_MIN_GAP:
+            ls, hd, rs = lows[l_i], lows[h_i], lows[r_i]
+            if hd < ls and hd < rs and min(ls, rs) > 0:
+                if abs(ls - rs) / min(ls, rs) <= _HS_SHOULDER_MAX_REL:
+                    left_peaks = [p for p in peaks if l_i < p < h_i]
+                    right_peaks = [p for p in peaks if h_i < p < r_i]
+                    if left_peaks and right_peaks:
+                        neck = max(highs[left_peaks[-1]], highs[right_peaks[0]])
+                        if neck > hd:
+                            depth = neck - hd
+                            proj = round(neck + depth, 4)
+                            out.append(
+                                Pattern(
+                                    "头肩底",
+                                    STRUCTURE,
+                                    BULLISH,
+                                    _date(bars[r_i]),
+                                    r_i,
+                                    f"颈线 {neck:.2f}, 头 {hd:.2f}; 几何投影不是预测",
+                                    projection=proj,
+                                )
+                            )
+    return out
+
+
+def _cup_handle(bars: list[dict]) -> list[Pattern]:
+    """杯柄: 柄必须落在杯右沿之后的子区间; 禁止用最近 20 日全局最低当柄低。"""
+    n = len(bars)
+    if n < _CUP_MIN_BARS:
+        return []
+    window = bars[-min(n, 120) :]
+    offset = n - len(window)
+    w = len(window)
+    lows = [_l(b) for b in window]
+    highs = [_h(b) for b in window]
+    # Cup low in the middle 50% so both rims have room.
+    mid_lo, mid_hi = w // 4, (3 * w) // 4
+    if mid_hi <= mid_lo:
+        return []
+    cup_low_idx = mid_lo + min(range(mid_hi - mid_lo), key=lambda k: lows[mid_lo + k])
+    cup_low = lows[cup_low_idx]
+    left = window[:cup_low_idx]
+    if len(left) < 8:
+        return []
+    left_rim_rel = max(range(len(left)), key=lambda i: highs[i])
+    cup_high = highs[left_rim_rel]
+    if cup_high <= cup_low:
+        return []
+    cup_depth = (cup_high - cup_low) / cup_high
+    if not (_CUP_DEPTH_MIN <= cup_depth <= _CUP_DEPTH_MAX):
+        return []
+    right = window[cup_low_idx:]
+    if len(right) < 8:
+        return []
+    # Right rim: first high after the cup low that recovers near the left rim.
+    # The handle is the sub-interval *after* that first recovery — never the cup itself.
+    right_rim_rel = None
+    for j in range(len(right)):
+        h = highs[cup_low_idx + j]
+        if h > cup_low and abs(h - cup_high) / cup_high <= _CUP_RIM_REL:
+            right_rim_rel = j
+            break
+    if right_rim_rel is None:
+        return []
+
+    handle_start = cup_low_idx + right_rim_rel + 1
+    if handle_start >= w - 2:
+        return []
+    # Handle low/high = min/max of the *handle sub-interval only*, never a global
+    # 20-day low. Plan 032: 切片排除检测 bar([handle_start : w-1])——旧实现把
+    # 检测 bar 计入柄高, ``close > handle_high`` 对合法 OHLC 永不成立(死代码)。
+    # handle_start <= w-3 由上方守卫保证, 新切片至少含 2 根, min/max 不会空。
+    handle_lows = lows[handle_start : w - 1]
+    handle_highs = highs[handle_start : w - 1]
+    handle_low = min(handle_lows)
+    handle_high = max(handle_highs)
+    if handle_high <= handle_low or handle_high <= 0:
+        return []
+    cup_span = cup_high - cup_low
+    if cup_span <= 0 or (handle_high - handle_low) > _HANDLE_MAX_FRAC * cup_span:
+        return []
+
+    last_i = w - 1
+    close = _c(window[last_i])
+    proj = round(handle_high + cup_span, 4)
+    direction = BULLISH if close > handle_high else NEUTRAL
+    return [
+        Pattern(
+            "杯柄",
+            STRUCTURE,
+            direction,
+            _date(window[last_i]),
+            offset + last_i,
+            f"杯 {cup_low:.2f}–{cup_high:.2f}, 柄低 {handle_low:.2f}(右沿之后); 几何投影不是预测",
+            projection=proj,
+        )
+    ]
+
+
 # ============== 主入口 ==============
 
 
@@ -558,6 +798,9 @@ def _detect(bars: list[dict], symbol: str, lookback: int) -> PatternReport:
     # 全序列结构信号(均线交叉只保留落在扫描窗内的)
     patterns.extend([p for p in _ma_cross_patterns(clean, closes) if p.index >= scan_start])
     patterns.extend(_double_top_bottom(clean, closes))
+    patterns.extend(_box_pattern(clean))
+    patterns.extend(_head_shoulders(clean))
+    patterns.extend(_cup_handle(clean))
 
     # 去重(同日同名)+ 倒序(最近在前)
     seen: set[tuple[str, str]] = set()

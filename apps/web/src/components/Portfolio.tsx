@@ -8,6 +8,8 @@ import { fetchApi } from '../lib/api';
 import { findStockTarget, resolveStockTarget, STOCK_UNIVERSE, StockTarget } from '../lib/stocks';
 import { getPersistedStock, subscribeWatchlistChanged } from '../lib/workspaceEvents';
 import { StableChartContainer } from './StableChartContainer';
+import { ErrorState } from './ui/ErrorState';
+import { EmptyState } from './ui/EmptyState';
 
 const PORTFOLIO_STORAGE_KEY = 'alphascope:research-portfolio-positions';
 const SECTOR_LIMIT_PCT = 35;
@@ -197,11 +199,14 @@ export function Portfolio() {
   }, [positions]);
 
   // 后端持久化:启动时从 SQLite 载入并合并(本地为缓存,后端为真实源)
+  const [positionsReloadKey, setPositionsReloadKey] = useState(0);
+  const [positionsLoadError, setPositionsLoadError] = useState('');
   useEffect(() => {
     let cancelled = false;
     void fetchApi<{ items: ResearchPosition[] }>('/api/portfolio/positions')
       .then((data) => {
         if (cancelled) return;
+        setPositionsLoadError('');
         const remote = (data?.items || []).filter((p) => p?.symbol && Number(p.shares) > 0);
         if (!remote.length) return;
         setPositions((prev) => {
@@ -226,13 +231,16 @@ export function Portfolio() {
           );
         });
       })
-      .catch(() => {
-        /* 后端不可用时静默,继续用本地缓存 */
+      .catch((e) => {
+        /* 后端不可用时回落本地缓存;但本地也为空时记录错误,在持仓表内给出可重试提示 */
+        if (!cancelled) {
+          setPositionsLoadError(e instanceof Error ? e.message : '网络错误');
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [positionsReloadKey]);
 
   const [watchlistReloadKey, setWatchlistReloadKey] = useState(0);
   useEffect(() => subscribeWatchlistChanged(() => setWatchlistReloadKey((k) => k + 1)), []);
@@ -367,6 +375,7 @@ export function Portfolio() {
     const maxRiskUse = rows.reduce((max, row) => Math.max(max, row.weight), 0);
     return { totalAssets, totalCost, dailyPnl, totalPnl, totalPnlPct, winners, maxRiskUse };
   }, [rows]);
+  const hasPositions = rows.length > 0;
 
   const allocationData = useMemo(() => {
     const grouped = new Map<string, number>();
@@ -513,11 +522,16 @@ export function Portfolio() {
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
-        <div className="relative overflow-hidden rounded-2xl border border-rose-500/20 bg-gradient-to-br from-rose-950/45 via-indigo-950/20 to-black/30 p-6 shadow-xl md:col-span-2">
-          <div className="pointer-events-none absolute right-0 top-0 p-3 text-rose-300 opacity-15">
+        <div className={cn(
+          "relative overflow-hidden rounded-2xl border p-6 shadow-xl md:col-span-2",
+          hasPositions
+            ? "border-rose-500/20 bg-gradient-to-br from-rose-950/45 via-indigo-950/20 to-black/30"
+            : "border-white/5 bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent",
+        )}>
+          <div className={cn("pointer-events-none absolute right-0 top-0 p-3 opacity-15", hasPositions ? "text-rose-300" : "text-neutral-500")}>
             <WalletCards className="h-28 w-28 stroke-[0.5]" />
           </div>
-          <h3 className="relative z-10 text-[10px] font-mono uppercase tracking-widest text-rose-300">组合市值</h3>
+          <h3 className={cn("relative z-10 text-[10px] font-mono uppercase tracking-widest", hasPositions ? "text-rose-300" : "text-neutral-500")}>组合市值</h3>
           <h2 className="relative z-10 mt-4 text-4xl font-mono font-medium text-white">{formatCurrency(totals.totalAssets)}</h2>
           <p className={cn('relative z-10 mt-3 flex items-center gap-1 text-xs font-mono', totals.dailyPnl >= 0 ? 'text-rose-300' : 'text-emerald-300')}>
             {totals.dailyPnl >= 0 ? <ArrowUpRight className="h-3.5 w-3.5" /> : <ArrowDownRight className="h-3.5 w-3.5" />}
@@ -705,9 +719,12 @@ export function Portfolio() {
               </div>
             </div>
           ) : (
-            <div className="flex h-72 items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-neutral-500">
-              暂无持仓
-            </div>
+            <EmptyState
+              className="h-72"
+              icon={Landmark}
+              title="暂无持仓"
+              description="在上方输入代码与数量，加入第一笔研究持仓后，这里会展示资产配置结构。"
+            />
           )}
         </div>
 
@@ -727,9 +744,12 @@ export function Portfolio() {
               </StableChartContainer>
             </div>
           ) : (
-            <div className="flex h-72 items-center justify-center rounded-xl border border-dashed border-white/10 text-sm text-neutral-500">
-              暂无行业暴露
-            </div>
+            <EmptyState
+              className="h-72"
+              icon={ShieldCheck}
+              title="暂无行业暴露"
+              description="加入持仓后，这里会对照单行业上限展示集中度风险。"
+            />
           )}
         </div>
 
@@ -758,7 +778,20 @@ export function Portfolio() {
               <tbody>
                 {rows.length === 0 && (
                   <tr>
-                    <td className="px-5 py-8 text-center text-neutral-500" colSpan={9}>暂无持仓</td>
+                    <td className="px-5 py-8 text-center text-neutral-500" colSpan={9}>
+                      {positionsLoadError ? (
+                        <ErrorState
+                          message={`无法从后端载入持仓（${positionsLoadError}），本地缓存也为空。请检查后端连接后重试。`}
+                          onRetry={() => {
+                            setPositionsLoadError('');
+                            setPositionsReloadKey((key) => key + 1);
+                          }}
+                          className="py-4"
+                        />
+                      ) : (
+                        '暂无持仓'
+                      )}
+                    </td>
                   </tr>
                 )}
                 {rows.map((position) => (

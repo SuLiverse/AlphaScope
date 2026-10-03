@@ -51,7 +51,7 @@ export function Backtesting() {
   const persisted = getPersistedStock();
   const [activeTab, setActiveTab] = useState<TabID>('overview');
   const [poolText, setPoolText] = useState(DEFAULT_POOL_TEXT);
-  const [actionMessage, setActionMessage] = useState('回测引擎待命，选择策略与标的后可启动真实回测。');
+  const [actionMessage, setActionMessage] = useState(''); // 待命态不占横幅，仅在运行/结果/出错时给出反馈
 
   // Backtest run state
   const persistedStock = useMemo(() => persisted ?? STOCK_UNIVERSE[0], [persisted]);
@@ -688,11 +688,12 @@ export function Backtesting() {
           <QuantPreviewCheckbox
             checked={allowPreviewData}
             onChange={setAllowPreviewData}
-            hint="允许演示样例行情（无真实行情时才用合成数据；默认关闭，勾选后结果会标注「本地样例」）"
+            hint="无真实行情时允许用合成数据演示，结果会标注「本地样例」"
+            title="仅在真实行情缺失时才会使用合成数据；默认关闭。勾选后回测结果会标注「本地样例」以便区分。"
           />
         </div>
 
-        <div className="flex rounded-xl border border-white/5 bg-black/60 p-1.5">
+        <div className="custom-scrollbar flex max-w-full overflow-x-auto rounded-xl border border-white/5 bg-black/60 p-1.5">
           {TABS.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -700,12 +701,12 @@ export function Backtesting() {
                 key={tab.id}
                 data-testid={`backtest-tab-${tab.id}`}
                 onClick={() => setActiveTab(tab.id)}
-                className={cn('relative flex items-center gap-2 rounded-lg px-5 py-2.5 text-sm font-medium transition-all', activeTab === tab.id ? 'text-white' : 'text-neutral-500 hover:text-neutral-300')}
+                className={cn('relative flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-medium transition-all', activeTab === tab.id ? 'text-white' : 'text-neutral-500 hover:text-neutral-300')}
               >
                 {activeTab === tab.id && (
                   <motion.div layoutId="backtest-tab" className="absolute inset-0 rounded-lg border border-white/10 bg-white/10" />
                 )}
-                <Icon className="relative z-10 h-4 w-4" />
+                <Icon className="relative z-10 h-3.5 w-3.5" />
                 <span className="relative z-10">{tab.label}</span>
               </button>
             );
@@ -714,12 +715,27 @@ export function Backtesting() {
       </div>
 
       <div className="relative z-10 flex-1 overflow-y-auto custom-scrollbar">
-        <div className="mb-3 rounded-xl border border-rose-500/20 bg-rose-500/[0.06] px-4 py-2 text-[11px] leading-relaxed text-rose-200/80">
-          <ShieldAlert className="mr-1 inline h-3.5 w-3.5 align-text-bottom" />
-          本页所有回测结果<strong className="font-medium text-rose-100"> 仅用于历史研究与策略逻辑验证，不代表未来收益，不构成任何投资建议</strong>。回测已计入佣金、印花税（卖方）、滑点等真实摩擦成本，详见下方「本次回测假设」。
-        </div>
-        <div className="mb-5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-4 py-3 text-xs text-indigo-100/80">
-          {actionMessage}
+        {/* 免责声明（合规必需）+ 运行反馈合并为一条轻量信息行，不再三层横幅堆叠 */}
+        <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border border-white/5 bg-white/[0.02] px-3.5 py-2 text-[11px] leading-relaxed text-neutral-500">
+          <span className="min-w-0">
+            <ShieldAlert className="mr-1 inline h-3.5 w-3.5 align-text-bottom text-rose-300/70" />
+            回测结果<strong className="font-medium text-neutral-300">仅用于历史研究与策略逻辑验证，不构成投资建议</strong>；已计入佣金、印花税（卖方）、滑点，详见「本次回测假设」。
+          </span>
+          {actionMessage && (
+            <AnimatePresence initial={false}>
+              <motion.span
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                className={cn(
+                  'font-medium',
+                  actionMessage.startsWith('回测失败') || actionMessage.includes('失败') ? 'text-rose-300' : 'text-indigo-300',
+                )}
+              >
+                {actionMessage}
+              </motion.span>
+            </AnimatePresence>
+          )}
         </div>
         <AnimatePresence mode="wait">
           {activeTab === 'overview' && (

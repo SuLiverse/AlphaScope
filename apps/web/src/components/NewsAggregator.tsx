@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Newspaper, 
@@ -8,7 +8,6 @@ import {
   Calendar, 
   Sparkles, 
   CheckCircle, 
-  Filter, 
   Clock, 
   ArrowUpRight, 
   ArrowDownRight, 
@@ -24,7 +23,7 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { cn } from '../lib/utils';
+import { cn, isHttpUrl } from '../lib/utils';
 import { STOCK_UNIVERSE, StockTarget, findStockTarget, formatStockLabel } from '../lib/stocks';
 import { getPersistedStock, subscribeStockSelected, subscribeSettingsChanged } from '../lib/workspaceEvents';
 import { fetchApi } from '../lib/api';
@@ -38,22 +37,7 @@ import {
   ModelProvider,
 } from '../lib/aiModelRouting';
 import { ThemedSelect } from './ThemedSelect';
-
-interface NewsItem {
-  id: string;
-  time: string;
-  title: string;
-  category: 'macro' | 'announcement' | 'risk' | 'funds';
-  source: string;
-  sourceTier: '官方披露' | '主流媒体' | '数据终端' | '舆情/另类' | '研究兜底';
-  sourceStatus?: 'real' | 'fallback' | 'degraded';
-  sourceUrl?: string;
-  severity: 'high' | 'medium' | 'info';
-  sentiment: 'bullish' | 'bearish' | 'neutral';
-  impactScore: number;
-  content: string;
-  aiSummary: string;
-}
+import { NewsFeedList, type NewsItem } from './NewsFeedList';
 
 interface NewsAssistantMessage {
   id: string;
@@ -336,16 +320,6 @@ function domainFromUrl(value: string): string {
     return new URL(value).hostname.replace(/^www\./, '');
   } catch {
     return '外部链接';
-  }
-}
-
-function isHttpUrl(value?: string): boolean {
-  if (!value) return false;
-  try {
-    const url = new URL(value);
-    return url.protocol === 'http:' || url.protocol === 'https:';
-  } catch {
-    return false;
   }
 }
 
@@ -653,6 +627,141 @@ function formatModelOption(option?: ModelOption) {
   return `${option.providerName} / ${option.modelId}`;
 }
 
+interface NewsAssistantComposerProps {
+  disabled: boolean;
+  placeholder: string;
+  prefill: { nonce: number; text: string };
+  onSend: (text: string) => void;
+}
+
+/**
+ * 聊天输入框：输入 state 下放于此，打字只重渲本组件，
+ * 不再触发 NewsAggregator 整树（尤其是 feed 列表）重渲。
+ * 外部（咨询按钮 / 链接解析 / 详情弹窗）通过 prefill（nonce 递增）注入预设问题。
+ */
+function NewsAssistantComposer({ disabled, placeholder, prefill, onSend }: NewsAssistantComposerProps) {
+  const [value, setValue] = useState('');
+  const appliedPrefillNonceRef = useRef(prefill.nonce);
+
+  useEffect(() => {
+    if (prefill.nonce === appliedPrefillNonceRef.current) return;
+    appliedPrefillNonceRef.current = prefill.nonce;
+    if (prefill.text) setValue(prefill.text);
+  }, [prefill]);
+
+  const send = () => {
+    if (!value.trim() || disabled) return;
+    onSend(value);
+    setValue('');
+  };
+
+  return (
+    <div className="flex gap-2">
+      <textarea
+        data-testid="news-assistant-input"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            send();
+          }
+        }}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-neutral-200 outline-none transition-colors placeholder:text-neutral-600 focus:border-violet-400/50"
+      />
+      <button
+        type="button"
+        data-testid="news-assistant-send"
+        onClick={send}
+        disabled={disabled || !value.trim()}
+        className="inline-flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-100 transition-colors hover:bg-violet-500/20"
+        title="发送"
+      >
+        {disabled ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+}
+
+interface NewsLinkParserBoxProps {
+  onParse: (url: string) => Promise<void>;
+}
+
+/** 链接解析输入框：输入 state 同样下放，解析完成后清空输入。 */
+function NewsLinkParserBox({ onParse }: NewsLinkParserBoxProps) {
+  const [value, setValue] = useState('');
+
+  const submit = async () => {
+    const url = value.trim();
+    if (!url) return;
+    await onParse(url);
+    setValue('');
+  };
+
+  return (
+    <div className="rounded-xl border border-white/5 bg-black/20 p-3">
+      <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-neutral-300">
+        <Link2 className="h-3.5 w-3.5 text-indigo-300" />
+        解析新闻链接
+      </div>
+      <div className="flex gap-2">
+        <input
+          type="url"
+          data-testid="news-link-input"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') submit();
+          }}
+          placeholder="粘贴新闻原文链接..."
+          className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-neutral-200 outline-none transition-colors placeholder:text-neutral-600 focus:border-indigo-400/50"
+        />
+        <button
+          type="button"
+          data-testid="news-link-parse"
+          onClick={submit}
+          className="inline-flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[11px] text-indigo-100 transition-colors hover:bg-indigo-500/20"
+        >
+          <Sparkles className="h-3.5 w-3.5" />
+          解析
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+/** 后端信源状态枚举 → 用户可读标签（idle/loading/ok/failed/其他 source_status）。 */
+function backendStateLabel(status: string): string {
+  switch (status) {
+    case 'ok':
+      return '正常';
+    case 'failed':
+      return '未连接';
+    case 'loading':
+      return '连接中';
+    case 'idle':
+      return '待连接';
+    case 'empty':
+      return '无数据';
+    case 'cache':
+      return '缓存数据';
+    case 'timeout':
+      return '响应超时';
+    default:
+      return status;
+  }
+}
+
+/** 状态 → 颜色点：正常绿、进行中琥珀呼吸、异常中性灰（错误细节不在概览层裸奔）。 */
+function backendStateDotClass(status: string): string {
+  if (status === 'ok') return 'bg-emerald-400';
+  if (status === 'loading') return 'bg-amber-400 animate-pulse';
+  return 'bg-neutral-500';
+}
+
 export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
   const [currentStock, setCurrentStock] = useState<StockTarget>(() => getPersistedStock() ?? STOCK_UNIVERSE[0]);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -666,8 +775,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
   const [isCalendarExpanded, setIsCalendarExpanded] = useState<boolean>(true);
   const [isSourceOverviewExpanded, setIsSourceOverviewExpanded] = useState<boolean>(true);
   const [isSourceMatrixExpanded, setIsSourceMatrixExpanded] = useState<boolean>(false);
-  const [assistantInput, setAssistantInput] = useState<string>('');
-  const [linkInput, setLinkInput] = useState<string>('');
+  const [assistantPrefill, setAssistantPrefill] = useState<{ nonce: number; text: string }>({ nonce: 0, text: '' });
   const [assistantLoading, setAssistantLoading] = useState(false);
   const [newsModels, setNewsModels] = useState<ModelOption[]>([]);
   const [selectedNewsModelKey, setSelectedNewsModelKey] = useState('');
@@ -820,7 +928,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
   ];
 
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
-  const filteredNews = news.filter(item => {
+  const filteredNews = useMemo(() => news.filter(item => {
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
     const matchesTier = selectedSourceTier === 'all' || item.sourceTier === selectedSourceTier;
     const matchesSource = !selectedSource || item.source === selectedSource || item.source.includes(selectedSource) || selectedSource.includes(item.source);
@@ -835,7 +943,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
     ].join(' ').toLowerCase();
     const matchesSearch = !normalizedSearchQuery || searchableText.includes(normalizedSearchQuery);
     return matchesCategory && matchesTier && matchesSource && matchesSearch;
-  });
+  }), [news, selectedCategory, selectedSourceTier, selectedSource, normalizedSearchQuery, currentStock]);
 
   useEffect(() => {
     if (filteredNews.length === 0) {
@@ -881,27 +989,34 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
     selectedSource ? `来源：${selectedSource}` : '',
     searchQuery ? `关键词：${searchQuery}` : '',
   ].filter(Boolean);
-  const clearNewsFilters = () => {
+  const clearNewsFilters = useCallback(() => {
     setSelectedCategory('all');
     setSelectedSourceTier('all');
     setSelectedSource('');
     setSearchQuery('');
     setSelectedArticle(news[0] ?? null);
-  };
-  const activateArticle = (item: NewsItem) => {
+  }, [news]);
+  const activateArticle = useCallback((item: NewsItem) => {
     setSelectedArticle(item);
     setIsAiExpanded(true);
-  };
-  const openArticleDetail = (item: NewsItem) => {
+  }, []);
+  const openArticleDetail = useCallback((item: NewsItem) => {
     setSelectedArticle(item);
     setDetailArticle(item);
     setIsAiExpanded(true);
-  };
-  const openArticleSource = (item: NewsItem) => {
+  }, []);
+  const openArticleSource = useCallback((item: NewsItem) => {
     const url = sourceUrlForArticle(item, currentStock);
     window.open(url, '_blank', 'noopener,noreferrer');
-  };
-  const askAboutArticle = async (question: string) => {
+  }, [currentStock]);
+  const prefillAssistantInput = useCallback((text: string) => {
+    setAssistantPrefill((prev) => ({ nonce: prev.nonce + 1, text }));
+  }, []);
+  const askFromFeed = useCallback((item: NewsItem) => {
+    activateArticle(item);
+    prefillAssistantInput(`请解析这条新闻对 ${currentStock.name} 的影响`);
+  }, [activateArticle, currentStock.name, prefillAssistantInput]);
+  const askAboutArticle = useCallback(async (question: string) => {
     const trimmed = question.trim();
     if (!trimmed || assistantLoading) return;
     const userMessage: NewsAssistantMessage = {
@@ -920,7 +1035,6 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
       timestamp: new Date().toISOString(),
     };
     setAssistantMessages((prev) => [...prev, userMessage, assistantMessage]);
-    setAssistantInput('');
     if (!selectedNewsModel) return;
     setAssistantLoading(true);
     try {
@@ -984,9 +1098,9 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
     } finally {
       setAssistantLoading(false);
     }
-  };
-  const parseNewsLink = async () => {
-    const trimmed = linkInput.trim();
+  }, [assistantLoading, selectedNewsModel, selectedArticle, currentStock]);
+  const parseNewsLink = useCallback(async (url: string) => {
+    const trimmed = url.trim();
     if (!trimmed) return;
     const fallbackArticle: NewsItem = {
       id: `link-${Date.now()}`,
@@ -1053,10 +1167,9 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
       },
     ]);
     if (selectedNewsModel) {
-      setAssistantInput(`请分析这条新闻链接对 ${currentStock.name} 的影响，并列出需要核验的关键事实`);
+      prefillAssistantInput(`请分析这条新闻链接对 ${currentStock.name} 的影响，并列出需要核验的关键事实`);
     }
-    setLinkInput('');
-  };
+  }, [currentStock, selectedNewsModel, prefillAssistantInput]);
   const selectFirstVisibleArticle = () => {
     if (filteredNews[0]) activateArticle(filteredNews[0]);
   };
@@ -1135,13 +1248,21 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
               <div className="flex items-center gap-2 text-xs font-medium text-neutral-200">
                 <Globe className="h-4 w-4 text-indigo-400" />
                 信源概览
-                <span className="rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9px] font-mono text-neutral-400">
-                  后端: {backendSourceState.newsStatus} / 公告: {backendSourceState.announcementStatus}
+                <span className="flex items-center gap-2 text-[10px] text-neutral-500">
+                  <span className="inline-flex items-center gap-1">
+                    <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', backendStateDotClass(backendSourceState.newsStatus))} />
+                    资讯源 {backendStateLabel(backendSourceState.newsStatus)}
+                  </span>
+                  <span className="text-neutral-700">·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <span aria-hidden className={cn('h-1.5 w-1.5 rounded-full', backendStateDotClass(backendSourceState.announcementStatus))} />
+                    公告源 {backendStateLabel(backendSourceState.announcementStatus)}
+                  </span>
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <p className="hidden text-[10px] text-neutral-500 sm:block">
-                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '本地多源兜底'} · 官方 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条
+                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '内置多源聚合'} · 官方 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条
                 </p>
                 <button
                   type="button"
@@ -1163,7 +1284,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
                 className="mt-2 flex w-full items-center justify-between rounded-xl border border-white/5 bg-black/20 px-3 py-2 text-left transition-colors hover:border-indigo-400/30 hover:bg-indigo-500/[0.04]"
               >
                 <span className="truncate text-[11px] text-neutral-300">
-                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '本地多源兜底'} · 官方披露 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条 · {backendSourceState.degraded ? '部分源降级，保留兜底' : '后端源正常'}
+                  {sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '内置多源聚合'} · 官方披露 {sourceSummary.officialCount} 条 · 主流/终端 {sourceSummary.mediaCount}/{sourceSummary.terminalCount} 条 · {backendSourceState.degraded ? '部分数据源暂不可用，已自动切换备用源' : '数据源正常'}
                 </span>
                 <ChevronDown className="ml-2 h-3.5 w-3.5 flex-shrink-0 text-neutral-500" />
               </button>
@@ -1173,10 +1294,10 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
               <div className="space-y-3">
                 <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
                   {[
-                    ['源状态', sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '本地多源兜底'],
+                    ['源状态', sourceStatus === 'loading' ? '同步中' : sourceStatus === 'real' ? `真实源 ${sourceSummary.realCount} 条` : '内置多源聚合'],
                     ['官方披露', `${sourceSummary.officialCount} 条`],
                     ['主流/终端', `${sourceSummary.mediaCount} / ${sourceSummary.terminalCount} 条`],
-                    ['风险提示', backendSourceState.degraded ? '部分源降级，保留兜底' : '后端源正常'],
+                    ['数据源', backendSourceState.degraded ? '部分源暂不可用，已切换备用源' : '全部正常'],
                   ].map(([label, value]) => (
                     <div key={label} className="rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2">
                       <p className="text-[9px] font-mono uppercase tracking-widest text-neutral-600">{label}</p>
@@ -1190,7 +1311,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
                     <span className="text-[11px] font-medium text-neutral-300">新闻来源矩阵</span>
                     <div className="flex items-center gap-2">
                       <p className="text-[10px] text-neutral-500">
-                        真实入库源 {backendSourceState.sources.length || 0} 个，兜底源 {backendSourceState.fallbackSources.length || SOURCE_MATRIX.length} 组
+                        后端接入 {backendSourceState.sources.length || 0} 个源 · 内置备用 {backendSourceState.fallbackSources.length || SOURCE_MATRIX.length} 组
                       </p>
                       <button
                         type="button"
@@ -1370,151 +1491,16 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
           </div>
 
           {/* Main Feed Container */}
-          <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar bg-black/10 rounded-2xl border border-white/5 p-4 relative min-h-0">
-            <AnimatePresence mode="popLayout">
-              {filteredNews.length === 0 ? (
-                <motion.div 
-                  initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                  className="h-full flex flex-col justify-center items-center text-center p-8 text-neutral-500 font-mono text-xs gap-3"
-                >
-                  <Filter className="w-10 h-10 text-neutral-600 animate-pulse" />
-                  <p>未能检索到包含关键字 "{searchQuery}" 的核心公告或数据</p>
-                  <button
-                    type="button"
-                    data-testid="news-empty-reset"
-                    onClick={clearNewsFilters}
-                    className="rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-1.5 text-[11px] text-indigo-100 transition-colors hover:bg-indigo-500/20"
-                  >
-                    重置并显示全部资讯
-                  </button>
-                </motion.div>
-              ) : (
-                filteredNews.map((item, idx) => {
-                  const isCurSelected = selectedArticle?.id === item.id;
-                  return (
-                    <motion.div
-                      role="button"
-                      tabIndex={0}
-                      data-testid={`news-feed-item-${idx}`}
-                      key={item.id}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: idx * 0.04 }}
-                      onClick={() => activateArticle(item)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          activateArticle(item);
-                        }
-                      }}
-                      className={cn(
-                        "p-4 mb-4 rounded-xl border transition-all cursor-pointer flex gap-4 relative group focus:outline-none focus:ring-2 focus:ring-indigo-500/40",
-                        isCurSelected 
-                          ? "bg-indigo-500/10 border-indigo-500/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]" 
-                          : "bg-white/[0.01] border-white/5 hover:border-white/15 hover:bg-white/[0.03]"
-                      )}
-                    >
-                      {/* Left Badge Indicator Column */}
-                      <div className="flex flex-col gap-2 items-center flex-shrink-0 w-12 text-center border-r border-white/5 pr-3">
-                        <span className="text-xs font-mono font-medium text-neutral-400 group-hover:text-neutral-300">{item.time}</span>
-                        <span className={cn(
-                          "w-2 h-2 rounded-full",
-                          item.severity === 'high' ? "bg-rose-500 animate-[pulse_1.5s_infinite] shadow-[0_0_8px_rgb(244,63,94)]" : "bg-neutral-500"
-                        )} />
-                        
-                        <div className={cn(
-                          "text-[9px] font-mono uppercase px-1 py-0.5 rounded-sm shrink-0 border mt-1",
-                          item.sentiment === 'bullish' ? 'bg-rose-950/20 border-rose-500/20 text-rose-400' :
-                          item.sentiment === 'bearish' ? 'bg-emerald-950/20 border-emerald-500/20 text-emerald-400' :
-                          'bg-neutral-900 border-white/5 text-neutral-500'
-                        )}>
-                          {item.sentiment === 'bullish' ? '利好' : item.sentiment === 'bearish' ? '偏空' : '中性'}
-                        </div>
-                      </div>
-
-                      {/* Title / Description */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-3 mb-2 flex-wrap">
-                          <span className="text-[10px] uppercase font-mono font-bold tracking-wider rounded px-1.5 py-0.5 bg-white/5 border border-white/10 text-indigo-400">
-                            {item.source}
-                          </span>
-                          <span className={cn(
-                            "text-[9px] rounded px-1.5 py-0.5 border font-mono",
-                            item.sourceTier === '官方披露' ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300" :
-                            item.sourceTier === '数据终端' ? "border-indigo-500/20 bg-indigo-500/10 text-indigo-300" :
-                            item.sourceTier === '主流媒体' ? "border-sky-500/20 bg-sky-500/10 text-sky-300" :
-                            item.sourceTier === '舆情/另类' ? "border-amber-500/20 bg-amber-500/10 text-amber-300" :
-                            "border-white/10 bg-white/5 text-neutral-400"
-                          )}>
-                            {item.sourceTier}
-                          </span>
-                          {item.sourceStatus === 'real' && (
-                            <span className="rounded border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-mono text-emerald-300">实时</span>
-                          )}
-                          <span className="text-[10px] font-mono text-neutral-500 flex items-center gap-1">
-                            影响因子: <span className={cn(
-                              "font-bold",
-                              item.impactScore >= 80 ? "text-rose-400" : "text-indigo-400"
-                            )}>{item.impactScore}%</span>
-                          </span>
-                        </div>
-                        <h3 className="text-sm text-neutral-100 font-medium leading-relaxed group-hover:text-indigo-300 transition-colors mb-1.5">
-                          {item.title}
-                        </h3>
-                        <p className="text-xs text-neutral-400 leading-relaxed max-w-3xl line-clamp-2">
-                          {item.content}
-                        </p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            data-testid={`news-detail-button-${idx}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openArticleDetail(item);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-md border border-indigo-500/25 bg-indigo-500/10 px-2 py-1 text-[10px] text-indigo-100 transition-colors hover:bg-indigo-500/20"
-                          >
-                            <FileText className="h-3 w-3" />
-                            详情
-                          </button>
-                          <button
-                            type="button"
-                            data-testid={`news-source-button-${idx}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openArticleSource(item);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] text-neutral-300 transition-colors hover:border-emerald-400/40 hover:text-emerald-200"
-                          >
-                            <ArrowUpRight className="h-3 w-3" />
-                            {isHttpUrl(item.sourceUrl) ? '原文' : '检索'}
-                          </button>
-                          <button
-                            type="button"
-                            data-testid={`news-ask-button-${idx}`}
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              activateArticle(item);
-                              setAssistantInput(`请解析这条新闻对 ${currentStock.name} 的影响`);
-                            }}
-                            className="inline-flex items-center gap-1 rounded-md border border-violet-500/25 bg-violet-500/10 px-2 py-1 text-[10px] text-violet-100 transition-colors hover:bg-violet-500/20"
-                          >
-                            <MessageCircle className="h-3 w-3" />
-                            咨询
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Right subtle arrow */}
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-600 group-hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100 transition-opacity">
-                        <ArrowUpRight className="w-4 h-4" />
-                      </div>
-                    </motion.div>
-                  );
-                })
-              )}
-            </AnimatePresence>
-          </div>
+          <NewsFeedList
+            items={filteredNews}
+            searchQuery={searchQuery}
+            selectedId={selectedArticle?.id}
+            onActivate={activateArticle}
+            onOpenDetail={openArticleDetail}
+            onOpenSource={openArticleSource}
+            onAsk={askFromFeed}
+            onClearFilters={clearNewsFilters}
+          />
         </div>
 
         {/* Dynamic Detail Panel / Calendar Right Column */}
@@ -1560,34 +1546,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
               !isAiExpanded && "opacity-0 pointer-events-none scale-95"
             )}>
               <div className="space-y-4">
-                <div className="rounded-xl border border-white/5 bg-black/20 p-3">
-                  <div className="mb-2 flex items-center gap-2 text-[11px] font-medium text-neutral-300">
-                    <Link2 className="h-3.5 w-3.5 text-indigo-300" />
-                    解析新闻链接
-                  </div>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      data-testid="news-link-input"
-                      value={linkInput}
-                      onChange={(event) => setLinkInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') parseNewsLink();
-                      }}
-                      placeholder="粘贴新闻原文链接..."
-                      className="min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-neutral-200 outline-none transition-colors placeholder:text-neutral-600 focus:border-indigo-400/50"
-                    />
-                    <button
-                      type="button"
-                      data-testid="news-link-parse"
-                      onClick={parseNewsLink}
-                      className="inline-flex items-center gap-1 rounded-lg border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-[11px] text-indigo-100 transition-colors hover:bg-indigo-500/20"
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      解析
-                    </button>
-                  </div>
-                </div>
+                <NewsLinkParserBox onParse={parseNewsLink} />
 
                 <AnimatePresence mode="wait">
                   {selectedArticle ? (
@@ -1718,32 +1677,12 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
                       </div>
                     ))}
                   </div>
-                  <div className="flex gap-2">
-                    <textarea
-                      data-testid="news-assistant-input"
-                      value={assistantInput}
-                      onChange={(event) => setAssistantInput(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          askAboutArticle(assistantInput);
-                        }
-                      }}
-                      placeholder={selectedArticle ? "问：这条新闻是利好还是风险？" : "先选一条新闻再提问..."}
-                      disabled={assistantLoading}
-                      className="min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-[11px] text-neutral-200 outline-none transition-colors placeholder:text-neutral-600 focus:border-violet-400/50"
-                    />
-                    <button
-                      type="button"
-                      data-testid="news-assistant-send"
-                      onClick={() => askAboutArticle(assistantInput)}
-                      disabled={assistantLoading || !assistantInput.trim()}
-                      className="inline-flex h-[42px] w-[42px] flex-shrink-0 items-center justify-center rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-100 transition-colors hover:bg-violet-500/20"
-                      title="发送"
-                    >
-                      {assistantLoading ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    </button>
-                  </div>
+                  <NewsAssistantComposer
+                    disabled={assistantLoading}
+                    placeholder={selectedArticle ? "问：这条新闻是利好还是风险？" : "先选一条新闻再提问..."}
+                    prefill={assistantPrefill}
+                    onSend={askAboutArticle}
+                  />
                 </div>
               </div>
             </div>
@@ -1937,7 +1876,7 @@ export function NewsAggregator({ onOpenModelSettings }: NewsAggregatorProps) {
                     type="button"
                     onClick={() => {
                       setSelectedArticle(detailArticle);
-                      setAssistantInput(`请结合原文详情分析这条新闻对 ${currentStock.name} 的影响`);
+                      prefillAssistantInput(`请结合原文详情分析这条新闻对 ${currentStock.name} 的影响`);
                       setDetailArticle(null);
                       setIsAiExpanded(true);
                     }}

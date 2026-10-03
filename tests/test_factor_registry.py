@@ -93,6 +93,88 @@ class TestTechnicalFactors:
         f = fr.compute_technical_factors([{"close": "x"}, {}, None])
         assert all(v is None for v in f.values())
 
+    def test_atr_20_and_donchian_width_registered(self):
+        ids = {c["id"] for c in fr.list_factors(source="price")}
+        assert "atr_20" in ids
+        assert "donchian_width_20" in ids
+        assert fr.get_factor("atr_20").direction == 0
+        assert fr.get_factor("donchian_width_20").direction == 0
+
+    def test_atr_20_insufficient_is_none(self):
+        f = fr.compute_technical_factors(_bars([10.0] * 10))
+        assert f["atr_20"] is None
+
+    def test_donchian_width_excludes_today(self):
+        closes = [10.0] * 25
+        highs = [10.5] * 24 + [50.0]
+        lows = [9.5] * 25
+        f = fr.compute_technical_factors(_bars(closes, highs=highs, lows=lows))
+        assert f["donchian_width_20"] is not None
+        # Channel is prior 20 highs/lows (all 10.5 / 9.5), width/close = 1/10.
+        assert f["donchian_width_20"] == pytest.approx(0.1, abs=0.001)
+
+
+class TestAtrAlignmentPlan032:
+    """Plan 032: _atr_pct 三序列必须同源对齐。
+
+    旧实现用「过滤掉无效 close 之后的 closes」与「未过滤的 highs/lows」
+    按下标配对: 历史中只要有一根 close 缺失, 其后所有 TR 的前收盘(PDC)
+    错位一根, ATR 数值大幅失真。
+    """
+
+    def test_atr_20_matches_manual_per_bar_calc_with_bad_close(self):
+        # 25 根: 第 12 根 close=None(坏数据), 第 20 根 close=200(向上跳空), 其余平稳 10 元。
+        bars = []
+        for i in range(25):
+            close = None if i == 12 else (200.0 if i == 20 else 10.0)
+            bars.append(
+                {
+                    "date": f"2026-{(i // 28) + 1:02d}-{(i % 28) + 1:02d}",
+                    "open": 200.0 if i == 20 else 10.0,
+                    "high": 204.0 if i == 20 else 10.2,
+                    "low": 196.0 if i == 20 else 9.8,
+                    "close": close,
+                    "volume": 1000,
+                }
+            )
+        # 手工逐 bar 探针(与 027 无未来函数口径一致): 先按 close 有效性过滤,
+        # closes/highs/lows 取自同一批 valid bars, 再按下标配对算 TR。
+        valid = [b for b in bars if b["close"] is not None]
+        assert len(valid) == 24
+        closes = [float(b["close"]) for b in valid]
+        highs = [float(b["high"]) for b in valid]
+        lows = [float(b["low"]) for b in valid]
+        trs = []
+        for i in range(len(closes) - 20, len(closes)):
+            hl = highs[i] - lows[i]
+            if i == 0:
+                trs.append(max(hl, 0.0))
+                continue
+            pdc = closes[i - 1]
+            trs.append(max(hl, abs(highs[i] - pdc), abs(lows[i] - pdc)))
+        expected = round(sum(trs[-20:]) / 20 / closes[-1] * 100.0, 3)
+        # 手算锚点: 15×0.4 + 跳空 bar TR 194 + 次日 TR 190.2 + 3×0.4 = 391.4
+        # → ATR 19.57 / 收盘 10 × 100 = 195.7(旧错位算法只会给出 7.8)。
+        assert expected == 195.7
+
+        f = fr.compute_technical_factors(bars)
+        assert f["atr_20"] == expected
+
+    def test_atr_20_unchanged_for_clean_series(self):
+        # 防过度修复: 全干净序列(无坏 close)的数值必须与修复前算法完全一致。
+        closes = [10.0 + i * 0.1 for i in range(30)]
+        bars = _bars(closes)
+        highs = [c * 1.02 for c in closes]
+        lows = [c * 0.98 for c in closes]
+        trs = []
+        for i in range(len(closes) - 20, len(closes)):
+            hl = highs[i] - lows[i]
+            pdc = closes[i - 1]
+            trs.append(max(hl, abs(highs[i] - pdc), abs(lows[i] - pdc)))
+        expected = round(sum(trs[-20:]) / 20 / closes[-1] * 100.0, 3)
+        f = fr.compute_technical_factors(bars)
+        assert f["atr_20"] == expected
+
 
 # ----------------------------- 缓存 + 流水线 -----------------------------
 

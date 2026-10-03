@@ -21,6 +21,7 @@ from .momentum_topn import MomentumStrategy  # noqa: F401
 from .dip_reversal import DipReversalStrategy  # noqa: F401
 from .volume_break import VolumeBreakStrategy  # noqa: F401
 from .turtle import TurtleBreakoutStrategy  # noqa: F401
+from .chanlun_structure import ChanlunStructureStrategy  # noqa: F401
 
 __all__ = [
     "BaseStrategy",
@@ -34,4 +35,5 @@ __all__ = [
     "DipReversalStrategy",
     "VolumeBreakStrategy",
     "TurtleBreakoutStrategy",
+    "ChanlunStructureStrategy",
 ]

@@ -75,6 +75,15 @@ class PatternsRequestBody(PreviewOptIn):
     lookback: int = Field(default=60, description="蜡烛形态扫描窗口(最近 N 根)")
 
 
+class ChanlunRequestBody(PreviewOptIn):
+    """缠论结构标注请求体。字段与 patterns 同形。"""
+
+    symbol: str = Field(description="标的代码")
+    start_date: str = Field(description="开始日期 YYYY-MM-DD")
+    end_date: str = Field(description="结束日期 YYYY-MM-DD")
+    lookback: int = Field(default=60, description="扫描窗口(最近 N 根, 与 patterns 同形)")
+
+
 class StrategyCompareRequestBody(PreviewOptIn):
     """策略横向对比请求体。"""
 

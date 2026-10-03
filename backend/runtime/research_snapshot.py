@@ -71,7 +71,14 @@ def build_research_snapshot(
                 "evidence_id": str(item.get("evidence_id") or item.get("id") or ""),
                 "source": str(item.get("source") or "unknown"),
                 "data_date": data_date,
-                "content": str(item.get("preview") or item.get("claim") or item.get("title") or "").strip(),
+                "content": str(
+                    item.get("content_hash")
+                    or item.get("excerpt")
+                    or item.get("preview")
+                    or item.get("claim")
+                    or item.get("title")
+                    or ""
+                ).strip(),
             }
         )
 

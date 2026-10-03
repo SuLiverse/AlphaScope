@@ -22,7 +22,11 @@ A​PI 已对照 mcp 1.x (FastMCP) 真实源码核对 (非臆测):
 
 from __future__ import annotations
 
+import json
+import logging
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 # ----- 可选依赖: mcp (FastMCP) 缺失时优雅降级 -----
 try:
@@ -89,15 +93,13 @@ def create_server() -> "FastMCP | None":
             symbol: 股票代码, 如 "600519" (贵州茅台) 或 "000001"
 
         Returns:
-            最近若干交易日的 OHLCV 摘要 (JSON 字符串)
+            最近 30 日行情摘要, 仅返回其中最近 10 日 (JSON 字符串, 含 date/close/volume)
         """
         try:
             # 复用 AlphaScope 现有 provider 链 (不触网交易, 只读历史)
-            import json
+            from backend.price_fetcher import get_recent_bars
 
-            from backend.price_fetcher import fetch_prices
-
-            bars = fetch_prices(symbol, period="daily", count=30)
+            bars = get_recent_bars(symbol, count=30)
             if not bars:
                 # json.dumps 而非 f-string — symbol 含双引号会破坏 JSON
                 return json.dumps({"error": f"无 {symbol} 行情数据"}, ensure_ascii=False)
@@ -111,8 +113,9 @@ def create_server() -> "FastMCP | None":
                 for b in bars[-10:]  # 只返回最近 10 日, 控制 token
             ]
             return json.dumps({"symbol": symbol, "bars": rows}, ensure_ascii=False)
-        except Exception as e:
-            return f'{{"error": "获取行情失败: {str(e)[:100]}"}}'
+        except Exception:
+            logger.warning("get_market_data 失败", exc_info=True)
+            return json.dumps({"error": "行情数据暂不可用"}, ensure_ascii=False)
 
     @server.tool()
     def search_evidence(query: str, top_k: int = 5) -> str:
@@ -127,8 +130,6 @@ def create_server() -> "FastMCP | None":
         """
         try:
             from backend.rag.hybrid_retriever import get_hybrid_retriever
-
-            import json
 
             k = max(1, min(int(top_k), 20))
             hits = get_hybrid_retriever().search(query, n_results=k)
@@ -146,8 +147,9 @@ def create_server() -> "FastMCP | None":
                 for h in hits
             ]
             return json.dumps({"query": query, "hits": rows}, ensure_ascii=False)
-        except Exception as e:
-            return f'{{"error": "证据检索失败: {str(e)[:100]}"}}'
+        except Exception:
+            logger.warning("search_evidence 失败", exc_info=True)
+            return json.dumps({"error": "证据检索暂不可用"}, ensure_ascii=False)
 
     # ---------------- 集成中心 / 边界 ----------------
 
@@ -162,7 +164,6 @@ def create_server() -> "FastMCP | None":
             from backend.integrations.registry import get_registry
 
             reg = get_registry()
-            import json
 
             items = [
                 {
@@ -175,8 +176,9 @@ def create_server() -> "FastMCP | None":
                 for m in reg.all_metadata()
             ]
             return json.dumps({"integrations": items, "count": len(items)}, ensure_ascii=False)
-        except Exception as e:
-            return f'{{"error": "集成中心查询失败: {str(e)[:100]}"}}'
+        except Exception:
+            logger.warning("list_integrations 失败", exc_info=True)
+            return json.dumps({"error": "集成中心暂不可用"}, ensure_ascii=False)
 
     @server.tool()
     def get_trading_boundary() -> str:
@@ -189,11 +191,11 @@ def create_server() -> "FastMCP | None":
             from backend.security.trading_boundary import describe_capabilities
 
             info = describe_capabilities()
-            import json
 
             return json.dumps(info, ensure_ascii=False, default=str)
-        except Exception as e:
-            return f'{{"error": "边界查询失败: {str(e)[:100]}"}}'
+        except Exception:
+            logger.warning("get_trading_boundary 失败", exc_info=True)
+            return json.dumps({"error": "边界信息暂不可用"}, ensure_ascii=False)
 
     @server.tool()
     def is_trading_day(date: str, market: str = "XSHG") -> str:
@@ -210,14 +212,14 @@ def create_server() -> "FastMCP | None":
             from backend.trading_calendar import is_trading_day as _isd
 
             result = _isd(date, market)
-            import json
 
             return json.dumps(
                 {"date": date, "market": market, "is_trading_day": bool(result)},
                 ensure_ascii=False,
             )
-        except Exception as e:
-            return f'{{"error": "日历查询失败: {str(e)[:100]}"}}'
+        except Exception:
+            logger.warning("is_trading_day 失败", exc_info=True)
+            return json.dumps({"error": "交易日历暂不可用"}, ensure_ascii=False)
 
     return server
 

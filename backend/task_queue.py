@@ -25,7 +25,9 @@ CREATE TABLE IF NOT EXISTS analysis_tasks (
     error TEXT DEFAULT '',
     started_at REAL,
     completed_at REAL,
-    created_at REAL NOT NULL
+    created_at REAL NOT NULL,
+    progress INTEGER DEFAULT 0,
+    stage TEXT DEFAULT ''
 )
 """
 
@@ -33,6 +35,16 @@ CREATE TABLE IF NOT EXISTS analysis_tasks (
 def _ensure_table(conn) -> None:
     conn.execute(_TABLE_SQL)
     conn.commit()
+    # 旧库迁移: 已有表没有 progress/stage 列时补上(CREATE IF NOT EXISTS 不会加列)
+    for alter in (
+        "ALTER TABLE analysis_tasks ADD COLUMN progress INTEGER DEFAULT 0",
+        "ALTER TABLE analysis_tasks ADD COLUMN stage TEXT DEFAULT ''",
+    ):
+        try:
+            conn.execute(alter)
+            conn.commit()
+        except Exception:  # 列已存在
+            pass
 
 
 class TaskQueue:
@@ -61,6 +73,33 @@ class TaskQueue:
         db = Database()
         with db.transaction() as conn:
             _ensure_table(conn)
+            conn.execute(
+                "UPDATE analysis_tasks SET status='failed', error='Process interrupted; retry the saved research', "
+                "completed_at=? WHERE status IN ('pending', 'running')",
+                (time.time(),),
+            )
+            conn.commit()
+        self._sync_research_versions()
+        with db.transaction() as conn:
+            conn.execute(
+                "UPDATE research_versions SET status='failed', error='Submission interrupted; retry the saved research' "
+                "WHERE status IN ('pending', 'running') AND task_id=''"
+            )
+            conn.commit()
+
+    def _sync_research_versions(self) -> None:
+        from backend.research_workspace import ResearchWorkspaceStore
+
+        store = ResearchWorkspaceStore()
+        with store.db.transaction() as conn:
+            conn.execute("""
+                UPDATE research_versions SET
+                    status=(SELECT status FROM analysis_tasks WHERE id=research_versions.task_id),
+                    error=COALESCE((SELECT error FROM analysis_tasks WHERE id=research_versions.task_id), '')
+                WHERE status IN ('pending', 'running') AND task_id IN
+                    (SELECT id FROM analysis_tasks WHERE status IN ('success', 'failed', 'cancelled'))
+            """)
+            conn.commit()
 
     def submit(
         self,
@@ -69,9 +108,14 @@ class TaskQueue:
         *args,
         conversation_id: str = "",
         input_data: dict | None = None,
+        pass_task_id: bool = False,
         **kwargs,
     ) -> str:
-        """提交任务到后台执行，返回 task_id"""
+        """提交任务到后台执行，返回 task_id。
+
+        pass_task_id=True 时以 ``func(task_id, *args, **kwargs)`` 调用，
+        供长任务向队列回报阶段进度（配合 report_progress）。
+        """
         task_id = str(uuid.uuid4())[:8]
         now = time.time()
         db = Database()
@@ -89,7 +133,10 @@ class TaskQueue:
             )
             conn.commit()
 
-        future = self._executor.submit(self._run_task, task_id, func, args, kwargs)
+        if pass_task_id:
+            future = self._executor.submit(self._run_task, task_id, func, (task_id, *args), kwargs)
+        else:
+            future = self._executor.submit(self._run_task, task_id, func, args, kwargs)
         with self._state_lock:
             self._futures[task_id] = future
         return task_id
@@ -147,9 +194,24 @@ class TaskQueue:
                 )
                 conn.commit()
         finally:
+            self._sync_research_versions()
             with self._state_lock:
                 self._futures.pop(task_id, None)
                 self._cancelled.discard(task_id)
+
+    def report_progress(self, task_id: str, progress: int, stage: str = "") -> None:
+        """运行中任务上报阶段进度（幂等、失败安全；终态后忽略）。"""
+        try:
+            db = Database()
+            pct = max(0, min(97, int(progress)))
+            with db.transaction() as conn:
+                conn.execute(
+                    "UPDATE analysis_tasks SET progress=?, stage=? WHERE id=? AND status='running'",
+                    (pct, stage[:120], task_id),
+                )
+                conn.commit()
+        except Exception:  # 进度上报绝不影响任务本身
+            pass
 
     def get_task(self, task_id: str) -> Optional[dict[str, Any]]:
         """查询任务状态"""
@@ -169,6 +231,8 @@ class TaskQueue:
             "started_at": row["started_at"],
             "completed_at": row["completed_at"],
             "created_at": row["created_at"],
+            "progress": int(row["progress"] or 0) if "progress" in row.keys() else 0,
+            "stage": (row["stage"] or "") if "stage" in row.keys() else "",
         }
 
     def list_tasks(self, status: Optional[str] = None, limit: int = 50) -> list[dict[str, Any]]:
@@ -217,6 +281,7 @@ class TaskQueue:
                     (time.time(), task_id),
                 )
                 conn.commit()
+            self._sync_research_versions()
         # 如果正在运行，future 会在检查点取消
         return True
 

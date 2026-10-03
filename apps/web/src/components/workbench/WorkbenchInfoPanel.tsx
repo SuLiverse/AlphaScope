@@ -2,7 +2,10 @@
  * Workbench bottom info panel: news / finance / funds / quant tabs.
  */
 import { motion, AnimatePresence } from "motion/react";
+import { Newspaper } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { Skeleton } from "../ui/Skeleton";
+import { EmptyState } from "../ui/EmptyState";
 import { formatStockLabel, type StockTarget } from "../../lib/stocks";
 import {
   PANEL_TABS,
@@ -17,6 +20,7 @@ export interface WorkbenchInfoPanelProps {
   handlePanelTabChange: (tab: PanelTabId) => void;
   infoStatus: Record<PanelTabId, string>;
   stockNews: PanelNewsItem[];
+  newsLoading: boolean;
   financeCards: MetricCard[];
   fundFlowCards: MetricCard[];
   quantCards: MetricCard[];
@@ -29,6 +33,7 @@ export function WorkbenchInfoPanel({
   handlePanelTabChange,
   infoStatus,
   stockNews,
+  newsLoading,
   financeCards,
   fundFlowCards,
   quantCards,
@@ -81,12 +86,16 @@ export function WorkbenchInfoPanel({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
-              {stockNews.length === 0 && (
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-100/80">
-                  当前标的暂无可用资讯。可在新闻聚合页按股票名称或代码拉取外部新闻；本面板不会再用模板新闻替代真实结果。
-                </div>
-              )}
-              {stockNews.map((news, i) => (
+              {newsLoading ? (
+                <Skeleton variant="list" />
+              ) : stockNews.length === 0 ? (
+                <EmptyState
+                  icon={Newspaper}
+                  title="暂无相关资讯"
+                  description="可在新闻聚合页按名称或代码拉取外部资讯；本面板只展示真实抓取结果。"
+                />
+              ) : null}
+              {!newsLoading && stockNews.map((news, i) => (
                 <button
                   key={`${news.time}-${news.title}`}
                   type="button"

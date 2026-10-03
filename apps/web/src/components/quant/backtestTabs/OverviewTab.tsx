@@ -167,28 +167,28 @@ export function OverviewTab({
         <MetricCard
           label="累计收益"
           value={perf ? formatPercent(perf.total_return) : "--"}
-          hint={perf ? `年化 ${formatPercent(perf.annual_return)}` : "运行回测后显示"}
+          hint={perf ? `年化 ${formatPercent(perf.annual_return)}` : undefined}
           icon={TrendingUp}
           tone="rose"
         />
         <MetricCard
           label="最大回撤"
           value={perf ? formatPercent(perf.max_drawdown) : "--"}
-          hint={perf ? `Calmar ${formatFactor(perf.calmar_ratio)}` : "运行回测后显示"}
+          hint={perf ? `Calmar ${formatFactor(perf.calmar_ratio)}` : undefined}
           icon={ShieldAlert}
           tone="emerald"
         />
         <MetricCard
           label="胜率"
           value={perf ? `${formatFactor(perf.win_rate)}%` : "--"}
-          hint={perf ? `共 ${perf.trade_count ?? 0} 笔交易` : "运行回测后显示"}
+          hint={perf ? `共 ${perf.trade_count ?? 0} 笔交易` : undefined}
           icon={Flag}
           tone="indigo"
         />
         <MetricCard
           label="夏普比率"
           value={perf ? formatFactor(perf.sharpe_ratio) : "--"}
-          hint={perf ? `Sortino ${formatFactor(perf.sortino_ratio)}` : "运行回测后显示"}
+          hint={perf ? `Sortino ${formatFactor(perf.sortino_ratio)}` : undefined}
           icon={BarChart}
         />
       </div>

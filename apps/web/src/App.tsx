@@ -1,4 +1,5 @@
 import React, { lazy, Suspense, useEffect, useState } from 'react';
+import { MotionConfig } from 'motion/react';
 import { Onboarding } from './components/Onboarding';
 import { GoldenPathTour } from './components/GoldenPathTour';
 import { subscribeTabChange } from './lib/workspaceEvents';
@@ -243,6 +244,8 @@ export default function App() {
   };
 
   return (
+    // 全局尊重系统 prefers-reduced-motion：motion 组件的动画在用户开启减弱动态效果时自动降级。
+    <MotionConfig reducedMotion="user">
     <div className="relative flex h-screen w-full overflow-hidden bg-[#07080b] font-sans text-neutral-300 selection:bg-indigo-500/30">
       <div className="pointer-events-none absolute inset-0 z-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.08)_0.7px,transparent_0.7px)] bg-[length:7px_7px] opacity-[0.018]" />
       
@@ -334,5 +337,6 @@ export default function App() {
     <Onboarding />
     <GoldenPathTour onNavigate={(tab) => setCurrentTab(tab as TabID)} />
   </div>
+    </MotionConfig>
 );
 }

@@ -27,6 +27,9 @@ import {
   Send
 } from 'lucide-react';
 import { StableChartContainer } from './StableChartContainer';
+import { Skeleton } from './ui/Skeleton';
+import { EmptyState } from './ui/EmptyState';
+import { ErrorState } from './ui/ErrorState';
 import { cn } from '../lib/utils';
 import { fetchApi } from '../lib/api';
 import { getErrorMessage } from '../lib/dataFetch';
@@ -324,7 +327,7 @@ export function FundDcaLab() {
   const [selectedFundCode, setSelectedFundCode] = useState<string>('005827');
 
   // Live fund data cache (profiles / metrics / NAVs fetched from /api/funds/*)
-  const [fundDataCache, setFundDataCache] = useState<Record<string, { profile: FundProfile; navs: number[]; loading: boolean; error?: string; }>>({});
+  const [fundDataCache, setFundDataCache] = useState<Record<string, { profile: FundProfile; navs: number[]; loading: boolean; loaded?: boolean; error?: string; }>>({});
 
   // Sandbox Custom Fund state
   const [customFundName, setCustomFundName] = useState<string>('美科技硬算力指数模拟器');
@@ -434,11 +437,21 @@ export function FundDcaLab() {
         fetchApi<FundMetrics>('/api/funds/' + encodeURIComponent(code) + '/metrics'),
         fetchApi<{ navs?: FundNavPoint[] }>('/api/funds/' + encodeURIComponent(code) + '/nav?limit=400')
       ]);
+      // 三个接口全部失败 = 后端不可用：allSettled 不会抛出，需显式记为可重试错误，
+      // 否则会静默回落成 placeholder 资料卡（永远的 "--"）。
+      if ([infoRes, metricsRes, navRes].every((res) => res.status === 'rejected')) {
+        const reason = infoRes.status === 'rejected' ? infoRes.reason : undefined;
+        setFundDataCache((prev) => ({
+          ...prev,
+          [code]: { profile: prev[code]?.profile || placeholderFundProfile(code), navs: prev[code]?.navs || [], loading: false, error: getErrorMessage(reason) }
+        }));
+        return;
+      }
       const profile = buildFundProfile(code, infoRes, metricsRes, navRes);
       const navs = navRes.status === 'fulfilled'
         ? (navRes.value.navs || []).map((n) => Number(n.nav)).filter((v) => Number.isFinite(v) && v > 0)
         : [];
-      setFundDataCache((prev) => ({ ...prev, [code]: { profile, navs, loading: false } }));
+      setFundDataCache((prev) => ({ ...prev, [code]: { profile, navs, loading: false, loaded: true } }));
     } catch (err) {
       setFundDataCache((prev) => ({
         ...prev,
@@ -864,6 +877,12 @@ export function FundDcaLab() {
   const activeFundIndexData = CLASSES_DESCRIPTION[selectedFund.type] || {};
   void activeFundIndexData; // 预留:基金分类说明展示(暂未接入 UI)
 
+  // 选中基金(非沙盒)的后端数据状态:首次加载中显示骨架屏,全部接口失败显示可重试错误。
+  // loaded 标记避免"切回已加载基金时的重新拉取"把已有资料卡闪成骨架屏。
+  const selectedFundEntry = selectedFundCode === 'custom-sandbox' ? undefined : fundDataCache[selectedFundCode];
+  const fundDataLoading = Boolean(selectedFundEntry?.loading && !selectedFundEntry?.loaded);
+  const fundDataError = selectedFundEntry?.loading ? undefined : selectedFundEntry?.error;
+
   return (
     <div className="flex flex-col gap-6 p-6 min-h-screen bg-transparent text-neutral-200" id="fund_dca_lab_module">
       {/* Header Panel */}
@@ -1026,6 +1045,15 @@ export function FundDcaLab() {
                 )}
 
                 {/* Fund Brief Description scorecard */}
+                {fundDataLoading ? (
+                  <Skeleton variant="card" />
+                ) : fundDataError ? (
+                  <ErrorState
+                    message={`${selectedFundCode} 基金数据加载失败：${fundDataError}`}
+                    onRetry={() => void fetchFundData(selectedFundCode)}
+                    className="px-3 py-8"
+                  />
+                ) : (
                 <div className="bg-black/40 border border-white/[0.03] rounded-xl p-3.5 grid grid-cols-2 gap-3.5 text-sm">
                   <div>
                     <span className="text-neutral-400 text-xs block mb-0.5">基金经理 (团队)</span>
@@ -1046,6 +1074,7 @@ export function FundDcaLab() {
                     </span>
                   </div>
                 </div>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -1143,6 +1172,16 @@ export function FundDcaLab() {
               <span className="text-xs font-mono text-neutral-400 uppercase tracking-widest block">
                 底层产业分布结构 & 核心重仓 constituents
               </span>
+              {fundDataLoading ? (
+                <Skeleton variant="list" />
+              ) : selectedFund.sectorAllocation.length === 0 && selectedFund.topHoldings.length === 0 ? (
+                <EmptyState
+                  icon={Layers}
+                  title="暂无底层持仓数据"
+                  description="行情源未返回该标的的板块分布与重仓明细；沙盒模拟标的提供示例持仓。"
+                  className="px-3 py-6"
+                />
+              ) : (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <span className="text-xs text-neutral-300 font-mono block font-semibold mb-1">主要板块敞口占比</span>
@@ -1173,6 +1212,7 @@ export function FundDcaLab() {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           </div>
 

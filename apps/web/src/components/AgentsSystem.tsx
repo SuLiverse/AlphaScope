@@ -21,7 +21,6 @@ import {
   AgentIconKey,
   AGENT_CONFIG_STORAGE_KEY,
   LEGACY_AGENT_CONFIG_STORAGE_KEY,
-  getEnabledAgentRuntimeConfigs,
   loadAgentConfigs,
   saveAgentConfigs,
 } from '../lib/agentConfigs';
@@ -81,7 +80,6 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
 
   const enabledAgents = useMemo(() => agents.filter((agent) => agent.enabled), [agents]);
   const enabledCount = enabledAgents.length;
-  const runtimeConfigs = useMemo(() => getEnabledAgentRuntimeConfigs(agents), [agents]);
 
   const refreshRunningCount = useCallback(async () => {
     try {
@@ -95,6 +93,25 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
   useEffect(() => {
     void refreshRunningCount();
   }, [refreshRunningCount]);
+
+  // 运行期间持续轮询运行态计数: 任务从 pending→running 有延迟,
+  // 只在翻转瞬间查一次会永远停在 0, 与进度条自相矛盾。
+  useEffect(() => {
+    if (!task.isRunning) return undefined;
+    const id = window.setInterval(() => void refreshRunningCount(), 4000);
+    return () => window.clearInterval(id);
+  }, [task.isRunning, refreshRunningCount]);
+
+  // 已运行时长(1s 心跳, 仅运行中计时)
+  const [elapsedSec, setElapsedSec] = useState(0);
+  useEffect(() => {
+    if (!task.isRunning) {
+      setElapsedSec(0);
+      return undefined;
+    }
+    const id = window.setInterval(() => setElapsedSec((prev) => prev + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [task.isRunning]);
 
   const handleRun = () => {
     if (!stock || task.isRunning) return;
@@ -231,14 +248,23 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
           >
             {task.isRunning && (
               <div className="mb-2 h-1.5 w-full overflow-hidden rounded-full bg-black/40">
-                <div className="h-full rounded-full bg-indigo-500 transition-all" style={{ width: `${task.progress}%` }} />
+                <div className="h-full rounded-full bg-indigo-500 transition-all duration-500" style={{ width: `${task.progress}%` }} />
               </div>
             )}
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
               {task.isRunning && <RefreshCw className="h-3.5 w-3.5 animate-spin text-indigo-400" />}
               <span className={cn('font-medium', task.error ? 'text-rose-300' : task.result ? 'text-emerald-300' : 'text-indigo-200')}>
                 {task.error ? `分析失败：${task.error}` : task.result ? '圆桌分析完成，可在「研究报告」查看结果。' : task.message || '任务调度中...'}
               </span>
+              {task.isRunning && (
+                <>
+                  <span className="font-mono text-indigo-300/90">{task.progress}%</span>
+                  <span className="font-mono text-neutral-500">
+                    已运行 {String(Math.floor(elapsedSec / 60)).padStart(2, '0')}:{String(elapsedSec % 60).padStart(2, '0')}
+                  </span>
+                  <span className="text-neutral-600">深度模式需多轮 LLM 调用，属正常耗时</span>
+                </>
+              )}
             </div>
             {task.status === 'pending' && task.taskId && (
               <p className="mt-1 font-mono text-[10px] text-neutral-500">任务 ID：{task.taskId}</p>
@@ -251,7 +277,7 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
         {[
           ['已启用席位', `${enabledCount}/${agents.length}`, '进入分析请求的 Agent 数量。'],
           ['运行中任务', `${runningTaskCount}`, '后端 /api/tasks 实时运行态。'],
-          ['请求配置', `${runtimeConfigs.length}`, '将写入 agent_configs 的配置项。'],
+          ['待启用席位', `${Math.max(0, agents.length - enabledCount)}`, '已建角色中尚未进入分析请求的数量。'],
         ].map(([label, value, desc]) => (
           <div key={label} className="rounded-xl border border-white/5 bg-white/[0.02] px-4 py-3">
             <p className="text-[10px] font-mono tracking-wider text-neutral-500">{label}</p>
@@ -308,7 +334,7 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
                 animate={{ opacity: agent.enabled ? 1 : 0.55, scale: 1 }}
                 transition={{ delay: index * 0.04, type: 'spring', stiffness: 300, damping: 24 }}
                 className={cn(
-                  'group relative flex min-h-[260px] flex-col overflow-hidden rounded-2xl border bg-white/[0.04] p-5 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.06]',
+                  'group relative flex h-full min-h-[224px] flex-col overflow-hidden rounded-2xl border bg-white/[0.04] p-5 shadow-xl transition-all duration-300 hover:-translate-y-1 hover:bg-white/[0.06]',
                   participating ? 'border-indigo-500/35' : 'border-white/5 hover:border-indigo-500/25',
                   !agent.enabled && 'bg-black/20',
                 )}
@@ -363,17 +389,18 @@ export function AgentsSystem({ onOpenAgentSettings }: AgentsSystemProps) {
                   </div>
                 </div>
 
-                <div className="relative z-10 mt-5 flex items-center justify-between border-t border-white/5 pt-4">
-                  <div className="flex min-w-0 max-w-[68%] flex-col gap-1">
-                    <span className="text-[10px] font-mono tracking-wide text-neutral-500">运行态</span>
-                    <span className={cn('truncate text-xs font-medium', participating ? 'text-indigo-300' : 'text-neutral-400')}>
-                      {participating ? '跟随圆桌调度参与分析' : agent.enabled ? '待命，点击右上角启动圆桌分析' : '已在系统设置中停用'}
-                    </span>
+                {/* 运行态只在「分析中」时出现：待命/停用已由头部徽章表达，不在每张卡上重复长文案 */}
+                {participating && (
+                  <div className="relative z-10 mt-5 flex items-center justify-between border-t border-indigo-500/15 pt-4">
+                    <div className="flex min-w-0 items-center gap-2">
+                      <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-indigo-400" aria-hidden />
+                      <span className="truncate text-xs font-medium text-indigo-300">跟随圆桌调度参与分析</span>
+                    </div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-indigo-500/30 bg-indigo-500/10 text-indigo-400">
+                      <Icon className="h-3.5 w-3.5" />
+                    </div>
                   </div>
-                  <div className={cn('flex h-10 w-10 items-center justify-center rounded-xl border', participating ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-400' : 'border-white/10 bg-black/40 text-neutral-500')}>
-                    <Icon className="h-4 w-4" />
-                  </div>
-                </div>
+                )}
               </motion.div>
             );
           })}

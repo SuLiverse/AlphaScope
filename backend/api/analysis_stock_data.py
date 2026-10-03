@@ -101,5 +101,26 @@ def build_analysis_stock_data(
         "fundamentals": "暂无",
         "as_of": _as_of_string(as_of),
         "price_data_date": str(latest.get("date") or ""),
+        "price_bars": [
+            {
+                "date": str(bar.get("date") or ""),
+                "close": _as_float(bar.get("close")),
+                "volume": _as_float(bar.get("volume")),
+            }
+            for bar in ordered_bars[-80:]
+        ],
         "research_question": research_question.strip(),
+        "chanlun_brief": _chanlun_brief(symbol, ordered_bars),
     }
+
+
+def _chanlun_brief(symbol: str, bars: list[dict[str, Any]]) -> str:
+    """Fail-safe geometry blurb. Empty string if the engine cannot annotate."""
+    try:
+        from backend.quant.chanlun import analyze_chanlun, format_chanlun_section
+
+        report = analyze_chanlun(list(bars), symbol=symbol)
+        return format_chanlun_section(report)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("chanlun brief skipped: %s", exc)
+        return ""

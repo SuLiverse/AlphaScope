@@ -9,6 +9,8 @@ Context Builder: 市场简报与上下文构建。
 从 llm_agents.py 拆分而来。
 """
 
+import hashlib
+import json
 import logging
 from typing import Any, Dict, List
 
@@ -61,11 +63,37 @@ def fetch_evidence_pool(
                 "source_url": meta.get("source_url", ""),
                 "published_at": published_at,
                 "preview": (r.get("text", "") or "")[:120],
+                "excerpt": (r.get("text", "") or "")[:12000],
+                "content_hash": hashlib.sha256((r.get("text", "") or "").encode()).hexdigest(),
             }
         )
         if len(pool) >= limit:
             break
     return pool
+
+
+def append_research_materials(pool: list[dict], materials: list[dict], as_of: str = "") -> list[dict]:
+    combined = [dict(item) for item in pool]
+    for material in materials:
+        if not evidence_on_or_before(material.get("published_at"), as_of):
+            continue
+        digest = hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()[:20]
+        if any(item.get("evidence_id") == f"material:{digest}" for item in combined):
+            continue
+        combined.append(
+            {
+                "number": max((item.get("number", 0) for item in combined), default=0) + 1,
+                "evidence_id": f"material:{digest}",
+                "source": "user_material",
+                "doc_type": "user_excerpt",
+                "source_url": material.get("source_url") or "",
+                "published_at": material.get("published_at") or "",
+                "preview": material.get("excerpt") or "",
+                "excerpt": material.get("excerpt") or "",
+                "title": material.get("title") or "",
+            }
+        )
+    return combined
 
 
 def format_evidence_context(pool: List[Dict[str, Any]], *, as_of: str = "") -> str:
@@ -199,4 +227,7 @@ def build_market_brief(stock_data: Dict[str, Any], evidence_context: str = "", f
         base += f"\n{factor_context}\n"
     if evidence_context:
         base += f"\n{evidence_context}\n"
+    chanlun_brief = str(stock_data.get("chanlun_brief") or "").strip()
+    if chanlun_brief:
+        base += f"\n{chanlun_brief}\n"
     return base

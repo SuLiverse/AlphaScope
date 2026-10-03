@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
-import { motion } from 'motion/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
+  AlertCircle,
+  CheckCircle2,
   RotateCcw,
   Save,
 } from 'lucide-react';
@@ -68,6 +70,23 @@ export function Settings({ initialTab }: SettingsProps) {
   const [activeTab, setActiveTab] = useState<SettingTab>(() => normalizeSettingTab(initialTab));
   const [settings, setSettings] = useState<SettingsState>(() => loadSettings());
   const [savedMessage, setSavedMessage] = useState('配置仅保存在当前浏览器预览环境');
+  // 保存反馈 toast：面板内容区很长，页头/面板顶部的状态行在滚动后不可见，
+  // 任何保存动作都必须有「贴着视口」的反馈。右下角浮动，2.6s 自动消失。
+  const [toast, setToast] = useState<{ msg: string; tone: 'ok' | 'err'; id: number } | null>(null);
+  const toastTimer = useRef<number | null>(null);
+  const notify = useCallback((msg: string, tone: 'ok' | 'err' = 'ok') => {
+    setToast({ msg, tone, id: Date.now() });
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+    toastTimer.current = window.setTimeout(() => setToast(null), 2600);
+  }, []);
+  useEffect(() => () => {
+    if (toastTimer.current !== null) window.clearTimeout(toastTimer.current);
+  }, []);
+  // savedMessage 的所有写入点（保存/恢复/路由包）统一升级为可见 toast；失败文案标红。
+  useEffect(() => {
+    if (!savedMessage || savedMessage.startsWith('配置仅保存')) return;
+    notify(savedMessage, savedMessage.includes('失败') ? 'err' : 'ok');
+  }, [savedMessage, notify]);
   const [agentConfigs, setAgentConfigs] = useState<AgentConfig[]>(() => loadAgentConfigs());
   const [selectedAgentId, setSelectedAgentId] = useState(() => loadAgentConfigs()[0]?.id ?? DEFAULT_AGENT_CONFIGS[0].id);
   const [providers, setProviders] = useState<SettingsModelProvider[]>([]);
@@ -386,6 +405,7 @@ export function Settings({ initialTab }: SettingsProps) {
   const saveProvider = async (): Promise<SettingsModelProvider | null> => {
     if (!providerDraft.id.trim() || !providerDraft.name.trim() || !providerDraft.base_url.trim()) {
       setProviderStatus('Provider ID、名称和 Base URL 都不能为空');
+      notify('Provider ID、名称和 Base URL 都不能为空', 'err');
       return null;
     }
 
@@ -404,7 +424,9 @@ export function Settings({ initialTab }: SettingsProps) {
     setProviderLoading(false);
 
     if (!result.success || !result.data) {
-      setProviderStatus(result.error || 'Provider 保存失败');
+      const errMsg = result.error || 'Provider 保存失败';
+      setProviderStatus(errMsg);
+      notify(errMsg, 'err');
       return null;
     }
 
@@ -414,6 +436,7 @@ export function Settings({ initialTab }: SettingsProps) {
     await saveKnowledgePreferences();
     await loadProviders(result.data.id);
     setProviderStatus(`已保存 Provider：${result.data.name}`);
+    notify(`已保存 Provider「${result.data.name}」`);
     dispatchSettingsChanged('providers');
     return result.data;
   };
@@ -749,6 +772,29 @@ export function Settings({ initialTab }: SettingsProps) {
       </div>
 
       <div className="relative z-10 flex flex-1 flex-col overflow-hidden rounded-3xl border border-white/5 bg-white/[0.04] shadow-xl">
+        <AnimatePresence>
+          {toast && (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, y: 12, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.22, ease: 'easeOut' }}
+              className={cn(
+                'pointer-events-none absolute bottom-5 right-6 z-30 flex max-w-md items-center gap-2 rounded-xl border px-4 py-2.5 text-sm shadow-xl backdrop-blur-md',
+                toast.tone === 'err'
+                  ? 'border-rose-500/30 bg-rose-950/80 text-rose-100'
+                  : 'border-emerald-500/30 bg-emerald-950/80 text-emerald-100',
+              )}
+              role="status"
+            >
+              {toast.tone === 'err'
+                ? <AlertCircle className="h-4 w-4 shrink-0" />
+                : <CheckCircle2 className="h-4 w-4 shrink-0" />}
+              <span className="truncate">{toast.msg}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
         <div className="h-2 bg-gradient-to-r from-indigo-500/40 via-emerald-500/40 to-transparent" />
 
         <div className="flex items-center justify-between border-b border-white/5 px-6 py-5">

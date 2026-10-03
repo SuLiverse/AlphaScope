@@ -16,6 +16,7 @@ from uuid import uuid4
 
 from backend.api.quant_schemas import (
     BacktestRequestBody,
+    ChanlunRequestBody,
     ChipDistributionRequestBody,
     EvolveRequestBody,
     PatternsRequestBody,
@@ -685,6 +686,29 @@ def _run_patterns_local(body: "PatternsRequestBody") -> dict[str, Any]:
         min_bars=1,
     )
     report = detect_patterns(bars, symbol=body.symbol, lookback=body.lookback)
+    payload = report.to_dict()
+    payload.update(
+        {
+            **_source_fields(data_source, extra_degraded=report.status != "ok"),
+        }
+    )
+    return payload
+
+
+def _run_chanlun_local(body: "ChanlunRequestBody") -> dict[str, Any]:
+    """加载本地行情并做缠论结构标注。纯确定性、不触网。"""
+    from backend.quant.chanlun import analyze_chanlun
+
+    bars, data_source = _require_bars(
+        body,
+        symbol=body.symbol,
+        start_date=body.start_date,
+        end_date=body.end_date,
+        min_bars=1,
+    )
+    if body.lookback and body.lookback > 0:
+        bars = bars[-max(10, body.lookback) :]
+    report = analyze_chanlun(bars, symbol=body.symbol)
     payload = report.to_dict()
     payload.update(
         {

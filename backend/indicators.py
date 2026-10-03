@@ -232,6 +232,65 @@ def calc_support_resistance(bars: list[dict], lookback: int = 20) -> dict[str, A
     }
 
 
+# ============== ATR / 唐奇安 ==============
+
+
+def calc_atr(bars: list[dict], period: int = 20) -> list[dict]:
+    """Average True Range. Bars with fewer than ``period`` prior TRs get atr=0.
+
+    TR = max(H-L, |H-PDC|, |L-PDC|). ATR at bar i is the SMA of the last
+    ``period`` TRs *including* today (standard Wilder window). Channel
+    look-ahead is handled separately by :func:`calc_donchian`.
+    """
+    highs = _highs(bars)
+    lows = _lows(bars)
+    closes = _closes(bars)
+    trs: list[float] = []
+    for i in range(len(bars)):
+        hl = highs[i] - lows[i]
+        if i == 0:
+            trs.append(max(hl, 0.0))
+        else:
+            pdc = closes[i - 1]
+            trs.append(max(hl, abs(highs[i] - pdc), abs(lows[i] - pdc)))
+
+    result = []
+    for i, bar in enumerate(bars):
+        row = dict(bar)
+        if period <= 0 or i < period - 1:
+            row["atr"] = 0.0
+        else:
+            window = trs[i - period + 1 : i + 1]
+            row["atr"] = round(sum(window) / period, 4)
+        result.append(row)
+    return result
+
+
+def calc_donchian(bars: list[dict], period: int = 20) -> list[dict]:
+    """Donchian channel. High / low / width use the prior ``period`` bars only.
+
+    Today's high must not leak into ``donchian_high`` (no look-ahead).
+    Insufficient history → zeros.
+    """
+    highs = _highs(bars)
+    lows = _lows(bars)
+    result = []
+    for i, bar in enumerate(bars):
+        row = dict(bar)
+        if period <= 0 or i < period:
+            row["donchian_high"] = 0.0
+            row["donchian_low"] = 0.0
+            row["donchian_width"] = 0.0
+        else:
+            channel_high = max(highs[i - period : i])
+            channel_low = min(lows[i - period : i])
+            row["donchian_high"] = round(channel_high, 4)
+            row["donchian_low"] = round(channel_low, 4)
+            row["donchian_width"] = round(channel_high - channel_low, 4)
+        result.append(row)
+    return result
+
+
 # ============== 综合计算 ==============
 
 
@@ -249,6 +308,8 @@ def calc_all(bars: list[dict]) -> dict[str, Any]:
     result = calc_rsi(result)
     result = calc_kdj(result)
     result = calc_volume_ratio(result)
+    result = calc_atr(result)
+    result = calc_donchian(result)
     sr = calc_support_resistance(sorted_bars)
 
     # 取最新一条的指标摘要
@@ -269,6 +330,10 @@ def calc_all(bars: list[dict]) -> dict[str, Any]:
         "d": latest.get("d", 0),
         "j": latest.get("j", 0),
         "volume_ratio": latest.get("volume_ratio", 0),
+        "atr": latest.get("atr", 0),
+        "donchian_high": latest.get("donchian_high", 0),
+        "donchian_low": latest.get("donchian_low", 0),
+        "donchian_width": latest.get("donchian_width", 0),
     }
 
     return {

@@ -20,7 +20,6 @@ import { ThemedSelect } from './ThemedSelect';
 import { StableChartContainer } from './StableChartContainer';
 import { SyntheticDataBanner } from './SyntheticDataBanner';
 import {
-  isLivePriceFeed,
   isSyntheticPriceFeed,
   resolvePriceFeed,
   type PriceFeed,
@@ -59,6 +58,7 @@ import {
   metricToneClass,
   sourceStatusLabel,
   emptyCards,
+  humanizeDataError,
   buildFinanceCards,
   buildFundFlowCards,
   buildQuantCards,
@@ -111,6 +111,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
   const [fundFlowCards, setFundFlowCards] = useState<MetricCard[]>(LOADING_FUND_CARDS);
   const [quantCards, setQuantCards] = useState<MetricCard[]>(LOADING_QUANT_CARDS);
   const [stockNews, setStockNews] = useState<PanelNewsItem[]>([]);
+  const [newsLoading, setNewsLoading] = useState(true);
   const [infoStatus, setInfoStatus] = useState<Record<PanelTabId, string>>({
     news: '正在同步当前标的资讯...',
     finance: '正在同步基本面数据...',
@@ -172,16 +173,18 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
     [chartData, fallbackPrice],
   );
   const isSyntheticPreview = isSyntheticPriceFeed(priceFeed);
+  // 状态话术分级：真实数据给来源与日期；降级/预览给人话短句。
+  // 原始报错不进界面文案，保留在 priceMessage 里供 tooltip 与日志使用。
   const priceSourceLabel =
     priceFeed === 'live'
       ? `${lastChartPoint?.source || 'provider'} · ${lastChartPoint?.date || ''}`
       : priceFeed === 'live_degraded'
-        ? `真实行情(源降级) · ${priceMessage}`
-        : priceMessage;
+        ? '真实行情 · 数据源降级'
+        : '本地预览 · 非真实行情';
   const chartSourceLabel = isPeriodDataTooShort
     ? `${activePeriodLabel}样本不足，仅显示上市以来可用K线`
     : isSyntheticPreview
-      ? `演示/预览数据（非真实行情）· ${priceMessage}`
+      ? '本地预览数据（非真实行情）'
       : priceSourceLabel;
   const displayChartPoint = hoveredChartPoint ?? lastChartPoint;
   const displayChartPointUp = (displayChartPoint?.change ?? 0) >= 0;
@@ -385,6 +388,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
     setFundFlowCards(LOADING_FUND_CARDS);
     setQuantCards(LOADING_QUANT_CARDS);
     setStockNews([]);
+    setNewsLoading(true);
     setInfoStatus({
       news: `正在同步 ${currentStock.name} 的资讯...`,
       finance: `正在同步 ${currentStock.name} 的基本面...`,
@@ -405,6 +409,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
       if (newsResult.status === 'fulfilled') {
         const items = buildNewsItems(newsResult.value);
         setStockNews(items);
+        setNewsLoading(false);
         setInfoStatus((prev) => ({
           ...prev,
           news: items.length
@@ -413,9 +418,10 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
         }));
       } else {
         setStockNews([]);
+        setNewsLoading(false);
         setInfoStatus((prev) => ({
           ...prev,
-          news: `资讯源不可用：${getErrorMessage(newsResult.reason)}`,
+          news: `资讯源不可用：${humanizeDataError(getErrorMessage(newsResult.reason))}`,
         }));
       }
 
@@ -428,10 +434,10 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
           finance: `${sourceStatusLabel(payload.source_status, payload.degraded)}${period ? ` · 报告期 ${period}` : ''}`,
         }));
       } else {
-        setFinanceCards(emptyCards(getErrorMessage(fundamentalsResult.reason)));
+        setFinanceCards(emptyCards(['营业收入', '归母净利', '毛利率', 'ROE'], getErrorMessage(fundamentalsResult.reason)));
         setInfoStatus((prev) => ({
           ...prev,
-          finance: `基本面源不可用：${getErrorMessage(fundamentalsResult.reason)}`,
+          finance: `基本面源不可用：${humanizeDataError(getErrorMessage(fundamentalsResult.reason))}`,
         }));
       }
 
@@ -444,10 +450,10 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
           funds: `${sourceStatusLabel(payload.source_status, payload.degraded)} · ${payload.source || 'eastmoney'}${lastDate ? ` · ${lastDate}` : ''}`,
         }));
       } else {
-        setFundFlowCards(emptyCards(getErrorMessage(fundFlowResult.reason)));
+        setFundFlowCards(emptyCards(['近5日主力', '当日主力', '超大单', '大单'], getErrorMessage(fundFlowResult.reason)));
         setInfoStatus((prev) => ({
           ...prev,
-          funds: `资金源不可用：${getErrorMessage(fundFlowResult.reason)}`,
+          funds: `资金源不可用：${humanizeDataError(getErrorMessage(fundFlowResult.reason))}`,
         }));
       }
 
@@ -462,10 +468,10 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
           quant: `近30日因子 · ${payload.computed_at?.slice(0, 19).replace('T', ' ') || '已计算'}${degradedText}`,
         }));
       } else {
-        setQuantCards(emptyCards(getErrorMessage(factorResult.reason)));
+        setQuantCards(emptyCards(['综合因子', '价格动量', '资金因子', '样本完整度'], getErrorMessage(factorResult.reason)));
         setInfoStatus((prev) => ({
           ...prev,
-          quant: `因子计算失败：${getErrorMessage(factorResult.reason)}`,
+          quant: `因子计算失败：${humanizeDataError(getErrorMessage(factorResult.reason))}`,
         }));
       }
     }
@@ -663,7 +669,15 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
             <span className={cn('flex items-center rounded border px-2 py-0.5 font-mono text-sm font-medium', displayIsUp ? 'border-rose-500/20 bg-rose-500/10 text-rose-500' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-500')}>
               <span className="rotate-45 mr-1 text-lg leading-none">{displayIsUp ? '↗' : '↘'}</span>{displayIsUp ? '+' : ''}{displayChange.toFixed(2)}%
             </span>
-            <span className={cn('max-w-[22rem] truncate rounded border px-2 py-0.5 align-middle font-mono text-[10px]', isLivePriceFeed(priceFeed) ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300' : 'border-amber-500/20 bg-amber-500/10 text-amber-300')}>
+            <span
+              title={priceFeed === 'loading' ? undefined : priceMessage}
+              className={cn(
+                'max-w-[22rem] truncate rounded border px-2 py-0.5 align-middle font-mono text-[10px]',
+                priceFeed === 'live' && 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300',
+                priceFeed === 'live_degraded' && 'border-amber-500/20 bg-amber-500/10 text-amber-300',
+                (priceFeed === 'synthetic' || priceFeed === 'loading') && 'border-white/10 bg-white/[0.04] text-neutral-500',
+              )}
+            >
               {priceFeed === 'loading' ? '同步中' : priceSourceLabel}
             </span>
           </div>
@@ -689,8 +703,19 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/5 bg-white/[0.01] px-4 py-3.5 sm:px-5 sm:py-4">
               <div className="flex items-center gap-3">
                  <h2 className="font-semibold text-neutral-200">行情走势</h2>
-                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_5px_rgba(16,185,129,0.5)]"></span>
-                 <span className="hidden max-w-[18rem] truncate rounded border border-white/10 bg-black/30 px-2 py-0.5 font-mono text-[10px] text-neutral-500 sm:inline">
+                 <span
+                   aria-hidden
+                   className={cn(
+                     'w-1.5 h-1.5 rounded-full',
+                     priceFeed === 'live' && 'bg-emerald-500 animate-[pulse_2s_ease-in-out_infinite] shadow-[0_0_5px_rgba(16,185,129,0.5)]',
+                     priceFeed === 'live_degraded' && 'bg-amber-400',
+                     (priceFeed === 'synthetic' || priceFeed === 'loading') && 'bg-neutral-600',
+                   )}
+                 ></span>
+                 <span
+                   title={priceFeed === 'loading' ? undefined : priceMessage}
+                   className="hidden max-w-[18rem] truncate rounded border border-white/10 bg-black/30 px-2 py-0.5 font-mono text-[10px] text-neutral-500 sm:inline"
+                 >
                    {priceFeed === 'loading' ? '正在同步行情' : chartSourceLabel}
                  </span>
               </div>
@@ -849,6 +874,7 @@ export function Workbench({ onOpenModelSettings }: WorkbenchProps) {
           handlePanelTabChange={handlePanelTabChange}
           infoStatus={infoStatus}
           stockNews={stockNews}
+          newsLoading={newsLoading}
           financeCards={financeCards}
           fundFlowCards={fundFlowCards}
           quantCards={quantCards}
